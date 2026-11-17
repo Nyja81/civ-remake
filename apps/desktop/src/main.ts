@@ -46,6 +46,27 @@ function createWindow(): void {
   void window.loadFile(join(__dirname, 'index.html'));
 }
 
+/**
+ * Folder z grą: wskazany albo — gdy brakuje w nim plików — pierwszy podfolder (do 3 poziomów w głąb), w którym są wszystkie
+ * wymagane pliki (np. wskazano folder nadrzędny albo folder DOSBoxa z podfolderem CIV).
+ */
+function findGameFolder(folder: string, depth = 3): string | undefined {
+  try {
+    const names = readdirSync(folder, { withFileTypes: true });
+    const upper = new Set(names.map((d) => d.name.toUpperCase()));
+    if (REQUIRED_FILES.every((n) => upper.has(n))) return folder;
+    if (depth === 0) return undefined;
+    for (const d of names) {
+      if (!d.isDirectory() || d.name.startsWith('.')) continue;
+      const found = findGameFolder(join(folder, d.name), depth - 1);
+      if (found) return found;
+    }
+  } catch {
+    // brak dostępu do folderu — pomijamy
+  }
+  return undefined;
+}
+
 ipcMain.handle('game:load', () => loadGameFiles(readConfig().gameDir));
 ipcMain.handle('game:choose', async () => {
   const picked = await dialog.showOpenDialog({
@@ -53,8 +74,10 @@ ipcMain.handle('game:choose', async () => {
     properties: ['openDirectory'],
   });
   if (picked.canceled || picked.filePaths.length === 0) return loadGameFiles(readConfig().gameDir);
-  const result = loadGameFiles(picked.filePaths[0]);
-  if (result.ok) saveConfig({ gameDir: picked.filePaths[0] });
+  const chosen = picked.filePaths[0]!;
+  const folder = findGameFolder(chosen) ?? chosen;
+  const result = loadGameFiles(folder);
+  if (result.ok) saveConfig({ gameDir: folder });
   return result;
 });
 
