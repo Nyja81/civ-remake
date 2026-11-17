@@ -16,6 +16,7 @@ import { decodeFameDta, type FameStore } from './hallOfFame';
 import { GameType, showMainGameIntro, showWorldHistory } from './intro';
 import { showLogoAndMainGameMenu, type SavedGameLoader } from './mainMenu';
 import { DIFFICULTY_NAMES, initNewGameData, showInitText, type NewGameSettings } from './newGame';
+import type { OriginalSaveStore } from './saveGame';
 
 /** Magazyn zapisów gry (w aplikacji: folder danych aplikacji). */
 export interface SaveStore {
@@ -24,17 +25,12 @@ export interface SaveStore {
   write(name: string, json: string): Promise<void>;
 }
 
-/** Zapisy oryginału CIVIL0–9.SVE (+ .MAP) z folderu gry — tylko do odczytu. */
-export interface OriginalSaveStore {
-  /** Numery zapisów, dla których są oba pliki. */
-  list(): Promise<number[]>;
-  read(index: number): Promise<{ sve: Uint8Array; map: Uint8Array }>;
-}
+export type { OriginalSaveStore, SaveWriteResult } from './saveGame';
 
 export interface GameFlowHooks {
   /** Zapisy gry; bez nich „Load a Saved Game”, Save Game i autozapis są niedostępne. */
   readonly saves?: SaveStore;
-  /** Zapisy oryginału z folderu gry (wczytywanie z „Load a Saved Game”). */
+  /** Zapisy oryginału z folderu gry (wczytywanie z „Load a Saved Game”; z `write` — także GAME → Save Game i autozapis). */
   readonly originalSaves?: OriginalSaveStore;
   /** Wywoływane po utworzeniu nowej gry (np. dla diagnostyki albo zapisu). */
   readonly onNewGame?: (state: GameState, settings: NewGameSettings) => void;
@@ -157,6 +153,7 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
     await new GameScreen(ui, assets, state, {
       autosave: saves ? (s) => saves.write(saveName(s, 'Autosave '), saveGame(s)) : undefined,
       save: saves ? (s) => saves.write(saveName(s), saveGame(s)) : undefined,
+      originalSaves: hooks.originalSaves,
       fame,
       fameInitial: () => readFame(undefined, assets),
       writeReplay: saves ? (text) => saves.write('REPLAY.TXT', text) : undefined,

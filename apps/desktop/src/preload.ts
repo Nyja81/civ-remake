@@ -9,6 +9,7 @@ const api: CivApi = {
   writeSave: (name: string, json: string) => ipcRenderer.invoke('saves:write', name, json),
   listGameSaves: () => ipcRenderer.invoke('gamesaves:list'),
   readGameSave: (index: number) => ipcRenderer.invoke('gamesaves:read', index),
+  writeGameSave: (index: number, sve: Uint8Array, map: Uint8Array) => ipcRenderer.invoke('gamesaves:write', index, sve, map),
   getSmoothing: () => ipcRenderer.invoke('smoothing:get'),
   onSmoothing: (callback: (mode: Smoothing) => void) => {
     ipcRenderer.on('smoothing', (_e, mode: Smoothing) => callback(mode));

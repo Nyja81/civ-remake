@@ -4,6 +4,9 @@ export type LoadResult =
   | { ok: false; reason: 'no-folder' }
   | { ok: false; reason: 'missing'; folder: string; missing: string[] };
 
+/** Wynik zapisu CIVILn.SVE/.MAP (kod błędu systemu: EACCES, EPERM, EROFS, ENOSPC…). */
+export type SaveWriteResult = { ok: true } | { ok: false; file: 'map' | 'sve'; code: string };
+
 /** Wygładzanie obrazu: brak (piksele oryginału), lekkie (xBR bez mieszania kolorów), mocne (xBR z mieszaniem + zmiękczenie). */
 export type Smoothing = 'none' | 'light' | 'strong';
 
@@ -16,9 +19,10 @@ export interface CivApi {
   listSaves(): Promise<string[]>;
   readSave(name: string): Promise<string>;
   writeSave(name: string, json: string): Promise<void>;
-  /** Zapisy oryginału CIVIL0–9.SVE z plikiem .MAP w folderze gry (tylko odczyt; zapis gry zostaje w folderze aplikacji). */
+  /** Zapisy oryginału CIVIL0–9.SVE z plikiem .MAP w folderze gry (odczyt, zapis z GAME → Save Game i autozapisu). */
   listGameSaves(): Promise<number[]>;
   readGameSave(index: number): Promise<{ sve: Uint8Array; map: Uint8Array }>;
+  writeGameSave(index: number, sve: Uint8Array, map: Uint8Array): Promise<SaveWriteResult>;
   /** Zapamiętane wygładzanie (menu View → Smoothing). */
   getSmoothing(): Promise<Smoothing>;
   /** Wywoływane po zmianie wygładzania w menu. */

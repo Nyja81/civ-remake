@@ -34,6 +34,7 @@ import { resolveUnitAction, type UnitActionHooks } from './unitActions';
 import { showCityWindow } from './cityWindow';
 import { showCivilopedia, showCivilopediaTopic, Topic } from './civilopedia';
 import { displayGameReplay, displayHailTheConqueror } from './replay';
+import { autosaveSlot, showSaveGameDialog, type OriginalSaveStore } from './saveGame';
 import { civilDisorderAnimation, foundNewCityAnimation, invadersAnimation, loveOurLeaderAnimation, showCityView } from './cityView';
 import { drawMiniPalace, showPalaceUpgrade, showPalaceView } from './palace';
 
@@ -81,8 +82,13 @@ export interface GameScreenOptions {
   readonly revealAll?: boolean;
   /** Autozapis (co 50 tur, gdy włączony w Preferences); dostaje numer tury. */
   readonly autosave?: (state: GameState) => void | Promise<void>;
-  /** Zapis z menu GAME → Save Game. */
+  /** Zapis z menu GAME → Save Game (JSON silnika — gdy nie ma zapisu w formacie oryginału). */
   readonly save?: (state: GameState) => void | Promise<void>;
+  /**
+   * Zapisy oryginału w folderze gry: z funkcją `write` GAME → Save Game i autozapis idą przez okna oryginału
+   * (F11_0000_036a) do CIVIL0–3.SVE / CIVIL4–9.SVE.
+   */
+  readonly originalSaves?: OriginalSaveStore;
   /** Tabela Hall of Fame (koniec gry); `fameInitial` — tabela startowa, gdy magazyn jest pusty (FAME.DTA z gry). */
   readonly fame?: FameStore;
   readonly fameInitial?: () => Promise<HallOfFameEntry[]>;
@@ -276,9 +282,13 @@ export class GameScreen {
   /** Koniec tury człowieka: tury pozostałych graczy w silniku, potem pierwsza jednostka nowej tury. */
   async endTurn(): Promise<void> {
     endHumanTurn(this.state);
-    // Autozapis co 50 tur (ustawienie AutoSave w Preferences)
-    if (this.options.autosave && this.state.settings.autoSave && this.state.turn > 0 && this.state.turn % 50 === 0) {
-      await this.options.autosave(this.state);
+    // Autozapis co 50 tur (ustawienie AutoSave w Preferences): w oryginale F11_0000_036a(4 + ((tura / 50 − 1) % 6)) —
+    // CIVIL4–9.SVE w folderze gry; zostaje też cichy zapis JSON silnika (pełny stan, w tym stan generatora)
+    if (this.state.settings.autoSave && this.state.turn > 0 && this.state.turn % 50 === 0) {
+      if (this.options.originalSaves?.write) {
+        await showSaveGameDialog(this.ui, this.state, this.options.originalSaves, autosaveSlot(this.state.turn));
+      }
+      if (this.options.autosave) await this.options.autosave(this.state);
     }
     await this.processEvents();
     this.selectNextUnit(-1, true);
@@ -781,7 +791,7 @@ export class GameScreen {
         const r = await showMenuBox(ui, GAME_MENU, MENU_X[0], 8, { disabled: replayAvailable ? 0 : 1 << 7 });
         if (r.index === 3) await this.preferences();
         else if (r.index === 7 && replayAvailable) shortcut = 'replay';
-        else if (r.index === 4 && this.options.save) shortcut = 'save';
+        else if (r.index === 4 && (this.options.save || this.options.originalSaves?.write)) shortcut = 'save';
         else if (r.index === 5) shortcut = 'revolution';
         else if (r.index === 8) result = 'retire';
         else if (r.index === 9) result = 'quit';
@@ -829,8 +839,14 @@ export class GameScreen {
       await this.redrawMapWithBlankingEffect();
     }
     else if (shortcut === 'save') {
-      await this.options.save!(this.state);
-      await showDialog(ui, 'Game saved.\n', 100, 80);
+      if (this.options.originalSaves?.write) {
+        await showSaveGameDialog(ui, this.state, this.options.originalSaves);
+        this.redrawAll();
+        ui.present();
+      } else {
+        await this.options.save!(this.state);
+        await showDialog(ui, 'Game saved.\n', 100, 80);
+      }
     } else if (shortcut) return this.command({ type: 'key', key: shortcut });
     return result;
   }
