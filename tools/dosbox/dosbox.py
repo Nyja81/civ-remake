@@ -7,6 +7,9 @@ zrzuty trafiają do <katalog>/shots — nigdy do repozytorium.
 
 Użycie (każde polecenie to osobne wywołanie; stan = działający DOSBox na ekranie :100):
   dosbox.py start [--fresh]           # Xvfb + DOSBox; odpowiada na pytania o grafikę (VGA), dźwięk (brak) i mysz
+  dosbox.py serve [--fresh]           # DOSBox na pierwszym planie (gdy środowisko zabija procesy w tle), potem `boot`
+  dosbox.py boot                      # tylko odpowiedzi na pytania startowe
+  dosbox.py keep N                    # CIVILN.SVE/.MAP z gry → katalog zapisów (CIV_DOSBOX_SAVES, domyślnie <katalog>/saves)
   dosbox.py keys Return sleep:2 a ... # klawisze xdotool (keydown/keyup), sleep:<s> = przerwa
   dosbox.py type "Napis"              # wpisanie tekstu
   dosbox.py click X Y [button]        # kliknięcie w punkt ekranu gry 320×200 (przez ruch względny myszy DOSBoxa)
@@ -172,7 +175,11 @@ def click(x, y, button=1):
     time.sleep(0.4)
 
 
-def start(fresh=False, cycles='max'):
+SAVES = os.environ.get('CIV_DOSBOX_SAVES', os.path.join(WORK, 'saves'))
+
+
+def prepare(fresh=False, cycles='max'):
+    """Kopia gry w katalogu roboczym (+ zapisy CIVIL?.SVE/.MAP z SAVES), konfiguracja DOSBoxa, Xvfb."""
     src = os.environ.get('CIV1_DIR')
     if not src:
         raise SystemExit('Ustaw CIV1_DIR')
@@ -182,26 +189,55 @@ def start(fresh=False, cycles='max'):
         shutil.rmtree(game)
     if not os.path.exists(game):
         shutil.copytree(src, game)
+    if os.path.isdir(SAVES):
+        for n in os.listdir(SAVES):
+            if n.upper().startswith('CIVIL'):
+                shutil.copy(os.path.join(SAVES, n), os.path.join(game, n.upper()))
     with open(os.path.join(WORK, 'dosbox.conf'), 'w') as f:
         f.write(CONF.format(work=WORK, cycles=cycles))
     if subprocess.run(['pgrep', '-f', f'Xvfb {DISPLAY}'], capture_output=True).returncode != 0:
-        subprocess.Popen(['Xvfb', DISPLAY, '-screen', '0', '1024x768x24'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(['Xvfb', DISPLAY, '-screen', '0', '1024x768x24'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
         sock = '/tmp/.X11-unix/X' + DISPLAY.lstrip(':')
         for _ in range(50):
             if os.path.exists(sock):
                 break
             time.sleep(0.2)
         time.sleep(0.5)
-    # osobna sesja (setsid): DOSBox przeżywa zakończenie wywołującego; kod wyjścia trafia do dosbox.exit
+    if os.path.exists(_locked):
+        os.remove(_locked)
+
+
+def boot():
+    """Odpowiedzi na pytania startowe: grafika VGA, bez dźwięku, mysz i klawiatura."""
+    window()
+    time.sleep(2.5)
+    keys(['1', 'sleep:1', '1', 'sleep:1', '1', 'sleep:1'])
+
+
+def start(fresh=False, cycles='max'):
+    """DOSBox w tle (osobna sesja) + boot. Uwaga: środowisko może zabić proces po zakończeniu wywołania —
+    wtedy użyj `serve` (DOSBox na pierwszym planie, np. jako zadanie w tle) i `boot`."""
+    prepare(fresh, cycles)
     conf = os.path.join(WORK, 'dosbox.conf')
     log = os.path.join(WORK, 'dosbox.log')
     subprocess.Popen(['setsid', 'sh', '-c', f'dosbox -conf "{conf}" > "{log}" 2>&1; echo $? > "{WORK}/dosbox.exit"'], env=ENV,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    if os.path.exists(_locked):
-        os.remove(_locked)
-    window()
-    time.sleep(2.5)
-    keys(['1', 'sleep:1', '1', 'sleep:1', '1', 'sleep:1'])  # VGA, bez dźwięku, mysz i klawiatura
+    boot()
+
+
+def serve(fresh=False, cycles='max'):
+    """DOSBox na pierwszym planie (kończy się razem z DOSBoxem)."""
+    prepare(fresh, cycles)
+    with open(os.path.join(WORK, 'dosbox.log'), 'w') as log:
+        sys.exit(subprocess.run(['dosbox', '-conf', os.path.join(WORK, 'dosbox.conf')], env=ENV, stdout=log, stderr=subprocess.STDOUT).returncode)
+
+
+def keep(slot):
+    """Zapis CIVIL<slot>.SVE/.MAP z gry w DOSBoxie → katalog SAVES (przetrwa `--fresh`)."""
+    os.makedirs(SAVES, exist_ok=True)
+    for ext in ('SVE', 'MAP'):
+        shutil.copy(os.path.join(WORK, 'game', f'CIVIL{slot}.{ext}'), os.path.join(SAVES, f'CIVIL{slot}.{ext}'))
 
 
 def stop():
@@ -239,6 +275,12 @@ if __name__ == '__main__':
     cmd, *args = sys.argv[1:] or ['help']
     if cmd == 'start':
         start('--fresh' in args)
+    elif cmd == 'serve':
+        serve('--fresh' in args)
+    elif cmd == 'boot':
+        boot()
+    elif cmd == 'keep':
+        keep(args[0])
     elif cmd == 'stop':
         stop()
     elif cmd == 'keys':

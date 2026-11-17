@@ -3,6 +3,7 @@
 Porównanie zrzutów piksel po pikselu: oryginał (dosbox.py → shots/) i nasz interfejs (render.ts → ours/).
 
 Kolor piksela porównywany w 6 bitach na składową (paleta VGA): DOSBox zapisuje (v<<2)|(v>>4), my 255·v/63.
+Druga kolumna: zgodność numerów kolorów (indeksów palety) — bez wpływu cykli palety (np. woda na mapie).
 Wynik: tabela z odsetkiem zgodnych pikseli i prostokątem różnic; obrazy różnic w <katalog>/diff/NAZWA.png
 (lewa: oryginał, środek: nasz, prawa: różnice na czerwono) — tylko lokalnie, nie do repozytorium.
 
@@ -36,7 +37,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     names = a.names or sorted(n[:-4] for n in os.listdir(shots) if n.endswith('.png'))
     masks = [(317, 197, 320, 200)] + [tuple(map(int, m.split(','))) for m in a.mask]
-    print(f"{'ekran':28} {'zgodność':>9}  {'różne':>6}  prostokąt różnic")
+    print(f"{'ekran':28} {'zgodność':>9} {'indeksy':>8}  {'różne':>6}  prostokąt różnic")
     for name in names:
         po, pu = os.path.join(shots, name + '.png'), os.path.join(ours, name + '.png')
         if not os.path.exists(pu) or not os.path.exists(po):
@@ -44,15 +45,19 @@ def main():
             continue
         o, u = load6(po), load6(pu)
         diff = np.any(o != u, axis=2)
+        # zgodność numerów kolorów (bez wpływu cykli palety): oba pliki PNG mają paletę 256 kolorów
+        idiff = np.array(Image.open(po)) != np.array(Image.open(pu))
         for x0, y0, x1, y1 in masks:
             diff[y0:y1, x0:x1] = False
+            idiff[y0:y1, x0:x1] = False
+        ipct = 100.0 * (1 - idiff.sum() / idiff.size)
         n = int(diff.sum())
         pct = 100.0 * (1 - n / diff.size)
         box = ''
         if n:
             ys, xs = np.nonzero(diff)
             box = f'({xs.min()},{ys.min()})–({xs.max()},{ys.max()})'
-        print(f'{name:28} {pct:8.2f}%  {n:6d}  {box}')
+        print(f'{name:28} {pct:8.2f}% {ipct:7.2f}%  {n:6d}  {box}')
         vis = np.concatenate([o, u, np.where(diff[..., None], np.array([63, 0, 0]), o // 3)], axis=1)
         Image.fromarray((vis * 255 // 63).astype(np.uint8)).save(os.path.join(out, name + '.png'))
 

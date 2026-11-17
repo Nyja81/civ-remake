@@ -139,12 +139,12 @@ describe('ekran gry', () => {
     expect([u.x, u.y, before.moves]).toEqual([before.x, before.y, before.moves]);
   });
 
-  it('menu GAME z paska: Preferences przełącza ustawienie w stanie gry, QUIT kończy ekran', async () => {
+  it('menu GAME z paska: Options przełącza ustawienie w stanie gry, QUIT to DOS kończy ekran', async () => {
     const { ui, state, screen } = gameScreen();
     screen.redrawAll();
     const before = ui.gfx.screen.pixels.slice();
     const sound = state.settings.sound;
-    expect(await drive(ui, [key('p'), key('Enter'), key('s'), key('Enter'), key('Escape')], () => screen.handle(click(10, 3)))).toBeNull();
+    expect(await drive(ui, [key('o'), key('Enter'), key('s'), key('Enter'), key('Escape')], () => screen.handle(click(10, 3)))).toBeNull();
     expect(state.settings.sound).toBe(!sound);
     expect(Buffer.from(ui.gfx.screen.pixels).equals(Buffer.from(before))).toBe(true); // ekran przywrócony
     expect(await drive(ui, [key('q'), key('Enter')], () => screen.handle(key('g', { alt: true })))).toBe('quit');

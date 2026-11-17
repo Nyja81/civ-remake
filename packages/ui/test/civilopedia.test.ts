@@ -83,7 +83,7 @@ describe('listy tematów', () => {
     expect(units.more).toBe(false);
   });
 
-  for (const [option, name] of [[0, 'Complete'], [1, 'Technology Advances'], [2, 'City Improvements'], [3, 'Unit Types'], [4, 'Terrain Types'], [5, 'Miscellaneous']] as const) {
+  for (const [option, name] of [[0, 'Complete'], [1, 'Civilization Advances'], [2, 'City Improvements'], [3, 'Military Units'], [4, 'Terrain Types'], [5, 'Miscellaneous']] as const) {
     it(`menu CIVILOPEDIA → ${name}: lista na tle 14, EXIT wraca do mapy`, async () => {
       const { ui, assets, state, frames } = setup();
       const screen = new GameScreen(ui, assets, state);

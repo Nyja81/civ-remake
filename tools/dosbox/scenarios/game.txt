@@ -1,0 +1,26 @@
+# Ekran gry po wczytaniu zapisu CIVIL0 (ten sam stan w oryginale i u nas): panel, minimapa, menu, raporty, Civilopedia.
+# Zapis: CIV_DOSBOX_SAVES (dosbox.py keep 0); nasz interfejs czyta go z CIV1_SAVES_DIR (render.ts).
+dosbox sleep 6
+keys space
+dosbox sleep 4
+keys Down Return
+dosbox sleep 2
+dosbox keys Return
+dosbox sleep 2
+keys Return
+dosbox sleep 5
+shot game-note
+keys Escape
+dosbox sleep 1
+shot game-screen
+keys alt+g
+shot menu-game
+keys Escape alt+o
+shot menu-orders
+keys Escape alt+a
+shot menu-advisors
+keys Escape alt+w
+shot menu-world
+keys Escape alt+c
+shot menu-civilopedia
+keys Escape

@@ -13,7 +13,7 @@
 import {
   advanceToHuman, aiRequestMeeting, palaceOf, envoyMeeting, meetWithKing, type KingKeywords, type KingMeeting, BUILDINGS, civilizationScore, GOVERNMENT_NAMES, hallOfFameEntry, type HallOfFameEntry, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
   MovementType, nextUnit, NO_UNIT, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
-  TERRAIN, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameEvent, type GameState, type MoveResult, type Order,
+  TERRAIN, TERRAIN_MODIFICATIONS, PIXEL_TO_TERRAIN, canIrrigate, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameEvent, type GameState, type MoveResult, type Order,
 } from '@civ-remake/engine';
 import { drawMapView, drawMiniMap, drawUnit, prepareSprites, type MapSprites, type TextDrawer } from '@civ-remake/gfx';
 import type { GameAssets } from '../assets';
@@ -45,18 +45,20 @@ export const TOP_MENU_LABELS: readonly { readonly text: string; readonly x: numb
   { text: `O${colorCode(7)}RDERS`, x: 64 },
   { text: `A${colorCode(7)}DVISORS`, x: 128 },
   { text: `W${colorCode(7)}ORLD`, x: 192 },
-  // Wzorzec ma tu "ENCYCLOP." (zmiana nazwy w OpenCivOne); oryginał otwiera to menu przez Alt+C — przyjmujemy "CIVILOPEDIA".
-  // Do sprawdzenia z napisami w CIV.EXE.
+  // "CIVILOPEDIA" — tak w CIV.EXE 474.01 i na zrzutach z DOSBoxa (wzorzec: "ENCYCLOP.").
   { text: `C${colorCode(7)}IVILOPEDIA`, x: 240 },
 ];
 
-export const GAME_MENU = ' Tax Rate\n Luxuries Rate\n FindCity\n Preferences\n Save Game\n REVOLUTION!\n \n View Replay\n Retire\n QUIT\n';
-/** Ustawienia gry (bity 0–7 GameSettingFlags). "Civilopedia Text" — we wzorcu "Encyclopedia Text". */
-export const PREFERENCES_MENU = 'Game:\n Instant Advice\n AutoSave\n End of Turn\n Animations\n Sound\n Enemy Moves\n Civilopedia Text\n Palace\n';
+/** Menu GAME (napisy z CIV.EXE 474.01); " View Replay" dopisywane na końcu przy SpaceshipFlags & 0x100 (F0_2c84_00ad). */
+export const GAME_MENU = ' Tax Rate\n Luxuries Rate\n FindCity\n Options\n Save Game\n REVOLUTION!\n \n Retire\n QUIT to DOS\n';
+export const GAME_MENU_REPLAY = ' View Replay\n';
+/** Ustawienia gry (bity 0–7 GameSettingFlags), okno w (24, 16) — napis z CIV.EXE. */
+export const PREFERENCES_MENU = 'Options:\n Instant Advice\n AutoSave\n End of Turn\n Animations\n Sound\n Enemy Moves\n Civilopedia Text\n Palace\n';
 export const ADVISORS_MENU =
   ' City Status (F1)\n Military Advisor (F2)\n Intelligence Advisor (F3)\n Attitude Advisor (F4)\n Trade Advisor (F5)\n Science Advisor (F6)\n';
 export const WORLD_MENU = ' Wonders of the World (F7)\n Top 5 Cities (F8)\n Civilization Score (F9)\n World Map (F10)\n Demographics\n SpaceShips\n';
-export const CIVILOPEDIA_MENU = ' Complete\n Technology Advances\n City Improvements\n Unit Types\n Terrain Types\n Miscellaneous\n';
+/** Napisy menu (ADVISORS, WORLD, CIVILOPEDIA) jak w CIV.EXE 474.01 (F0_2c84_0615/06e4/07af). */
+export const CIVILOPEDIA_MENU = ' Complete\n Civilization Advances\n City Improvements\n Military Units\n Terrain Types\n Miscellaneous\n';
 
 /** Pozycje rozwijanych menu (x, y = 8). */
 const MENU_X = [16, 72, 112, 144, 182] as const;
@@ -131,7 +133,18 @@ export class GameScreen {
   async run(): Promise<GameScreenResult> {
     if (this.state.currentPlayer !== this.human) advanceToHuman(this.state);
     this.eventsSeen = 0;
-    this.selectNextUnit(-1, true);
+    // Widok startowy: GameTurn w turze 0 (0x1238:0x00f8) — pierwsza jednostka człowieka − (7, 6);
+    // po wczytaniu zapisu StartGame (0x11a8:0x0152) — XStart − 7 i wiersz 19. Potem CenterMap tylko przy krawędzi.
+    const p = this.state.players[this.human]!;
+    const first = p.units[0]!;
+    if (this.state.turn === 0 && first.type !== NO_UNIT) {
+      this.viewX = wrapX(first.x - 7);
+      this.viewY = clamp(first.y - 6, 0, MAP_HEIGHT - MAP_VIEW.rows);
+    } else {
+      this.viewX = wrapX(p.xStart - 7);
+      this.viewY = clamp(19, 0, MAP_HEIGHT - MAP_VIEW.rows);
+    }
+    this.selectNextUnit(-1);
     await this.redrawMapWithBlankingEffect();
     await this.processEvents();
     for (;;) {
@@ -279,7 +292,7 @@ export class GameScreen {
       await this.options.autosave(this.state);
     }
     await this.processEvents();
-    this.selectNextUnit(-1, true);
+    this.selectNextUnit(-1);
     this.redrawAll();
     this.ui.present();
     await this.processEvents();
@@ -288,7 +301,21 @@ export class GameScreen {
   private selectNextUnit(after: number, forceCenter = false): void {
     this.activeUnit = this.state.gameOver === 0 ? nextUnit(this.state, this.human, after) : -1;
     this.blinkHidden = false;
-    if (this.activeUnit !== -1) this.centerOnUnit(forceCenter);
+    if (this.activeUnit !== -1) this.focusActiveUnit(forceCenter);
+  }
+
+  /**
+   * PlayerTurn (0x1403:0x0361–0x040c) po wybraniu jednostki człowieka: gdy nie leży w widoku
+   * (X widoku < x ≤ X + 14, Y widoku < y < Y + 10 — porównania bez znaku, bez zawijania), mapa od nowa w (x − 7, y − 6).
+   */
+  private focusActiveUnit(force = false): void {
+    const u = this.state.players[this.human]!.units[this.activeUnit];
+    if (!u || u.type === NO_UNIT) return;
+    const visible = this.viewX < u.x && this.viewX + 14 >= u.x && this.viewY < u.y && this.viewY + 10 > u.y;
+    if (force || !visible) {
+      this.viewX = wrapX(u.x - 7);
+      this.viewY = clamp(u.y - 6, 0, MAP_HEIGHT - MAP_VIEW.rows);
+    }
   }
 
   /** MapManagement.F0_1866_16a9_CenterMap — przesuwa widok, gdy jednostka jest przy krawędzi (albo zawsze z `force`). */
@@ -694,11 +721,12 @@ export class GameScreen {
     drawMiniPalace(gfx, this.assets, this.state, this.human, palaceOf(this.state).buildCount, 8, 58);
     // Liczba mieszkańców (PopulationValueToString) — gdy silnik będzie ją liczył.
     gfx.drawString(yearToString(this.state.year), 2, 81, 0);
-    // postęp badań 0–3: żarówka z ekranu 2 (SP299.PIC); wzór postępu zależy od zmiennej, której silnik jeszcze nie ma
-    gfx.copy(2, 160, 120, 8, 8, 0, 48, 80);
-    // Odstępstwo: wzorzec wypisuje 10 − tax + science; zakładamy pomyłkę w tłumaczeniu (luksusy = 10 − tax − science).
-    const luxury = 10 - p.taxRate - p.scienceRate;
-    gfx.drawString(`${p.gold}$ ${luxury}(${p.taxRate}/${p.scienceRate})`, 2, 89, 0);
+    // L11d3: żarówka 0–3 = 4·postęp / ((2·poziom + Var_d2de + 6) · odkrycia · (rok ≥ 0 ? 2 : 1) + 1), z ekranu 2 (SP299.PIC)
+    const cost = (this.state.difficulty * 2 + this.state.techCatchUp + 6) * p.techCount * (this.state.year >= 0 ? 2 : 1) + 1;
+    gfx.copy(2, 160 + clamp(Math.trunc((p.researchProgress * 4) / cost), 0, 3) * 8, 120, 8, 8, 0, 48, 80);
+    // L1288: złoto + "$" + " " + luksusy "." podatek "." nauka (napisy z CIV.EXE), luksusy = 10 − (podatek + nauka)
+    const luxury = 10 - (p.taxRate + p.scienceRate);
+    gfx.drawString(`${p.gold}$ ${luxury}.${p.taxRate}.${p.scienceRate}`, 2, 89, 0);
   }
 
   /** PlayerTurn.F0_1403_4060_DrawStatusPanel — aktywna jednostka albo „End of Turn”. */
@@ -771,15 +799,17 @@ export class GameScreen {
     let civilopedia: number | null = null;
     switch (index) {
       case 0: {
-        // View Replay tylko przy SpaceshipFlags & 0x100 (Menus.F0_2c84_0000_ShowTopMenu)
+        // F0_2c84_00ad: " View Replay" na końcu przy SpaceshipFlags & 0x100; Save Game nieaktywne w turze 0 (Var_81d2)
         const replayAvailable = (this.state.spaceshipFlags & 0x100) !== 0;
-        const r = await showMenuBox(ui, GAME_MENU, MENU_X[0], 8, { disabled: replayAvailable ? 0 : 1 << 7 });
+        const r = await showMenuBox(ui, GAME_MENU + (replayAvailable ? GAME_MENU_REPLAY : ''), MENU_X[0], 8, {
+          disabled: this.state.turn === 0 ? 0x10 : 0,
+        });
         if (r.index === 3) await this.preferences();
-        else if (r.index === 7 && replayAvailable) shortcut = 'replay';
+        else if (r.index === 9 && replayAvailable) shortcut = 'replay';
         else if (r.index === 4 && this.options.save) shortcut = 'save';
         else if (r.index === 5) shortcut = 'revolution';
-        else if (r.index === 8) result = 'retire';
-        else if (r.index === 9) result = 'quit';
+        else if (r.index === 7) result = 'retire';
+        else if (r.index === 8) result = 'quit';
         else if (r.index >= 0 && r.index !== 6) action = 'game';
         break;
       }
@@ -863,7 +893,8 @@ export class GameScreen {
 /** Lista rozkazów jednostki jak w Menus.F0_2c84_01d8_OrdersMenu (\x8f = skrót klawiszowy na biało). */
 export function ordersFor(state: GameState, player: number, unitId: number): { text: string; keys: string[]; disabled: number } {
   const u = state.players[player]!.units[unitId]!;
-  const imp = state.map.visibleImprovements[cellIndex(u.x, u.y)]!;
+  // F0_2aea_1585 — warstwa rzeczywista ulepszeń
+  const imp = state.map.improvements[cellIndex(u.x, u.y)]!;
   const k = colorCode(15);
   const lines: string[] = [` No Orders ${k}space`];
   const keys: string[] = [' '];
@@ -879,14 +910,25 @@ export function ordersFor(state: GameState, player: number, unitId: number): { t
       lines.push(` Build RailRoad ${k}r`);
       keys.push('r');
     }
-    // Nawadnianie i kopalnie: dokładne warunki (TerrainModifications, CanIrrigateCell) sprawdza silnik przy wykonaniu.
-    if (!(imp & Improvement.Irrigation)) {
-      lines.push(` Build Irrigation ${k}i`);
-      keys.push('i');
+    // Nawadnianie i kopalnia wg tabeli przekształceń terenu (DS:0x44a): −2 — budowa (nawadnianie nieaktywne bez wody
+    // obok, F0_1403_3fd0), wartość ≥ 0 — „Change to” + nazwa terenu (piksel), −1 — brak opcji (F0_2c84_01d8 L02e1–L040d)
+    const terrain = terrainAt(state.map, u.x, u.y);
+    const mod = TERRAIN_MODIFICATIONS[terrain];
+    const changeTo = (pixel: number) => ` Change to ${TERRAIN[PIXEL_TO_TERRAIN.get(pixel) ?? 0]!.name}`;
+    if (!(imp & Improvement.Irrigation) && mod) {
+      const e = mod.irrigationEffect;
+      if (e !== -1) {
+        if (e === -2 && !canIrrigate(state, u.x, u.y)) disabled |= 1 << keys.length;
+        lines.push(`${e === -2 ? ' Build Irrigation' : e >= 0 ? changeTo(e) : ''} ${k}i`);
+        keys.push('i');
+      }
     }
-    if (!(imp & Improvement.Mine)) {
-      lines.push(` Build Mines ${k}m`);
-      keys.push('m');
+    if (!(imp & Improvement.Mine) && mod) {
+      const e = mod.miningEffect;
+      if (e !== -1) {
+        lines.push(`${e <= -2 ? ' Build Mines' : changeTo(e)} ${k}m`);
+        keys.push('m');
+      }
     }
     if (imp & Improvement.Pollution) {
       lines.push(` Clean up Pollution ${k}p`);

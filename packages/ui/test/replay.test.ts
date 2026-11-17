@@ -75,8 +75,8 @@ describe('powtórka gry', () => {
     screen.activeUnit = nextUnit(s, s.humanPlayer);
     screen.redrawAll();
     s.spaceshipFlags |= 0x100;
-    // menu GAME: 7 × strzałka w dół do „View Replay”, potem „See Replay?” → No replay
-    const down = Array.from({ length: 7 }, () => key('ArrowDown'));
+    // menu GAME: „View Replay” dopisane na końcu (opcja 9), potem „See Replay?” → No replay
+    const down = Array.from({ length: 9 }, () => key('ArrowDown'));
     await drive(ui, [...down, key('Enter'), key('Enter')], () => screen.showTopMenu(0));
   });
 });
