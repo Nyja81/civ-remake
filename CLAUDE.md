@@ -81,3 +81,15 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Stan testów: 15 z ustawionym `CIV1_DIR` (8 bez niego).
 - Do zrobienia w etapie 0: odczyt i zapis `.SVE`, uruchomienie wykonywalnego wzorca bez okna.
 
+### 2026-11-17 — repozytorium na GitHubie; etap 1: generator świata
+- Repozytorium `Nyja81/civ-remake` podłączone, historia wypchnięta na `main`.
+- `packages/engine/src/world/`: `generateWorld()` — etapy 1–5 generatora (lądy, temperatura, klimat, wiek planety, rzeki),
+  interfejs `RandomSource` i `mscRandom()`. Źródło: GenerateNewMap z OpenCivOne (MIT).
+  **Niezweryfikowane z oryginałem** (w tym wyprowadzanie zakresów z `rand()`) — wymaga porównania z dosłownym tłumaczeniem.
+- Testy: determinizm, niezmienniki na 200 ziarnach, wpływ ustawienia masy lądowej (11 testów bez `CIV1_DIR`, 18 z nim).
+- Ustalenie: pole `terrainChangeId` w tabeli terenu to wartość piksela danego terenu na mapie oryginału
+  (14 pustynia, 6 równiny, 10 łąka, 2 las, 12 wzgórza, 13 góry…) — do zmiany nazwy przy pracy nad zapisem `.SVE`.
+- Do zrobienia: etap 6 generatora (numeracja kontynentów i oceanów), zasoby specjalne, chaty, wartość ziemi;
+  rysowanie mapy w TypeScripcie; aplikacja na Maca.
+- Notatka Obsidian `Projekty/civ-remake.md` nadal nieutworzona — brak dostępu do vaulta z tej sesji.
+

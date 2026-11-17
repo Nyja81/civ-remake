@@ -5,3 +5,5 @@ export * from './data/units';
 export * from './data/terrain';
 export * from './data/buildings';
 export * from './data/nations';
+export * from './world/random';
+export * from './world/generate';

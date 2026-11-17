@@ -25,7 +25,7 @@ a nie źródłem kodu ani zasobów.
 
 | # | Warstwa | Pakiet | Stan |
 |---|---|---|---|
-| 1 | Silnik zasad — stan gry i reguły, bez grafiki | `packages/engine` | zaczęty |
+| 1 | Silnik zasad — stan gry i reguły, bez grafiki | `packages/engine` | generator świata (etapy 1–5, do weryfikacji z oryginałem) |
 | 2 | Tabele danych — generowane z CIV.EXE właściciela licencji | `packages/engine/src/data` | technologie, jednostki, teren, budynki, cuda, nacje |
 | 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine` | — |
 | 4 | Komendy i zdarzenia — interfejs wysyła komendy, silnik odpowiada zdarzeniami i prośbami o decyzję | `packages/engine` | — |
@@ -87,7 +87,7 @@ a nie źródłem kodu ani zasobów.
 
 ## Otwarte kwestie
 
-- Znaczenie pól `unknown1` i `terrainChangeId` w tabeli terenu.
+- Znaczenie pola `unknown1` w tabeli terenu (`terrainChangeId` to wartość piksela terenu na mapie oryginału).
 - Sposób, w jaki gra wyprowadza zakresy z `rand()`.
 - Pozostałe dane w CIV.EXE: nazwy miast, teksty, tablice strategii przeciwnika komputerowego.
 - Grafika: przejścia między różnymi typami terenu (na razie ostre krawędzie kafli), warianty kafli, pozostałe jednostki.
