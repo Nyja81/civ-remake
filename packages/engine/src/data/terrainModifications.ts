@@ -1,22 +1,8 @@
-/**
- * Skutki nawadniania i kopalń dla 12 podstawowych typów terenu.
- * Wartość ujemna: -1 = niemożliwe, -2 = +1 do żywności/produkcji, -3 = +2 itd.
- * Wartość nieujemna: identyfikator terenu po przekształceniu (wartość piksela, jak terrainChangeId).
- *
- * ŹRÓDŁO: tabela TerrainModifications z OpenCivOne (MIT), odpowiadająca tabeli w CIV.EXE.
- * DO ZROBIENIA: dodać tę tabelę do `npm run extract` i porównać z CIV.EXE (tabela przepisana ręcznie).
- */
-export interface TerrainModification {
-  readonly irrigationEffect: number;
-  readonly irrigationTurns: number;
-  readonly miningEffect: number;
-  readonly miningTurns: number;
-  /** Przeciwnik komputerowy może ulepszać ten teren przed Monarchią. */
-  readonly aiBeforeMonarchy: boolean;
-  /** …i po Monarchii. */
-  readonly aiAfterMonarchy: boolean;
-}
+// PLIK GENEROWANY — nie edytuj ręcznie. Źródło: tabela przekształceń terenu (DS:0x44a, tuż za tabelą terenu) w CIV.EXE (te same dane w wersjach 474.01 i 475.05).
+// Odtworzenie: CIV1_DIR=... npm run extract
+import type { TerrainModification } from './enums';
 
+/** Skutki nawadniania i kopalń dla 12 podstawowych typów terenu (indeks = teren). */
 export const TERRAIN_MODIFICATIONS: readonly TerrainModification[] = [
   { irrigationEffect: -2, irrigationTurns: 5, miningEffect: -2, miningTurns: 5, aiBeforeMonarchy: false, aiAfterMonarchy: false }, // Desert
   { irrigationEffect: -2, irrigationTurns: 5, miningEffect: 2, miningTurns: 15, aiBeforeMonarchy: true, aiAfterMonarchy: true }, // Plains

@@ -5,12 +5,11 @@
  * wczytywany jest FAME.DTA z kopii gry, jeśli jest.
  */
 import {
-  addHallOfFameEntry, civilizationRating, emptyHallOfFame, FAMOUS_PERSONS, famousPersonIndex, type HallOfFameEntry,
+  addHallOfFameEntry, civilizationRating, DIFFICULTY_TITLES, emptyHallOfFame, FAMOUS_PERSONS, famousPersonIndex, type HallOfFameEntry,
 } from '@civ-remake/engine';
 import { isKey } from '../input';
 import { yearToString } from '../text';
 import type { Ui } from '../ui';
-import { DIFFICULTY_NAMES } from './newGame';
 
 /** Magazyn tabeli wyników (w aplikacji: plik w folderze danych). */
 export interface FameStore {
@@ -56,7 +55,7 @@ export async function showHallOfFame(ui: Ui, entries: readonly HallOfFameEntry[]
       y += 26;
       return;
     }
-    g.drawString(`${i + 1}. ${e.leader}, ${DIFFICULTY_NAMES[e.difficulty] ?? ''} of the ${e.nation} to ${yearToString(e.finalYear)}`, x, y, 0);
+    g.drawString(`${i + 1}. ${e.leader}, ${DIFFICULTY_TITLES[e.difficulty] ?? ''} of the ${e.nation} to ${yearToString(e.finalYear)}`, x, y, 0);
     y += 8;
     g.drawString(`Population: ${populationText(e.population)}, Score: ${e.totalScore}`, x + 12, y, 7);
     y += 8;

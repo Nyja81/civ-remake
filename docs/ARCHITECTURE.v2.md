@@ -28,7 +28,7 @@ a nie źródłem kodu ani zasobów.
 | # | Warstwa | Pakiet | Stan |
 |---|---|---|---|
 | 1 | Silnik zasad — stan gry i reguły, bez grafiki | `packages/engine` (`src/game/*`) | stan gry, ruch, walka, miasta, gospodarka, badania, ustroje, barbarzyńcy, zapis JSON i `.SVE`/`.MAP` oryginału |
-| 2 | Tabele danych — generowane z CIV.EXE właściciela licencji | `packages/engine/src/data` | technologie, jednostki, teren, budynki, cuda, nacje; ręcznie ze wzorca (do weryfikacji): przekształcenia terenu, nazwy miast |
+| 2 | Tabele danych — generowane z CIV.EXE właściciela licencji (`npm run extract`) | `packages/engine/src/data`, `packages/ui/src/data/screenTables.ts` | technologie, jednostki, teren, budynki, cuda, nacje, przekształcenia terenu, nazwy miast, `ruleTables.ts` (kierunki, pola miasta, kolory graczy, oceny technologii komputera, piksel → teren, Ziemia, statek), `names.ts` (ustroje, tytuły władców, towary, poziomy trudności, postaci sławne, historycy), tablice ekranów (portrety, Civilopedia, pałac, cuda panoramy, animacje, historia świata); żadnej tablicy przepisanej ręcznie ze wzorca |
 | 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine/src/game/ai.ts` | port AIEngine i oceny produkcji (SelectCityProduction); „idź do” — GoTo oryginału (`goto.ts`) |
 | 4 | Komendy i zdarzenia — interfejs wydaje rozkazy, silnik odpowiada zdarzeniami i prośbami o decyzję | `packages/engine` | `unitMove`, `unitOrder`, `state.events`, odpowiedzi `confirm` |
 | 5 | Interfejs — ekran 320×200 jak w oryginale, wygładzany 4× | `packages/ui`, `apps/desktop` | ekrany startowe, menu, okna, ekran gry z mapą, rozkazami, oknem miasta, zapisem (scalone do `main`) |
@@ -50,8 +50,10 @@ a nie źródłem kodu ani zasobów.
 
 ## Weryfikacja zgodności z oryginałem
 
-1. **Tabele danych**: `npm run extract` czyta je wprost z CIV.EXE (po rozpakowaniu EXEPACK);
-   test w `packages/oracle` porównuje je z tabelami silnika.
+1. **Tabele danych**: `npm run extract` czyta je wprost z CIV.EXE (po rozpakowaniu EXEPACK; `exeTables.ts`, `exeData.ts`);
+   test w `packages/oracle` porównuje je z tabelami silnika i interfejsu. Tablice są szukane po treści (kotwice napisów,
+   tablice wskaźników), bo układ segmentu danych różni się między wersjami; z `OPENCIV1_DIR` test porównuje dodatkowo
+   wszystkie tablice z obrazem danych 475.05 dołączonym do wzorca (`BinaryResources.bin`).
 2. **Wykonywalny wzorzec**: wczesna wersja projektu OpenCivOne (MIT) to dosłowne tłumaczenie
    kodu oryginału instrukcja po instrukcji. Uruchamiana obok silnika z tym samym ciągiem
    liczb losowych służy do porównywania wyników funkcji na tysiącach stanów gry.
@@ -131,10 +133,22 @@ Karawany i dyplomaci (`unitActions.ts`, asembler `Overlay_22.cs`, `Segment_2459.
 - AIEngine.MoveUnit: rakieta przenosi się na wolne pole obok celu i zwraca kierunek XOR 4 (4 → 0, 8 → 12) — jak w oryginale.
   (Poprawka naszego portu, nie wzorca: dodatek `atak × 4` do oceny pola tylko powyżej progu — L2b9d.)
 
+### Wersje 474.01 (kopia Damiana) i 475.05 (wzorzec)
+
+- Wszystkie tablice reguł i nazw (także generowane w `npm run extract`) mają w obu wersjach te same wartości. Segment danych
+  jest identyczny do DS:0x2660; dalej napisy się rozjeżdżają (474.01: adresy −0x50, od ok. DS:0x5100 −0x5e). Dalekie segmenty
+  (nazwy miast 0x3604, postaci 0x36d4, historia świata 0x3710, rysunki/statek/cuda 0x371e) mają tę samą treść.
+- Różnice w napisach — ślad różnic w kodzie, do sprawdzenia w DOSBoxie, silnik idzie za 475.05: w 474.01 brak przycisku
+  **RENAME** w oknie miasta, brak komunikatu „A City must have five population units to support taxmen or scientists.”
+  (u nas `canAssignSpecialists` — reguła 475.05) i napisu „Bonus Score: ”.
+
+Tablice nowszego wzorca poprawione wg CIV.EXE (szczegóły — historia zmian w CLAUDE.md, 2026-11-17): plan statku (pole (11, 8)),
+„Sulayman”, tytuł „King ” ze spacją (Elżbieta: Empress/Queen), napisy z tablic wskaźników (tytuły władców, ustroje Communist/Democratic,
+raport historyka, poziomy Chief/Lord…, tytuł Civilopedii), czasy wierszy historii świata.
+
 ## Otwarte kwestie
 
 - Technologie startowe: wzorzec nie przyznaje żadnych (komunikat *INIT wymienia tylko drogi) — sprawdzić w oryginale (DOSBox).
-- Tabele przepisane ze wzorca (przekształcenia terenu, nazwy miast, plan i części statku kosmicznego) — dodać do `npm run extract`.
 - Generator losowy wzorca to MT19937 (nie rand() z MS C) — zgodność ziarna z oryginałem niesprawdzona.
 - Znaczenie pola `unknown1` w tabeli terenu (`terrainChangeId` to wartość piksela terenu na mapie oryginału).
 - Sposób, w jaki gra wyprowadza zakresy z `rand()`.
@@ -143,7 +157,10 @@ Karawany i dyplomaci (`unitActions.ts`, asembler `Overlay_22.cs`, `Segment_2459.
 - Karawana/dyplomata człowieka na „idź do”: pytanie silnika przerywa „idź do” (oryginał pokazuje okno w trakcie ruchu).
 - GoTo: odczyty poza tablicami i stroną mapy (oryginał czyta sąsiednią pamięć) przyjęte jako 0; oryginał przelicza tablicę wody
   przy odczycie zapisu, u nas obie tablice i pamięć FindShortestPath są w zapisie.
-- Pozostałe dane w CIV.EXE: nazwy miast, teksty, tablice strategii przeciwnika komputerowego.
+- Pozostałe dane w CIV.EXE, jeszcze nieużywane: tablice animacji twarzy i doradców (DS:0x3a94, 0x3aa6, 0x3ab8, 0x3afe), czcionka
+  władcy (segment 0x36fa), położenia twarzy w „hail” (Array_36fa). Teksty komunikatów są w kodzie (przepisane z dosłownego
+  tłumaczenia; krótkie napisy interfejsu — część generowana: `names.ts`, `CIVILOPEDIA_STRINGS`).
+- Przelicznik zegara muzyki (przyjęte 60 jednostek na sekundę — tempo intro i historii świata).
 - Grafika: przejścia między różnymi typami terenu (na razie ostre krawędzie kafli), warianty kafli, pozostałe jednostki.
 - Zapis `.SVE`: zgodność bajtów z zapisami oryginału niesprawdzona (test `originalSve.test.ts` przy `CIV1_DIR`); `.MAP` —
   koder LZW/RLE oryginału nieznany (porównujemy piksele); po wczytaniu oryginał zaczyna GameTurn z Var_df60, u nas ruch człowieka

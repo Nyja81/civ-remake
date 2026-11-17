@@ -28,6 +28,7 @@ import { Terrain } from '../world/generate';
 import { DIRECTIONS, cellIndex, isValid, wrapX } from './map';
 import { Improvement, NO_UNIT, type GameMap, type GameState, type GotoCache, type Unit } from './types';
 import { activeUnitAt, cellOwner, emptyUnit, isEnemyUnitAdjacent, occupantPlayer, stackCount } from './units';
+import { PIXEL_TERRAIN } from '../data/ruleTables';
 
 /** Liczba pól tablicy ścieżek (20×13). */
 export const PATH_CELLS = 20 * 13;
@@ -71,12 +72,11 @@ export function shortestDistance(ddx: number, ddy: number): number {
 
 // ── odczyt mapy jak w oryginale ─────────────────────────────────────────────────────────
 
-/** Wartość piksela → teren (tablica DS:0x2ba6; piksel = `terrainChangeId`); brak = -1 (nie woda). */
-const PIXEL_TO_TERRAIN: number[] = (() => {
-  const t = new Array<number>(256).fill(-1);
-  for (let i = 0; i < 12; i++) t[TERRAIN[i]!.terrainChangeId] = i;
-  return t;
-})();
+/**
+ * Wartość piksela → teren (tablica DS:0x2ba6 z CIV.EXE, 16 słów; piksel = `terrainChangeId`); brak = -1 (nie woda).
+ * Piksele > 15 (sąsiednie warstwy strony mapy) oryginał czyta z pamięci za tablicą — przyjmujemy -1.
+ */
+const pixelTerrain = (pixel: number): number => PIXEL_TERRAIN[pixel] ?? -1;
 
 /**
  * Piksel strony mapy oryginału (320×200): (x, y) teren, (x+80, y) własność ziemi, (x+160, y) zajętość pola,
@@ -103,7 +103,7 @@ function pagePixel(map: GameMap, px: number, py: number): number {
 /** F7_0000_176d: teren bez zawijania X (piksel strony mapy). */
 function pageTerrain(map: GameMap, x: number, y: number): number {
   if (x >= 0 && x < 80 && y >= 0 && y < 50) return map.terrain[y * 80 + x]!;
-  return PIXEL_TO_TERRAIN[pagePixel(map, x, y)]!;
+  return pixelTerrain(pagePixel(map, x, y));
 }
 
 /** F7_0000_178e / F0_2aea_1942: numer kontynentu/oceanu — piksel (x, y+50), bez zawijania X. */

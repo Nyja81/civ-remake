@@ -24,14 +24,12 @@ import { distance } from './map';
 import { gradeTech, playerHasTech, researchFinished, TECH_COUNT } from './techs';
 import { Diplomacy, Government, NO_UNIT, type GameState } from './types';
 import { deleteUnit, nearestCity } from './units';
+import { LEADER_TITLES } from '../data/names';
 
 /** Słowa kluczowe tekstów KING.TXT (Array_30b8 wzorca: $US, $THEM, $BUCKS, $RPLC1, $RPLC2). */
 export type KingKeywords = Partial<Record<'US' | 'THEM' | 'BUCKS' | 'RPLC1' | 'RPLC2', string>>;
 
-/** Tytuły władców według ustroju (Array_19b2_GovernmentTypeNames). */
-export const LEADER_TITLES = ['Mr.', 'Emperor', 'King', 'Comrade', 'President', 'President'] as const;
-
-/** Numer nacji, której władczyni zmienia tytuły Emperor/King na „Empress” na czas rozmowy (Anglicy, Elżbieta I). */
+/** Numer nacji, której władczyni zmienia tytuły Emperor/King na „Empress”/„Queen” na czas rozmowy (Anglicy, Elżbieta I). */
 const EMPRESS_NATION = 14;
 const NUCLEAR = 25;
 /** RuleDebugFlags.Bit0 — przyjęta wartość domyślna (DefaultValue: wszystkie bity ustawione), jak w diplomacy.ts. */
@@ -134,8 +132,14 @@ class Session {
 
   constructor(readonly state: GameState, readonly player: number, emissary: number, readonly x: number, readonly y: number) {
     this.emissary = emissary;
-    // Elżbieta I: Emperor/King → Empress na czas rozmowy (strcpy do 0x19b4/0x19b6, przywracane na końcu)
-    if (state.players[player]!.nation === EMPRESS_NATION) this.titles[1] = this.titles[2] = 'Empress';
+    // Elżbieta I: Emperor → „Empress”, King → „Queen” na czas rozmowy (strcpy DS:0x3768/0x3770 do napisów wskazywanych
+    // przez 0x19b4/0x19b6 — stąd spacja w „King ”: miejsce na „Queen”). Na końcu oryginał kopiuje tam nazwy poziomów
+    // trudności „Emperor” i „King” (DS:0x33aa/0x33a8), więc od pierwszej rozmowy z Elżbietą tytuł króla traci spację —
+    // tej trwałej zmiany nie odtwarzamy (tytuły nie są częścią stanu gry ani zapisu).
+    if (state.players[player]!.nation === EMPRESS_NATION) {
+      this.titles[1] = 'Empress';
+      this.titles[2] = 'Queen';
+    }
   }
 
   speech(key: string | null, text: string | null, mood: number, options: { width?: number; disabled?: number; kind?: 'speech' | 'dialog' } = {}): MeetingStep {

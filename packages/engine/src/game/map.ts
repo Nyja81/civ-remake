@@ -3,34 +3,20 @@
  * czapy polarne). Źródło: GenerateNewMap i MapManagement z OpenCivOne (MIT).
  */
 import { MAP_HEIGHT, MAP_WIDTH } from '../data/enums';
+import { CITY_OFFSETS, DIRECTIONS } from '../data/ruleTables';
 import { TERRAIN } from '../data/terrain';
 import { TERRAIN_MODIFICATIONS } from '../data/terrainModifications';
 import { hasSpecialResource } from '../world/features';
 import { MOVE_DIRECTIONS, Terrain, type World } from '../world/generate';
+
+/** Kierunki i pola wokół miasta z CIV.EXE (data/ruleTables) — tu dla wygody modułów gry. */
+export { CITY_OFFSETS, DIRECTIONS };
 import type { RandomSource } from '../world/random';
 import { constructLandPathArray, constructWaterPathArray, emptyGotoCache, PATH_CELLS } from './goto';
 import type { Continent, GameMap } from './types';
 
 export const X_MEDIAN = MAP_WIDTH / 2;
 
-/**
- * 49 kierunków oryginału (OpenCivOneGameGlobals.MoveDirections): 0 = brak ruchu, 1–8 sąsiedzi od północy
- * zgodnie z ruchem wskazówek zegara, 9–24 pierścień o promieniu 2, 25–48 pierścień o promieniu 3.
- */
-export const DIRECTIONS: readonly (readonly [number, number])[] = [
-  [0, 0], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1],
-  [0, -2], [1, -2], [2, -1], [2, 0], [2, 1], [1, 2], [0, 2], [-1, 2], [-2, 1], [-2, 0], [-2, -1], [-1, -2],
-  [2, 2], [2, -2], [-2, -2], [-2, 2],
-  [0, -3], [1, -3], [2, -3], [3, -2], [3, -1], [3, 0], [3, 1], [3, 2], [2, 3], [1, 3], [0, 3], [-1, 3],
-  [-2, 3], [-3, 2], [-3, 1], [-3, 0], [-3, -1], [-3, -2], [-2, -3], [-1, -3], [3, 3], [3, -3], [-3, 3], [-3, -3],
-];
-
-/** 21 pól wokół miasta (kolejność jak w oryginale; ostatnie = samo miasto). */
-export const CITY_OFFSETS: readonly (readonly [number, number])[] = [
-  [0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1], [0, -2],
-  [2, 0], [0, 2], [-2, 0], [-1, -2], [1, -2], [2, -1], [2, 1], [1, 2], [-1, 2],
-  [-2, 1], [-2, -1], [0, 0],
-];
 
 export const wrapX = (x: number): number => ((x % MAP_WIDTH) + MAP_WIDTH) % MAP_WIDTH;
 export const isValid = (x: number, y: number): boolean => y >= 0 && y < MAP_HEIGHT;
