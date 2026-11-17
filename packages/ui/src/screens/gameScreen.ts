@@ -29,7 +29,8 @@ import { showScoreScreen } from './reports';
 import { endGameHallOfFame, type FameStore } from './hallOfFame';
 import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
 import { runKingMeeting } from './king';
-import { ADVISOR_REPORTS, reportForKey, showHistoryReport, showPowerGraph, showReport, WORLD_REPORTS, type AdvisorReport, type WorldReport } from './advisors';
+import { ADVISOR_REPORTS, reportForKey, showHistoryReport, showIntelligenceDetail, showPowerGraph, showReport, WORLD_REPORTS, type AdvisorReport, type WorldReport } from './advisors';
+import { resolveUnitAction, type UnitActionHooks } from './unitActions';
 import { showCityWindow } from './cityWindow';
 import { showCivilopedia, showCivilopediaTopic, Topic } from './civilopedia';
 
@@ -235,6 +236,8 @@ export class GameScreen {
         this.redrawAll();
         result = unitMove(this.state, h, id, direction, { confirm: true });
       }
+      // karawana, przekupienie, dyplomata w obcym mieście (screens/unitActions.ts)
+      result = await resolveUnitAction(this.ui, this.state, id, direction, result, this.unitActionHooks());
     } else {
       const order = ORDER_KEYS[e.key];
       if (!order) return null;
@@ -306,7 +309,13 @@ export class GameScreen {
       const fromAi = ev.kind === 'aiRequest' || ev.kind === 'meetLeader' || ev.kind === 'envoy';
       if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message' && !fromAi) continue;
       if (typeof ev.text === 'string' && ev.text) {
-        await showDialog(this.ui, ev.text.endsWith('\n') ? ev.text : `${ev.text}\n`, 100, 80);
+        // okna z położeniem oryginału (dialogX, dialogY); mapX/mapY — DrawVisibleMap przed oknem
+        if (typeof ev.mapX === 'number' && typeof ev.mapY === 'number') {
+          this.drawVisibleMap(ev.mapX, ev.mapY);
+          this.ui.present();
+        }
+        await showDialog(this.ui, ev.text.endsWith('\n') ? ev.text : `${ev.text}\n`,
+          typeof ev.dialogX === 'number' ? ev.dialogX : 100, typeof ev.dialogY === 'number' ? ev.dialogY : 80);
         if (ev.showCity === true && typeof ev.city === 'number') await this.cityAfterEvent(ev.city);
       } else if (ev.kind === 'advice' && this.state.settings.instantAdvice && typeof ev.key === 'string') {
         const text = this.adviceText(ev.key);
@@ -369,6 +378,21 @@ export class GameScreen {
     const request = ev.request === 'helpme' ? 'helpme' : 'crusade';
     await this.kingMeeting(aiRequestMeeting(this.state, request, ev.player as number, ev.enemy as number,
       typeof ev.amount === 'number' ? ev.amount : 0, ev.extend === true));
+  }
+
+  /** Haki okien karawany i dyplomaty (screens/unitActions.ts). */
+  private unitActionHooks(): UnitActionHooks {
+    return {
+      kingMeeting: (meeting) => this.kingMeeting(meeting),
+      showCity: (cityId) => this.cityDialog(cityId),
+      intelligence: async (player) => {
+        await showIntelligenceDetail(this.ui, this.assets, this.state, player, this.options.revealAll === true);
+      },
+      redraw: () => {
+        this.redrawAll();
+        this.ui.present();
+      },
+    };
   }
 
   /** Rozmowa z władcą (screens/king.ts) prowadzona krokami silnika. */

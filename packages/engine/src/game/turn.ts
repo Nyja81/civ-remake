@@ -15,7 +15,7 @@ import { Terrain } from '../world/generate';
 import { foundCity } from './cities';
 import { confirmBreakTreaty, clearPeace } from './combat';
 import { GOVERNMENT_NAMES, processCities } from './economy';
-import { DIRECTIONS, cellIndex, distance, isValid, terrainAt, updateVisibleCell } from './map';
+import { DIRECTIONS, cellIndex, distance, distanceDoubled, isValid, terrainAt, updateVisibleCell } from './map';
 import { fullMoves, moveUnit, type MoveOptions, type MoveResult } from './movement';
 import { aiChangeGovernment, aiUnitCommand, reassignPolicies, recalculateStatsAndPolicies, type AiCommand } from './ai';
 import { getNextMove } from './goto';
@@ -29,7 +29,7 @@ import { availableGovernments } from './government';
 import { playerHasWonder } from './cities';
 import { WonderId } from './buildings';
 import { Government, Improvement, NO_UNIT, UnitStatus, type GameState } from './types';
-import { cityAt, deleteUnit, exploreCell, nearestCity, unitsAt, updateUnitVisibility } from './units';
+import { cellOwner, cityAt, deleteUnit, exploreCell, nearestCity, occupantPlayer, unitsAt, updateUnitVisibility } from './units';
 import { PIXEL_TO_TERRAIN } from '../world/earth';
 import { civilizationScore } from './score';
 import { diplomacyTurn } from './diplomacy';
@@ -274,9 +274,22 @@ export function unitOrder(state: GameState, player: number, unitId: number, orde
       break;
     }
     case 'home': {
+      // PlayerTurn.HomeCityCommand: w mieście — nowe miasto macierzyste; samolot poza miastem leci o pole w stronę
+      // najbliższego miasta albo lotniskowca (F0_1866_226d), a samolot komputera bez celu ginie.
       const near = nearestCity(state, unit.x, unit.y);
       if (near !== -1 && distance(unit.x, unit.y, state.cities[near]!.x, state.cities[near]!.y) === 0) unit.homeCity = near;
-      // Samoloty: powrót do najbliższego miasta (GetNearestCityDirection) — razem z przeciwnikiem komputerowym (etap 6)
+      else if (def.movementType === MovementType.Air) {
+        const dir = nearestCityDirection(state, player, unitId);
+        if (dir !== 0) {
+          unit.status |= UnitStatus.BuildRoad;
+          return moveUnit(state, player, unitId, dir, options);
+        }
+        if (player === state.humanPlayer) unit.status &= ~UnitStatus.BuildRoad;
+        else {
+          unit.movesLeft = 0;
+          deleteUnit(state, player, unitId);
+        }
+      }
       break;
     }
     case 'wait':
@@ -315,6 +328,48 @@ function changeTerrain(state: GameState, x: number, y: number, pixel: number): v
   const i = cellIndex(x, y);
   state.map.terrain[i] = t;
   state.map.explored[i]! |= 1;
+}
+
+/**
+ * UnitManagement.F0_1866_226d_GetNearestCityDirection: najbliższe własne miasto albo lotniskowiec (maksimum różnic
+ * liczone w miejscu, |Δx| z zawijaniem), potem kierunek 1–8 na pole wolne lub z własnymi jednostkami (nie obce miasto),
+ * który najbardziej zmniejsza odległość F0_2dc4_0243 (2·dłuższa + krótsza, różnice bez zawijania). 0 — brak.
+ */
+export function nearestCityDirection(state: GameState, player: number, unitId: number): number {
+  const unit = state.players[player]!.units[unitId]!;
+  let best = 999;
+  let tx = 0;
+  let ty = 0;
+  const consider = (x: number, y: number) => {
+    let dx = Math.abs(unit.x - x);
+    if (dx > 40) dx = 80 - dx;
+    const dy = Math.abs(unit.y - y);
+    const d = dx < dy ? dy : dx;
+    if (d < best) {
+      best = d;
+      tx = x;
+      ty = y;
+    }
+  };
+  for (const c of state.cities) if (c.status !== -1 && c.owner === player) consider(c.x, c.y);
+  for (const u of state.players[player]!.units) if (u.type === 23) consider(u.x, u.y);
+  let min = distanceDoubled(unit.x - tx, unit.y - ty);
+  let dir = 0;
+  for (let i = 1; i < 9; i++) {
+    const [dx, dy] = DIRECTIONS[i]!;
+    const nx = unit.x + dx;
+    const ny = unit.y + dy;
+    if (nx < 0 || nx >= 80 || !isValid(nx, ny)) continue; // ValidateMapCoordinates — bez zawijania X
+    const occ = occupantPlayer(state, nx, ny);
+    if (occ !== -1 && occ !== player) continue;
+    if (state.map.improvements[cellIndex(nx, ny)]! & Improvement.City && cellOwner(state, nx, ny) !== player) continue;
+    const d = distanceDoubled(nx - tx, ny - ty);
+    if (d < min) {
+      min = d;
+      dir = i;
+    }
+  }
+  return dir;
 }
 
 /** Rozkaz ruchu w kierunku 1–8. */
@@ -485,7 +540,9 @@ function computerTurn(state: GameState, player: number): void {
         }
         if (u.status & WORK) {
           continueWork(state, player, id);
-          break;
+          // samolot wracający do miasta (HomeCityCommand, bit BuildRoad) leci dalej, póki ma ruch; zabezpieczenie pętli
+          if (UNITS[u.type]?.movementType !== MovementType.Air || ++retries > 32) break;
+          continue;
         }
         let cmd: AiCommand = aiUnitCommand(state, player, id);
         if (u.type === NO_UNIT) break;
@@ -519,23 +576,10 @@ function executeAiCommand(state: GameState, player: number, id: number, cmd: AiC
     if (u.type !== NO_UNIT) afterUnitAction(state, player, id);
     return;
   }
-  if (cmd === 'h' && UNITS[u.type]!.movementType === MovementType.Air) {
-    // samolot wraca do najbliższego własnego miasta (GetNearestCityDirection)
-    let best = 999;
-    state.cities.forEach((c) => {
-      if (c.status === -1 || c.owner !== player) return;
-      const d = distance(u.x, u.y, c.x, c.y);
-      if (d < best) {
-        best = d;
-        u.gotoX = c.x;
-        u.gotoY = c.y;
-      }
-    });
-    if (best > 0 && best < 999) return executeAiCommand(state, player, id, 0);
-    cmd = ' ';
-  }
+
   unitOrder(state, player, id, AI_ORDERS[cmd]!);
-  if (u.type !== NO_UNIT && (cmd === 'f' || cmd === 'u' || cmd === 'h')) u.movesLeft = 0;
+  // samolot z rozkazem 'h' leci przez HomeCityCommand (jedno pole na wywołanie) — bez zerowania ruchu
+  if (u.type !== NO_UNIT && (cmd === 'f' || cmd === 'u' || (cmd === 'h' && UNITS[u.type]!.movementType !== MovementType.Air))) u.movesLeft = 0;
   if (u.type !== NO_UNIT) afterUnitAction(state, player, id);
 }
 

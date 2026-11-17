@@ -49,12 +49,35 @@ export function offsetBetween(x1: number, y1: number, x2: number, y2: number): [
   return [dx, y2 - y1];
 }
 
-/** Odległość w polach (maksimum z różnic, z zawijaniem w poziomie). */
+/**
+ * F0_2dc4_0208: odległość oryginału z różnic współrzędnych — dłuższa różnica + połowa krótszej (bez zawijania X).
+ * Wywoływana wprost tylko tam, gdzie oryginał podaje gotowe różnice (np. AIEngine.MoveUnit przy osadnikach, 0x25fb:0x2275).
+ */
+export function distanceOf(dx: number, dy: number): number {
+  const a = Math.abs(dx);
+  const b = Math.abs(dy);
+  return a > b ? a + (b >> 1) : b + (a >> 1);
+}
+
+/**
+ * F0_2dc4_0289: odległość oryginału między polami — |Δx| z zawijaniem (powyżej 40 → 80 − |Δx|), potem F0_2dc4_0208
+ * (dłuższa różnica + połowa krótszej). Oryginał nie ma odległości „maksimum różnic” (nowszy wzorzec: GetDistance):
+ * wszystkie jego odległości między polami, najbliższe miasto (F0_2dc4_0102) i najbliższa jednostka (F0_2dc4_0177)
+ * idą przez tę funkcję; wyjątki: F0_2dc4_0243 (2·dłuższa + krótsza) w F0_1866_226d_GetNearestCityDirection
+ * (`nearestCityDirection`) i bezpośrednie F0_2dc4_0208 (`distanceOf`).
+ */
 export function distance(x1: number, y1: number, x2: number, y2: number): number {
-  const [dx, dy] = offsetBetween(x1, y1, x2, y2);
-  let w = Math.abs(dx);
+  let w = Math.abs(x1 - x2);
   if (w > X_MEDIAN) w = MAP_WIDTH - w;
-  return Math.max(w, Math.abs(dy));
+  return distanceOf(w, y1 - y2);
+}
+
+/** F0_2dc4_0243: 2·dłuższa różnica + krótsza, |Δx| z zawijaniem (tylko GetNearestCityDirection). */
+export function distanceDoubled(dx: number, dy: number): number {
+  let a = Math.abs(dx);
+  if (a > X_MEDIAN) a = MAP_WIDTH - a;
+  const b = Math.abs(dy);
+  return a > b ? a * 2 + b : b * 2 + a;
 }
 
 /** Kierunek ruchu (indeks w MOVE_DIRECTIONS) dla przesunięcia albo -1. */

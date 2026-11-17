@@ -2,9 +2,10 @@
  * Ruch jednostki o jedno pole. Źródło: PlayerTurn.MoveUnit z OpenCivOne (MIT) — reguły w tej samej kolejności.
  *
  * Silnik nie pokazuje okien: tam, gdzie oryginał pyta gracza („Attack at 2/3 strength?”, zerwanie traktatu),
- * funkcja zwraca { kind: 'confirm' } i należy ją wywołać ponownie z { confirm: true }.
- * Na razie zgłaszane jako zdarzenia i nieobsługiwane w całości: działania dyplomaty i karawany (etapy 3 i 7),
- * atak jądrowy (etap 7), polityki przeciwnika komputerowego (etap 6).
+ * funkcja zwraca { kind: 'confirm' } i należy ją wywołać ponownie z { confirm: true }. Tak samo karawana we własnym
+ * mieście ({ kind: 'caravan' } → ponownie z `caravan`) i przekupienie jednostki ({ kind: 'bribe' } → z `bribe`).
+ * Dyplomata człowieka w obcym mieście kończy ruch wynikiem { kind: 'diplomat' } — wybór akcji idzie przez
+ * `diplomatAction` (unitActions.ts); dyplomata komputera działa od razu.
  */
 import { MovementType } from '../data/enums';
 import { TERRAIN } from '../data/terrain';
@@ -21,17 +22,28 @@ import {
 } from './units';
 import { foundTribalHut } from './huts';
 import { nuclearAttack } from './catastrophes';
+import { bribeUnit, caravanEntersCity, diplomatAction, diplomatMenu } from './unitActions';
 
 export type MoveResult =
   | { kind: 'moved' }
   | { kind: 'blocked'; reason?: string }
   | { kind: 'confirm'; question: string }
   | { kind: 'attacked'; won: boolean }
-  | { kind: 'action'; action: string };
+  | { kind: 'action'; action: string }
+  /** Karawana we własnym mieście: okno „Will you?” (100, 80); odpowiedź (numer opcji) w `MoveOptions.caravan`. */
+  | { kind: 'caravan'; city: number; question: string; disabled: number }
+  /** Dyplomata człowieka w obcym mieście: menu (80, 80); akcja — `diplomatAction(…)`. */
+  | { kind: 'diplomat'; city: number; question: string; disabled: number }
+  /** Przekupienie jednostki: okno (100, 80); odpowiedź „Pay” (opcja 1) w `MoveOptions.bribe`. */
+  | { kind: 'bribe'; question: string; canPay: boolean };
 
 export interface MoveOptions {
   /** Odpowiedź „tak” na pytanie zwrócone przez poprzednie wywołanie. */
   confirm?: boolean;
+  /** Wybór w oknie karawany (0 Keep moving, 1 Establish trade route, 2 Help build WONDER; -1 — Esc). */
+  caravan?: number;
+  /** Odpowiedź na okno przekupienia (true = opcja 1 „Pay”). */
+  bribe?: boolean;
 }
 
 const blocked = (reason?: string): MoveResult => ({ kind: 'blocked', reason });
@@ -91,15 +103,24 @@ export function moveUnit(state: GameState, player: number, unitId: number, direc
         const city = state.cities[cityId]!;
         if (curTerrain === Terrain.Water && city.owner !== player) return blocked();
         if (unit.type === 26 && city.owner !== player) {
-          state.events.push({ kind: 'diplomatAction', player, unitId, city: cityId });
+          // L1f41: dyplomata komputera wchodzący do miasta człowieka staje się dla niego widoczny (animacja ruchu — UI)
+          if (city.owner === state.humanPlayer) unit.visibleBy |= 1 << state.humanPlayer;
+          if (human) {
+            clearGoto(unit);
+            const menu = diplomatMenu(state, player, cityId);
+            return { kind: 'diplomat', city: cityId, question: menu.question, disabled: menu.disabled };
+          }
+          diplomatAction(state, player, unitId, cityId);
           return { kind: 'action', action: 'diplomat' };
         }
         if (unit.type === 27) {
-          state.events.push({ kind: 'caravanArrived', player, unitId, city: cityId });
-          return { kind: 'action', action: 'caravan' };
+          const step = caravanEntersCity(state, player, unitId, cityId, options.caravan);
+          if (step) return step;
         }
       } else if (unit.type === 26 && otherId !== -1 && otherPlayer !== player) {
-        state.events.push({ kind: 'diplomatVsUnit', player, unitId, target: otherPlayer, targetId: otherId });
+        // L2157: dyplomata wobec obcej jednostki — przekupienie (F22_0000_0639); dalej zwykły ruch (atak dyplomaty blokuje `attack`)
+        const ask = bribeUnit(state, player, otherPlayer, otherId, options.bribe);
+        if (ask) return ask;
         clearGoto(unit);
       }
     }

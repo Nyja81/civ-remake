@@ -83,8 +83,8 @@ a nie źródłem kodu ani zasobów.
 | 3 | Miasta i ekonomia | **gotowe w silniku**: zakładanie/zdobywanie, praca mieszkańców, wzrost, produkcja, handel, korupcja, podatki, zadowolenie, utrzymanie, zakup |
 | 4 | Technologie, ustroje, zadowolenie, cuda | w dużej części: odkrycia i wybór badań, ustroje i rewolucja, efekty cudów w gospodarce; encyklopedia — Civilopedia (etap 8); brak: część cudów (statek, Manhattan) |
 | 5 | Walka, barbarzyńcy | walka i powstania barbarzyńców gotowe; brak: atak jądrowy, klęski w miastach, globalne ocieplenie |
-| 6 | Przeciwnik komputerowy | **gotowe w silniku**: strategie kontynentów, cele jednostek, ruchy jednostek i barbarzyńców, wybór produkcji, ustroje komputera, GoTo oryginału z tablicami ścieżek 20×13 (`goto.ts`, człowiek i komputer); brak: działania dyplomatów i karawan komputera |
-| 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | **gotowe**: punktacja (`score.ts`), koniec gry (podbój, statek, koniec panowania), statek kosmiczny (`spaceship.ts` + okno), dyplomacja komputer–komputer, prośby komputera, Hall of Fame, rozmowy z władcami (`kingMeeting.ts` + `screens/king.ts`, bez animacji twarzy); brak: rozmowa po wizycie dyplomaty |
+| 6 | Przeciwnik komputerowy | **gotowe w silniku**: strategie kontynentów, cele jednostek, ruchy jednostek i barbarzyńców, wybór produkcji, ustroje komputera, GoTo oryginału z tablicami ścieżek 20×13 (`goto.ts`, człowiek i komputer), karawany i dyplomaci komputera (szlak od razu po zbudowaniu karawany, kradzież/sabotaż, przekupywanie jednostkami ataku), rakieta obok celu, odległość oryginału F0_2dc4_0289 we wszystkich modułach |
+| 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | **gotowe**: punktacja (`score.ts`), koniec gry (podbój, statek, koniec panowania), statek kosmiczny (`spaceship.ts` + okno), dyplomacja komputer–komputer, prośby komputera, Hall of Fame, rozmowy z władcami (`kingMeeting.ts` + `screens/king.ts`, bez animacji twarzy, także po wizycie dyplomaty); karawany i dyplomaci człowieka (`unitActions.ts` + `screens/unitActions.ts`) |
 | 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry, **okno miasta** (`screens/cityWindow.ts`: zasoby, mapka pól z przydziałem, specjaliści, budynki ze sprzedażą, jednostki, produkcja z CHANGE/AUTO/BUY, zakładki INFO/HAPPY/MAP), **raporty doradców i świata** (ADVISORS, WORLD, F1–F10, historyk, wykres potęgi — `reports.ts` w silniku, `screens/advisors.ts`), **Civilopedia** (`screens/civilopedia.ts`: listy, strony tematów, pomoc z wyboru badań i produkcji; opisy z BLURB0–4.TXT gracza albo własne) gotowe; panorama miasta (VIEW, CityView), pałac, intro, dźwięk — do zrobienia |
 
 ### Odstępstwa od układu oryginału (świadome)
@@ -113,7 +113,23 @@ port u nas (`goto.ts`) idzie za asemblerem (`Segment_2e31.cs`, `Overlay_7.cs`). 
 - ConstructLandPathArray: wołany CheckUnitPath(…, ląd, 20), wynik ≠ -1 i < 20 (wzorzec: nowy A*).
 - ConstructWaterPathArray: numer oceanu bloku docelowego nie jest zerowany przed kierunkiem (wzorzec zeruje).
 - Teren i numer kontynentu w overlayu 7 (F7_0000_176d/178e) czytane bez zawijania X — poza mapą trafiają w inne warstwy strony mapy.
-- Odległość F0_2dc4_0208: dłuższa różnica + połowa krótszej; wzorzec (i `distance` w silniku) liczy maksimum różnic.
+- Odległość F0_2dc4_0208/0289: dłuższa różnica + połowa krótszej; nowszy wzorzec (GetDistance) liczy maksimum różnic.
+  Silnik od 2026-11-17 używa oryginału wszędzie (`distance` = 0289, `distanceOf` = 0208 bez zawijania, `distanceDoubled` = 0243
+  w GetNearestCityDirection) — lista wywołań w asemblerze sprawdzona (F0_2dc4_0102/0177 też liczą przez 0289).
+
+Karawany i dyplomaci (`unitActions.ts`, asembler `Overlay_22.cs`, `Segment_2459.cs`, `Segment_1403.cs`) — rozbieżności wzorca:
+- DiplomatActionOnCity komputera: zawsze kradzież, przy okradzionym mieście sabotaż; usuwany bez akcji tylko w mieście człowieka,
+  z którym ma pokój (wzorzec: pokój dyplomaty z właścicielem albo barbarzyńcy). Brak nowej technologii: człowiek — komunikat
+  i dyplomata zostaje (wzorzec: ponowne menu), komputer — sabotaż. Komunikaty kradzieży i sabotażu zawsze, zwykłym oknem.
+- Sabotaż: Next(2), potem do 99 losowań Next(24) z pominięciem 0 (wzorzec: Next(23)+1); maska `1 << r` 16-bitowa z CWD —
+  r = 15 kasuje naraz budynki 16–24, r = 16…23 nie trafia.
+- Karawana: grupa miasta macierzystego czytana jako F0_2aea_1942(x, x) (wzorzec poprawia na (x, y)); tekst „Revenue: $…”.
+- Przekupienie: komputer płaci przy złocie ≥ 2× koszt; ActiveUnits ±2 (DeleteUnit/CreateUnit + jawna zmiana); okno
+  „ Forget it.\n Pay\n”. Teksty buntu: „will revolt for $…”, „ Subvert city ($x2)” (bez kwoty).
+- Dyplomata komputera z produkcji (CityWorker L1828) to martwy kod: dla produkcji 26 komputer nie tworzy jednostki, a blok
+  wymaga utworzonej — tarcze przepadają (L1ab6).
+- AIEngine.MoveUnit: rakieta przenosi się na wolne pole obok celu i zwraca kierunek XOR 4 (4 → 0, 8 → 12) — jak w oryginale.
+  (Poprawka naszego portu, nie wzorca: dodatek `atak × 4` do oceny pola tylko powyżej progu — L2b9d.)
 
 ## Otwarte kwestie
 
@@ -122,8 +138,9 @@ port u nas (`goto.ts`) idzie za asemblerem (`Segment_2e31.cs`, `Overlay_7.cs`). 
 - Generator losowy wzorca to MT19937 (nie rand() z MS C) — zgodność ziarna z oryginałem niesprawdzona.
 - Znaczenie pola `unknown1` w tabeli terenu (`terrainChangeId` to wartość piksela terenu na mapie oryginału).
 - Sposób, w jaki gra wyprowadza zakresy z `rand()`.
-- Odległość oryginału (F0_2dc4_0208: max + min/2) a `distance` w silniku (maksimum różnic, z nowszego wzorca) — sprawdzić
-  wszystkie użycia w `ai.ts` i pozostałych modułach (GoTo ma już własną `shortestDistance`).
+- Karawana komputera bez obcego miasta komputera: oryginał woła F0_2459_0948 z miastem -1 (czyta pamięć przed tablicą miast);
+  u nas karawana znika bez przychodu. Karawana komputera we własnym mieście: oryginał pokazałby okno człowiekowi — u nas „Keep moving”.
+- Karawana/dyplomata człowieka na „idź do”: pytanie silnika przerywa „idź do” (oryginał pokazuje okno w trakcie ruchu).
 - GoTo: odczyty poza tablicami i stroną mapy (oryginał czyta sąsiednią pamięć) przyjęte jako 0; oryginał przelicza tablicę wody
   przy odczycie zapisu, u nas obie tablice i pamięć FindShortestPath są w zapisie.
 - Pozostałe dane w CIV.EXE: nazwy miast, teksty, tablice strategii przeciwnika komputerowego.
