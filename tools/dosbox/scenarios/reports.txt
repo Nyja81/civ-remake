@@ -1,0 +1,69 @@
+# Raporty doradców i świata (F1–F10) oraz Civilopedia po wczytaniu CIVIL0 (turn 1, bez miast).
+dosbox sleep 6
+keys space
+dosbox sleep 4
+keys Down Return
+dosbox sleep 2
+dosbox keys Return
+dosbox sleep 2
+keys Return
+dosbox sleep 5
+keys Escape
+keys F1
+dosbox sleep 2
+shot rep-f1
+keys Escape
+dosbox sleep 2
+keys F2
+dosbox sleep 2
+shot rep-f2
+keys Escape
+dosbox sleep 2
+keys F3
+dosbox sleep 2
+shot rep-f3
+keys Escape
+dosbox sleep 2
+keys F4
+dosbox sleep 2
+shot rep-f4
+keys Escape
+dosbox sleep 2
+keys F5
+dosbox sleep 2
+shot rep-f5
+keys Escape
+dosbox sleep 2
+keys F6
+dosbox sleep 2
+shot rep-f6
+keys Escape
+dosbox sleep 2
+keys F7
+dosbox sleep 2
+shot rep-f7
+keys Escape
+dosbox sleep 2
+keys F8
+dosbox sleep 2
+shot rep-f8
+keys Escape
+dosbox sleep 2
+keys F9
+dosbox sleep 2
+shot rep-f9
+keys Escape
+dosbox sleep 2
+keys F10
+dosbox sleep 3
+shot rep-f10
+keys Escape
+dosbox sleep 3
+keys alt+c Return
+dosbox sleep 3
+shot cpd-complete
+keys Escape
+dosbox sleep 3
+keys alt+c Down Return
+dosbox sleep 3
+shot cpd-advances

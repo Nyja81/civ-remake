@@ -159,5 +159,19 @@ export function adjustTextBlockWidth(text: string, maxLength: number): string {
   return out.join('');
 }
 
+/**
+ * F0_2dc4_0337 — liczba mieszkańców (jednostka: 10 000; wartość jak w F0_2dc4_02cd: suma 1 + 2 + … + rozmiar
+ * po miastach): przy wartości ≥ 100 najpierw setki i ",", przy reszcie < 10 dodatkowe "0"; potem reszta i "0,000".
+ * Np. 0 → "00,000", 5 → "50,000", 123 → "1,230,000".
+ */
+export function populationString(value: number): string {
+  let s = '';
+  if (value >= 100) {
+    s += `${Math.trunc(value / 100)},`;
+    if (value % 100 < 10) s += '0';
+  }
+  return `${s}${value % 100}0,000`;
+}
+
 /** GameEngine.YearToString */
 export const yearToString = (year: number) => `${Math.abs(year)} ${year < 0 ? 'BC' : 'AD'}`;

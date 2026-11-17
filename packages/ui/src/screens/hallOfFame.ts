@@ -8,7 +8,7 @@ import {
   addHallOfFameEntry, civilizationRating, DIFFICULTY_TITLES, emptyHallOfFame, FAMOUS_PERSONS, famousPersonIndex, type HallOfFameEntry,
 } from '@civ-remake/engine';
 import { isKey } from '../input';
-import { yearToString } from '../text';
+import { yearToString, populationString } from '../text';
 import { TUNE } from '../sound';
 import type { Ui } from '../ui';
 
@@ -39,7 +39,7 @@ export function decodeFameDta(data: Uint8Array): HallOfFameEntry[] {
 }
 
 /** Liczba ludności jak PopulationValueToString: wartość × 1000 z separatorami tysięcy. */
-const populationText = (value: number) => (value * 1000).toLocaleString('en-US');
+const populationText = populationString;
 
 /** ShowHallOfFameWindow: zwraca true, gdy przy nowym wpisie (`highlight` ≠ -1) wciśnięto C (Clear). */
 export async function showHallOfFame(ui: Ui, entries: readonly HallOfFameEntry[], highlight = -1): Promise<boolean> {

@@ -19,7 +19,7 @@ import type { GameAssets } from '../assets';
 import { colorCode } from '../font';
 import type { Gfx } from '../gfx';
 import { isKey, type UiEvent } from '../input';
-import { yearToString } from '../text';
+import { yearToString, populationString } from '../text';
 import type { Ui } from '../ui';
 import { drawReportScreen, showScoreScreen } from './reports';
 import { drawMiniPalace } from './palace';
@@ -82,6 +82,8 @@ export function drawCitizens(g: Gfx, assets: GameAssets, city: ReportCity, x: nu
     x += spacing;
   };
   for (let i = 0; i < city.happy; i++) icon(i & 1);
+  // L6f3d: x += 2, gdy niezainicjowana zmienna lokalna bp-2 ≠ 0 — na zrzutach oryginału (DOSBox) zawsze tak było
+  x += 2;
   let i = 0;
   for (; i < city.size - city.specialists.length - city.happy - city.unhappy; i++) icon(2 + (i & 1));
   if (i !== 0) x += 2;
@@ -105,7 +107,7 @@ export const cityNameOf = (state: GameState, cityId: number): string =>
   cityId >= 0 && cityId < 128 ? (state.cityNames[state.cities[cityId]!.nameId] ?? '') : 'NONE';
 
 /** GameEngine.PopulationValueToString: liczba × 1000 z separatorami tysięcy. */
-export const populationText = (value: number): string => (value * 1000).toLocaleString('en-US');
+export const populationText = populationString;
 
 /** StartGameMenu.F5_0000_1af6_LoadGovernmentImage: GOVT{ustrój/2}{A|M}.PIC (komunizm: GOVT3A; po Invention — „M”). */
 export function governmentPicName(state: GameState): string {
@@ -336,8 +338,9 @@ export async function showAttitude(ui: Ui, assets: GameAssets, state: GameState)
     count += 4;
     y += 10;
   }
-  g.drawString(`Population: ${populationText(report.population)}, Happy: ${report.happyPercent}%, Content: ${report.contentPercent}%, ` +
-    `Unhappy: ${report.unhappyPercent}%`, 16, y + 8, 15);
+  // napisy z CIV.EXE: "Population: ", " Happy:", "% Content:", "% Unhappy:", "%"
+  g.drawString(`Population: ${populationText(report.population)} Happy:${report.happyPercent}% Content:${report.contentPercent}% ` +
+    `Unhappy:${report.unhappyPercent}%`, 16, y + 8, 15);
   await waitAndRestore(ui);
 }
 
@@ -361,7 +364,7 @@ export async function showTrade(ui: Ui, assets: GameAssets, state: GameState): P
     g.drawString(c.disorder ? ` ${colorCode(12)}(Disorder)` : ` ${c.luxury}\\/${c.tax}$/${c.science}~`, 80, y, 10);
     y += 8;
   }
-  g.drawString(`Total Income: ${report.totalIncome} $`, 8, y + 4, 10);
+  g.drawString(`Total Income: ${report.totalIncome}$`, 8, y + 4, 10);
   if (report.discoveryTurns !== null && y < 180) g.drawString(`Discoveries: ${report.discoveryTurns} turns`, 8, y + 12, 10);
   g.drawString('Maintenance Costs', 160, 32, 15);
   y = 40;

@@ -29,6 +29,7 @@ import { showMenuBox } from '../menuBox';
 import { showCivilopediaTopic, Topic } from './civilopedia';
 import type { Palette } from '../palette';
 import type { Ui } from '../ui';
+import { populationString } from '../text';
 import { showCityView } from './cityView';
 import { CITY_MAP_OFFSETS } from '../data/screenTables';
 
@@ -463,6 +464,8 @@ function drawResources(ctx: CityWindowContext, cityId: number, h: { happy: numbe
   const size = ctx.state.cities[cityId]!.size;
   const spacing = size * 7 > width ? Math.trunc(width / size) : 7;
   for (let i = 0; i < h.happy; i++, x += spacing) citizen(ctx, i & 1, x, y);
+  // L6f3d: x += 2, gdy niezainicjowana zmienna lokalna bp-2 ≠ 0 — na zrzutach oryginału (DOSBox) zawsze tak było
+  x += 2;
   let i = 0;
   for (; i < size - specialists - h.happy - h.unhappy; i++, x += spacing) citizen(ctx, 2 + (i & 1), x, y);
   if (i !== 0) x += 2;
@@ -543,7 +546,7 @@ function trimToWidth(ctx: CityWindowContext, text: string, maxWidth: number): st
 }
 
 /** GameEngine.PopulationValueToString: wartość × 1000 z przecinkami tysięcy. */
-const populationText = (value: number) => (value * 1000).toLocaleString('en-US');
+const populationText = populationString;
 
 const cityNameOf = (state: GameState, cityId: number) => state.cityNames[state.cities[cityId]!.nameId] ?? '';
 
