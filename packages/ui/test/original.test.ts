@@ -54,13 +54,8 @@ describe.skipIf(!dir || !existsSync(dir))('interfejs na plikach oryginału', () 
     expect(textSection(new Uint8Array(readFileSync(king)), '*INIT')).toContain('$');
   });
 
-  it('CIV.EXE: dane animacji twarzy władców; sala tronowa z doradcami i klatki twarzy na plikach gry', () => {
+  it('sala tronowa z doradcami i klatki twarzy na plikach gry (wszyscy władcy, ustroje i miny)', () => {
     const assets = new GameAssets(readGameFiles());
-    const data = assets.kingAnimation();
-    expect(data).not.toBeNull();
-    expect(data!.control[17]).toBe(-3);
-    expect(data!.advisorX.every((x) => x >= 0 && x < 320)).toBe(true);
-    for (let n = 0; n < 16; n++) expect([3, 8, 9]).toContain(leaderFontId(n, data));
     const ui = new Ui(new Gfx(assets.fonts), new TestHost());
     const state = newGame({ seed: 5, difficulty: 1, civilizations: 7, nation: 1 });
     advanceToHuman(state);
@@ -69,11 +64,12 @@ describe.skipIf(!dir || !existsSync(dir))('interfejs na plikach oryginału', () 
       for (const government of [Government.Despotism, Government.Monarchy, Government.Communism, Government.Democracy]) {
         state.players[p]!.government = government;
         drawThroneRoom(ui, assets, state, p);
+        expect([3, 8, 9]).toContain(leaderFontId(state.players[p]!.nation));
         const g = kingFaceState(ui) as { mood: number; talk: number };
         for (const mood of [0, 1, 2]) {
           g.mood = mood;
           g.talk = 4;
-          for (let i = 0; i < 30; i++) kingFaceFrame(ui, assets, state);
+          for (let i = 0; i < 30; i++) kingFaceFrame(ui, state);
         }
       }
     }

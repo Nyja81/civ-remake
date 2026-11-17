@@ -564,12 +564,13 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   (segment 0x36fa), położenia twarzy w „hail”. Trwała utrata spacji w „King ” po rozmowie z Elżbietą nieodtworzona.
 
 ### 2026-11-17 — twarze władców w rozmowach, animacja założenia miasta, zapis .SVE z menu (gałąź faces-svesave)
-- Dane z CIV.EXE w czasie działania: `unpackExepack` przeniesione do `packages/gfx` (oracle je re-eksportuje), CIV.EXE i SETTLERS.PIC
-  na liście plików opcjonalnych. `packages/ui/src/exeData.ts` odnajduje w obrazie programu (nic nie trafia do repozytorium): tablice
-  sekwencji twarzy DS:0x3a94/0x3aa6/0x3ab8 i X doradców DS:0x3afe (kotwica: napisy DS:0x3ad8 „govt0a.pic\0king00.pic\0king\0govt0a.pic”),
-  segment punktów zaczepienia (wzorzec 0x36fa; adres w słowie DS:0x640a, zapasowo — przegląd segmentów po kształcie danych):
-  czcionki władców wg nacji, punkty twarzy (0x10/0x48), punkty głów doradców (0x80/0xF0). W wersji 474.01 Damiana układ DS w tym
-  miejscu jest ten sam co w 475.05 wzorca (inne miejsca DS — np. napisy F22 — są przesunięte).
+- Dane animacji z CIV.EXE przez `npm run extract` (mechanizm z gałęzi extract-tables): `packages/oracle/src/exeData.ts` —
+  `parseKingAnimation` (sekwencje oczu/ust/sterowania DS:0x3a94/0x3aa6/0x3ab8 tuż za „*TREATY”, X ciał doradców DS:0x3afe za nazwami
+  „govt0a.pic\0king00.pic\0king\0govt0a.pic”) i `parseFaceSegment` (segment 0x36fa = segment nazw miast + 0xf60: czcionki władców,
+  punkty zaczepienia twarzy 0x10/0x48 i głów doradców 0x80/0xF0). Wygenerowane do `packages/ui/src/data/screenTables.ts`:
+  KING_EYE_SEQUENCE, KING_MOUTH_SEQUENCE, KING_SEQUENCE_CONTROL, ADVISOR_X, LEADER_FONTS, KING_FACE_POINTS, ADVISOR_HEAD_POINTS;
+  `packages/oracle/test/original.test.ts` porównuje je z CIV.EXE oraz 474.01 z 475.05 (`OPENCIV1_DIR`) — identyczne.
+  (Pierwsza wersja czytała te tablice z CIV.EXE w czasie działania — zastąpiona ekstrakcją po scaleniu main.)
 - Twarze (`screens/king.ts`, asembler `Overlay_6.cs` z ec23ac3): F6_0000_1d2b/21ac — sala z ciałami doradców z GOVT??.PIC
   (dla i < (ranking + 1) / 2), klatki oczu/ust z KING??.PIC (14 par, siatka 60×50 z przeskokami), głowy doradców (4 × 3 miny);
   F6_0000_1b33 — klatka w każdym obiegu pętli okna (`showMenuBox` z nową opcją `idle`, obieg do 10 jednostek zegara), mówienie
@@ -586,7 +587,7 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Zapis w formacie oryginału z menu (`screens/saveGame.ts`, asembler `Overlay_11.cs` F11_0000_036a/05f8/0103/04ef/08f6): okno dysku
   „Which drive contains your Save Game disk?” (białe tło z ramką z ikon — jedno losowanie generatora gry, A–F, Enter, Esc; w aplikacji
   jedynym dyskiem jest folder gry jako C:, inny dysk → „No Disk in Drive X.”), lista „Select Save File...” CIVIL0–3 (nazwy poziomów
-  z Array_33a2: Chief, Lord, Prince, King, Emperor; domyślnie ostatnie miejsce — Var_e168, także po wczytaniu zapisu oryginału),
+  z DS:0x33a2 — `DIFFICULTY_TITLES`: Chief, Lord, Prince, King, Emperor; domyślnie ostatnie miejsce — Var_e168, także po wczytaniu zapisu oryginału),
   „ c:CIVILn.SVE … ... save in progress.”, wynik „Game has been saved.” / czerwone pole i „Game NOT saved.” z „Write access denied.” /
   „Disk Full.” Autozapis co 50 tur — to samo okno z miejscem 4 + ((tura / 50 − 1) % 6). `GameScreenOptions.originalSaves` z `write`;
   bez niego GAME → Save Game zapisuje JSON jak dotąd. Decyzja: autozapis zapisuje oba formaty — CIVIL4–9.SVE (oryginał) i cichy
@@ -600,11 +601,13 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   ponowny zapis w oryginale różni się tylko MapCellCount[człowiek] (0 → 1), Score[człowiek] (3 → 0) i „śmieciami” w nieużywanych
   obszarach obrazu .MAP (x 160–319, y 50–199 — u nas 0). Wygląd twarzy porównany tylko na zrzutach z naszego UI (klatki pasują
   bez szwów); rozmowy z władcą w oryginale nie wywołano.
-- Testy: 311 + 9 nowych (bez `CIV1_DIR`: `packages/ui/test/kingFaces.test.ts`, `saveGame.test.ts`, animacja w `palace.test.ts`,
-  zapisy animacji w `packages/engine/test/kingMeeting.test.ts`; z `CIV1_DIR`: dane z CIV.EXE i klatki na plikach gry).
+- Testy po scaleniu z main: 304 bez `CIV1_DIR` (21 pominiętych), 323 z `CIV1_DIR` i `OPENCIV1_DIR` (2 pominięte: brak CIVIL?.SVE w kopii,
+  test obciążeniowy). Nowe: `packages/ui/test/kingFaces.test.ts`, `saveGame.test.ts`, animacja założenia miasta w `palace.test.ts`,
+  zapisy animacji w `packages/engine/test/kingMeeting.test.ts`, tablice twarzy w `packages/oracle/test/original.test.ts`, sala tronowa
+  i klatki na plikach gry w `packages/ui/test/original.test.ts`.
 - Odstępstwa: obieg okna z animacją kończy się wcześniej, gdy przyjdzie zdarzenie (oryginał zawsze czeka 10 jednostek);
   klawisz przerywający marsz osadników jest zużyty (oryginał zostawia go w buforze — kbhit — skutek ten sam: bez panoramy);
   po „File Error” przy otwarciu .SVE oryginał nie ustawia Var_681c i melduje „Game has been saved.” — u nas „Game NOT saved.”;
-  wybór dysku tylko klawiaturą (jak F0_2d05_0ac9); bez CIV.EXE twarz jest nieruchoma i animacja nie losuje.
+  wybór dysku tylko klawiaturą (jak F0_2d05_0ac9); bez BACK??/KING??.PIC logika animacji i jej losowania działają, klatki nie są rysowane.
 - Do zrobienia: twarz władcy w „hail the CONQUEROR” (Replay — te same punkty 0x36fa:0x10/0x12), okno wczytywania oryginału
   (F11_0000_0000 z wyborem dysku i dziesięcioma miejscami), dźwięk.

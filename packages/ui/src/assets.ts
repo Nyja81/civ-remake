@@ -3,7 +3,6 @@
  * nigdy nie trafiają do repozytorium.
  */
 import { decodePic, type PicImage } from '@civ-remake/gfx';
-import { readKingAnimationData, type KingAnimationData } from './exeData';
 import { FontSet, parseFonts } from './font';
 import { UI_REQUIRED_FILES } from './files';
 
@@ -11,7 +10,6 @@ export { UI_OPTIONAL_FILES, UI_REQUIRED_FILES } from './files';
 
 export class GameAssets {
   private readonly pics = new Map<string, PicImage>();
-  private kingData: KingAnimationData | null | undefined;
   readonly fonts: FontSet;
 
   /** `files`: nazwa pliku WIELKIMI LITERAMI → zawartość. */
@@ -43,14 +41,5 @@ export class GameAssets {
       this.pics.set(key, image);
     }
     return image;
-  }
-
-  /** Dane animacji rozmów z władcami z CIV.EXE gracza (null bez pliku albo przy nieznanym układzie programu). */
-  kingAnimation(): KingAnimationData | null {
-    if (this.kingData === undefined) {
-      const exe = this.optional('CIV.EXE');
-      this.kingData = exe ? readKingAnimationData(exe) : null;
-    }
-    return this.kingData;
   }
 }

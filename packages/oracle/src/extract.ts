@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { parseBuildingTables, parseNationTable, parseTechTable, parseTerrainTable, parseUnitTable, unpackExepack } from './exeTables';
 import {
   locateDataSegment, parseCityMapOffsets, parseCityNames, parseCityOffsets, parseCivilopediaStrings, parseDifficultyTitles, parseEarthStart,
-  parseFamousPersons, parseFigureOffsets, parseGameConcepts, parseHistorianTables, parseNationLeaderIds, parsePalaceTables,
+  parseFaceSegment, parseFamousPersons, parseFigureOffsets, parseKingAnimation, parseGameConcepts, parseHistorianTables, parseNationLeaderIds, parsePalaceTables,
   parsePictureSegment, parsePixelToTerrain, parseStoryTables, parsePlayerTables, parseSpaceshipParts, parseTechGrades, parseTerrainModifications,
 } from './exeData';
 
@@ -232,6 +232,8 @@ const palace = parsePalaceTables(img);
 const figures = parseFigureOffsets(img);
 const civilopedia = parseCivilopediaStrings(img);
 const story = parseStoryTables(img);
+const kingAnimation = parseKingAnimation(img);
+const faces = parseFaceSegment(img);
 writeFileSync(
   join(uiDataDir, 'screenTables.ts'),
   header('tablice ekranów') +
@@ -264,7 +266,21 @@ writeFileSync(
     `/**\n * Historia świata (F7_0000_17cf, segment 0x3710): cykle palety obrazów BIRTH1–8 — [od, do, dzielnik], szybkość cyklu\n` +
     ` * = 300 / dzielnik — i czasy kolejnych wierszy w jednostkach zegara muzyki (indeks = numer wiersza dłuższego niż 3 znaki).\n */\n` +
     `export const STORY_PALETTE_CYCLES: readonly (readonly (readonly [number, number, number])[])[] = ${block(story.paletteCycles, 1)};\n` +
-    `export const STORY_EVENT_TICKS: readonly number[] = ${block(story.eventTicks, 16)};\n`,
+    `export const STORY_EVENT_TICKS: readonly number[] = ${block(story.eventTicks, 16)};\n\n` +
+    `/**\n * Animacja twarzy władcy w rozmowie (F6_0000_1b33): numer klatki oczu i ust dla kroku sekwencji (DS:0x3a94, DS:0x3aa6)\n` +
+    ` * i sterowanie (DS:0x3ab8: 0 = koniec, > 0 = dalej, −1/−2/−3 = skok do kroku 0/6/14).\n */\n` +
+    `export const KING_EYE_SEQUENCE = ${lit(kingAnimation.eyes)} as const;\n` +
+    `export const KING_MOUTH_SEQUENCE = ${lit(kingAnimation.mouth)} as const;\n` +
+    `export const KING_SEQUENCE_CONTROL = ${lit(kingAnimation.control)} as const;\n` +
+    `/** X ciał doradców w sali tronowej (DS:0x3afe). */\n` +
+    `export const ADVISOR_X = ${lit(kingAnimation.advisorX)} as const;\n` +
+    `/** Czcionka władcy wg nacji (segment 0x36fa; F6_0000_16cd: + 8, wynik 10 → 3). */\n` +
+    `export const LEADER_FONTS = ${lit(faces.leaderFonts)} as const;\n` +
+    `/** Punkty zaczepienia klatek twarzy wg numeru portretu (segment 0x36fa:0x10/0x48): [x, x w klatce, y, y w klatce]. */\n` +
+    `export const KING_FACE_POINTS: readonly (readonly [number, number, number, number])[] = ${block(faces.facePoints, 7)};\n` +
+    `/**\n * Punkty zaczepienia głów doradców (segment 0x36fa:0x80/0xF0): [wariant sali][doradca] = [x w ciele, x w GOVT??.PIC,\n` +
+    ` * y w ciele, y w GOVT??.PIC]; wariant = ustrój / 2 % 3 (komunizm 6, z Invention + 3).\n */\n` +
+    `export const ADVISOR_HEAD_POINTS: readonly (readonly (readonly [number, number, number, number])[])[] = ${block(faces.headPoints, 1)};\n`,
 );
 
 console.log(

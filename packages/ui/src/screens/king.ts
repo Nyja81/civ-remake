@@ -7,32 +7,34 @@
  *     potem klatki twarzy z KING??.PIC (14 par: oczy 59×20 i usta 59×29 w siatce 60×50, z pominięciem pól 8, 9, 13, 14)
  *     i głowy doradców z GOVT??.PIC (4 × 3 miny, 28×24 z (29j + 161, 25i + 1)),
  *   F6_0000_1b33 — klatka animacji w każdym obiegu pętli okna (MenuBoxDialog, gdy Var_3936 ≠ −1): sekwencje oczu i ust
- *     z tablic DS:0x3a94/0x3aa6/0x3ab8, mówienie (Var_d76c klatek), losowe mrugnięcia — losowania F0_2dc4_005d wspólnym
- *     generatorem gry (`state.rng`), potem czekanie 10 jednostek zegara,
- *   F6_0000_2362 — rysowanie klatki: głowy doradców (gdy zmieniła się ich mina) z punktami zaczepienia z segmentu 0x36fa
- *     (wariant sali: ustrój / 2 % 3, komunizm 6, z Invention + 3) oraz oczy i usta władcy (punkty zaczepienia 0x36fa:0x10/0x48),
+ *     (KING_EYE_SEQUENCE / KING_MOUTH_SEQUENCE / KING_SEQUENCE_CONTROL — DS:0x3a94/0x3aa6/0x3ab8), mówienie (Var_d76c klatek),
+ *     losowe mrugnięcia — losowania F0_2dc4_005d wspólnym generatorem gry (`state.rng`), potem czekanie 10 jednostek zegara,
+ *   F6_0000_2362 — rysowanie klatki: głowy doradców (gdy zmieniła się ich mina) z punktami ADVISOR_HEAD_POINTS (segment 0x36fa;
+ *     wariant sali: ustrój / 2 % 3, komunizm 6, z Invention + 3) oraz oczy i usta władcy (KING_FACE_POINTS),
  *   F6_0000_233c — koniec animacji (zwolnienie klatek),
  *   F6_0000_251d_ShowInlineDialog — tekst i opcje bez ramki w (36, 139) na tle sali (wiersz 8 pikseli),
- *   F6_0000_16cd — pytanie o posła (ShowDialog w (100, 80)) i czcionka władcy (bajt z 0x36fa:nacja + 8; 10 → 3),
+ *   F6_0000_16cd — pytanie o posła (ShowDialog w (100, 80)) i czcionka władcy (LEADER_FONTS[nacja] + 8; 10 → 3),
  *   F6_0000_16ac — koniec rozmowy (powrót do mapy z wygaszeniem).
  * Logikę rozmowy prowadzi silnik (`meetWithKing`, `aiRequestMeeting`, `envoyMeeting`): ten moduł pokazuje kroki
  * i przenosi do animacji zapisy Var_3936 / Var_d76c / Var_6b8e niesione przez kroki.
- * Tablice animacji czyta `GameAssets.kingAnimation()` z CIV.EXE gracza w czasie działania (`exeData.ts`).
+ * Tablice animacji generuje `npm run extract` z CIV.EXE (`data/screenTables.ts`; te same w 474.01 i 475.05).
  *
  * Pominięte: dźwięk (PlayTune: krótka i długa melodia nacji, sygnał 33 przy groźbach); wariant z brakującą dyskietką
  * (F0_11a8_02a4 — napis „imię: tytuł of the naród.” zamiast sali).
- * Bez plików BACK??.PIC / KING??.PIC ekran jest uproszczony (czarne tło z imieniem władcy, szary pas na tekst);
- * bez CIV.EXE twarz jest nieruchoma i animacja nie losuje (generator gry nie jest wtedy zużywany).
+ * Bez plików BACK??.PIC / KING??.PIC ekran jest uproszczony (czarne tło z imieniem władcy, szary pas na tekst); logika animacji
+ * (i jej losowania) działa wtedy dalej — jak w oryginale przy Var_67f0 = 1 — tylko klatki nie są rysowane.
  */
 import { playerHasTech, Tech, type GameState, type KingKeywords, type KingMeeting, type MeetingStep } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
-import type { KingAnimationData } from '../exeData';
 import { showMenuBox } from '../menuBox';
 import { readPaletteRange } from '../palette';
 import { Surface } from '../surface';
 import { adjustTextBlockWidth, replaceKeywords, textSection } from '../text';
 import type { Ui } from '../ui';
-import { NATION_LEADER_IDS } from '../data/screenTables';
+import {
+  ADVISOR_HEAD_POINTS, ADVISOR_X, KING_EYE_SEQUENCE, KING_FACE_POINTS, KING_MOUTH_SEQUENCE, KING_SEQUENCE_CONTROL, LEADER_FONTS,
+  NATION_LEADER_IDS,
+} from '../data/screenTables';
 
 /** Array_3938_NationalityIDToLeaderID — numer portretu KING??.PIC dla nacji (z CIV.EXE, data/screenTables). */
 export { NATION_LEADER_IDS };
@@ -51,10 +53,9 @@ export function advisorsFile(government: number, invention: boolean): string {
   return `GOVT${throneRoomFile(government, invention).slice(4)}`;
 }
 
-/** F6_0000_16cd: czcionka władcy = bajt z segmentu 0x36fa (indeks = nacja) + 8, wynik 10 zamieniany na 3; bez CIV.EXE — 1. */
-export function leaderFontId(nation: number, data: KingAnimationData | null = null): number {
-  if (!data) return 1;
-  const font = (data.leaderFont[nation] ?? 0) + 8;
+/** F6_0000_16cd: czcionka władcy = bajt z segmentu 0x36fa (indeks = nacja) + 8, wynik 10 zamieniany na 3. */
+export function leaderFontId(nation: number): number {
+  const font = (LEADER_FONTS[nation] ?? 0) + 8;
   return font === 10 ? 3 : font;
 }
 
@@ -97,24 +98,20 @@ interface FaceScene {
 }
 
 interface FaceAnimation {
-  readonly data: KingAnimationData;
   readonly globals: FaceGlobals;
   scene: FaceScene | null;
 }
 
 const animations = new WeakMap<Ui, FaceAnimation>();
 
-/** Animacja dla danego ekranu (null, gdy brak danych z CIV.EXE). */
-function faceAnimation(ui: Ui, assets: GameAssets): FaceAnimation | null {
+/** Animacja (zmienne globalne oryginału) dla danego ekranu. */
+function faceAnimation(ui: Ui): FaceAnimation {
   let a = animations.get(ui);
   if (a) return a;
-  const data = assets.kingAnimation();
-  if (!data) return null;
   a = {
-    data,
     globals: {
       mood: -1, talk: 0, stern: 0, seq: 0, pause: 0, advisorMood: -1, lastAdvisor: -1,
-      eyes: [...data.eyes], mouth: [...data.mouth], control: [...data.control],
+      eyes: [...KING_EYE_SEQUENCE], mouth: [...KING_MOUTH_SEQUENCE], control: KING_SEQUENCE_CONTROL,
     },
     scene: null,
   };
@@ -181,7 +178,7 @@ export function drawThroneRoom(ui: Ui, assets: GameAssets, state: GameState, pla
   const pl = state.players[player]!;
   const palette = gfx.palette.clone();
   const invention = playerHasTech(state, player, Tech.Invention); // Var_67ee
-  const anim = faceAnimation(ui, assets);
+  const anim = faceAnimation(ui);
   const backName = throneRoomFile(pl.government, invention);
   const govtName = advisorsFile(pl.government, invention);
   const kingName = leaderFile(pl.nation, 'PIC');
@@ -199,8 +196,8 @@ export function drawThroneRoom(ui: Ui, assets: GameAssets, state: GameState, pla
     gfx.fillRect(0, 136, 320, 64, 7, 1);
   }
   const advisors = Math.trunc((pl.ranking + 1) / 2);
-  if (bodies && anim) {
-    for (let i = 0; i < advisors; i++) gfx.drawBitmap(bodies[(i + player) & 3]!, anim.data.advisorX[i] ?? 0, 34, 1);
+  if (bodies) {
+    for (let i = 0; i < advisors; i++) gfx.drawBitmap(bodies[(i + player) & 3]!, ADVISOR_X[i] ?? 0, 34, 1);
   }
   if (assets.has(kingName)) {
     const portrait = cutPic(assets.pic(kingName), 181, 67, 139, 133);
@@ -223,7 +220,6 @@ export function drawThroneRoom(ui: Ui, assets: GameAssets, state: GameState, pla
     gfx.drawCenteredStringWithShadow(title, 160, assets.has(kingName) ? 124 : 60, 15);
   }
   ui.present();
-  if (!anim) return;
   // L1f94: klatki twarzy — oczy (60·(k % 5) + 1, 50·(k / 5) + 1) 59×20 i usta (…, 50·(k / 5) + 21) 59×29,
   // k rośnie z każdą klatką i przeskakuje o 2 przed klatkami 8 i 11
   const king = assets.has(kingName) ? assets.pic(kingName) : null;
@@ -256,9 +252,8 @@ export function drawThroneRoom(ui: Ui, assets: GameAssets, state: GameState, pla
  * F6_0000_1b33: jedna klatka animacji (logika i losowania), potem F6_0000_2362 (rysowanie). Woła ją pętla okna
  * (MenuBoxDialog) w każdym obiegu, gdy Var_3936 ≠ −1; czekanie 10 jednostek zegara robi pętla okna.
  */
-export function kingFaceFrame(ui: Ui, assets: GameAssets, state: GameState): void {
-  const anim = faceAnimation(ui, assets);
-  if (!anim) return;
+export function kingFaceFrame(ui: Ui, state: GameState): void {
+  const anim = faceAnimation(ui);
   const g = anim.globals;
   const random = (n: number) => state.rng.next(n); // F0_2dc4_005d
   g.advisorMood = -1;
@@ -322,24 +317,24 @@ function drawFaceFrame(ui: Ui, anim: FaceAnimation, eyes: number, mouth: number,
   const scene = anim.scene;
   if (!scene || scene.simple) return;
   const gfx = ui.gfx;
-  const { data, globals: g } = anim;
+  const g = anim.globals;
   if (advisorMood !== -1 && advisorMood !== g.lastAdvisor && scene.heads) {
     for (let i = 0; i < scene.advisors; i++) {
       const c = (i + scene.player) & 3;
-      const si = scene.variant * 16 + c * 4;
-      let x = data.advisorX[i] ?? 0;
+      const [hx, hx1, hy, hy1] = ADVISOR_HEAD_POINTS[scene.variant]![c]!;
+      let x = ADVISOR_X[i] ?? 0;
       let y = 0;
-      x += data.word(si + 0x80) - 80 * c;
-      x -= data.word(si + 0x82) - 160;
-      y += data.word(si + 0xf0) - 100;
-      y -= data.word(si + 0xf2) - 25 * c;
+      x += hx - 80 * c;
+      x -= hx1 - 160;
+      y += hy - 100;
+      y -= hy1 - 25 * c;
       gfx.drawBitmap(scene.heads[c]![advisorMood]!, x, y + 34);
       g.lastAdvisor = advisorMood;
     }
   }
-  const lid = scene.leaderId * 4;
-  const x = 90 + data.word(lid + 0x10) - 180 - data.word(lid + 0x12);
-  const y = data.word(lid + 0x48) - 64 - data.word(lid + 0x4a);
+  const [fx, fx1, fy, fy1] = KING_FACE_POINTS[scene.leaderId]!;
+  const x = 90 + fx - 180 - fx1;
+  const y = fy - 64 - fy1;
   if (eyes !== -1 && scene.eyeFrames[eyes]) gfx.drawBitmap(scene.eyeFrames[eyes]!, x, y - 2);
   if (mouth !== -1 && scene.mouthFrames[mouth]) gfx.drawBitmap(scene.mouthFrames[mouth]!, x, y + 18);
   ui.present();
@@ -381,9 +376,9 @@ export async function runKingMeeting(
     if (step.text !== null) return step.text;
     return kingText(assets, step.key ?? '', keywords, step.width);
   };
-  const anim = faceAnimation(ui, assets);
+  const anim = faceAnimation(ui);
   // pętla okna woła F6_0000_1b33, gdy Var_3936 ≠ −1
-  const idle = () => (anim && anim.globals.mood !== -1 ? () => kingFaceFrame(ui, assets, state) : undefined);
+  const idle = () => (anim.globals.mood !== -1 ? () => kingFaceFrame(ui, state) : undefined);
   /** MenuBoxDialog.ShowDialog z animacją: ekran 0 zapamiętany na ekranie 1 i odtworzony po wyborze. */
   const dialog = async (body: string, x: number, y: number): Promise<number> => {
     ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
@@ -402,16 +397,14 @@ export async function runKingMeeting(
         break;
       case 'portrait':
         drawThroneRoom(ui, assets, state, step.player);
-        ui.gfx.fontId = leaderFontId(state.players[step.player]!.nation, assets.kingAnimation());
+        ui.gfx.fontId = leaderFontId(state.players[step.player]!.nation);
         break;
       case 'speech':
       case 'dialog':
-        if (anim) {
-          // zapisy Var_3936 / Var_d76c / Var_6b8e sprzed okna
-          anim.globals.mood = step.mood;
-          if (step.talk !== null) anim.globals.talk = step.talk;
-          if (step.stern !== null) anim.globals.stern = step.stern;
-        }
+        // zapisy Var_3936 / Var_d76c / Var_6b8e sprzed okna
+        anim.globals.mood = step.mood;
+        if (step.talk !== null) anim.globals.talk = step.talk;
+        if (step.stern !== null) anim.globals.stern = step.stern;
         answer = step.kind === 'speech'
           ? await showInlineDialog(ui, text(step), 36, 139, step.disabled, idle())
           : await dialog(text(step), 40, 100);
@@ -423,7 +416,7 @@ export async function runKingMeeting(
       case 'close':
         // F6_0000_16ac: F6_0000_233c, Var_3936 = −1
         endFaceAnimation(ui);
-        if (anim) anim.globals.mood = -1;
+        anim.globals.mood = -1;
         ui.gfx.fontId = 1;
         await hooks.close?.();
         break;
