@@ -27,6 +27,11 @@ export interface MenuBoxOptions {
   readonly lineHeight?: number;
   /** Var_db38 = 1: okno jest tylko rysowane (bez oczekiwania i bez pokazania klatki); wynik −1. */
   readonly noWait?: boolean;
+  /**
+   * Wołane w każdym obiegu pętli okna przed czekaniem (w rozmowie z władcą: F6_0000_1b33, gdy Var_3936 ≠ −1); obieg trwa
+   * wtedy do 10 jednostek zegara albo do zdarzenia.
+   */
+  readonly idle?: () => void;
 }
 
 export interface MenuBoxResult {
@@ -184,7 +189,17 @@ export async function showMenuBox(ui: Ui, text: string, x: number, y: number, op
   ui.present();
 
   for (;;) {
-    const e: UiEvent = await ui.input.next();
+    let e: UiEvent | undefined;
+    if (options.idle) {
+      options.idle();
+      e = ui.input.take() ?? undefined;
+      if (!e) {
+        await ui.input.waitFor(ui.waitTimer(10));
+        continue;
+      }
+    } else {
+      e = await ui.input.next();
+    }
     let exit = false;
     if (e.type === 'mousemove') {
       // Odstępstwo: wzorzec reaguje dopiero, gdy zmienią się OBIE współrzędne myszy; tu wystarczy jedna.

@@ -10,8 +10,14 @@
  * i przekazuje odpowiedź człowieka (`meeting.answer(numer opcji)`); skutki (traktaty, trybut, technologie, wojna)
  * wykonuje silnik między krokami — tak jak oryginał między kolejnymi oknami.
  *
+ * Animacja twarzy (F6_0000_1b33) należy do interfejsu, ale steruje nią rozmowa: kroki niosą zapisy zmiennych globalnych
+ * oryginału — Var_3936 (mina; −1 = bez animacji), Var_d76c (liczba klatek mówienia) i Var_6b8e (surowe spojrzenie) —
+ * dokładnie w miejscach, w których F6_0000_0000, F6_0000_16cd, F6_0000_1a3f, Diplomacy (*HELPME/*CRUSADE)
+ * i ResearchFinished (*GAPE) je zapisują. Animacja losuje wspólnym generatorem gry (F0_2dc4_005d) w każdej klatce okna,
+ * więc interfejs zużywa `state.rng` tak jak oryginał (liczba losowań zależy od czasu, przez który okno jest otwarte).
+ *
  * Pominięte (interfejs, nie zasady): rysowanie pola spotkania (UpdateVisibleCellStatus, DrawCellWithUnit), dźwięk (PlayTune),
- * animacja twarzy (F6_0000_1b33 — losuje przez CAPI.RNG; bez niej generator gry nie jest tu zużywany), zmiany czcionki.
+ * zmiany czcionki.
  */
 import { MAX_UNITS_PER_PLAYER } from '../data/enums';
 import { NATIONS } from '../data/nations';
@@ -62,8 +68,12 @@ export type MeetingStep =
     readonly values: KingKeywords;
     readonly width: number;
     readonly disabled: number;
-    /** Var_3936: mina władcy w animacji (0 spokojna, 1 zwykła, 2 gniewna). */
+    /** Var_3936 w chwili okna: mina władcy w animacji (0 spokojna, 1 zwykła, 2 gniewna; −1 = bez animacji). */
     readonly mood: number;
+    /** Var_d76c zapisane przed tym oknem (liczba klatek mówienia: 12 albo 4); null = bez zapisu (licznik biegnie dalej). */
+    readonly talk: number | null;
+    /** Var_6b8e zapisane przed tym oknem (0/1 — wybór klatek gniewnej i spokojnej miny); null = bez zapisu. */
+    readonly stern: number | null;
   }
   | { readonly kind: 'advice'; readonly player: number; readonly key: string; readonly values: KingKeywords }
   | { readonly kind: 'close'; readonly player: number };
@@ -131,6 +141,10 @@ class Session {
   /** Array_30b8 — słowa kluczowe ustawione w tej rozmowie. */
   readonly values: KingKeywords = {};
   readonly titles: string[] = [...LEADER_TITLES];
+  /** Var_3936 — po każdej rozmowie F6_0000_16ac zostawia −1, więc nowa rozmowa zaczyna od −1. */
+  mood = -1;
+  /** Zapisy Var_d76c i Var_6b8e od ostatniego okna (przekazywane z najbliższym krokiem). */
+  private pending: { talk?: number; stern?: number } = {};
 
   constructor(readonly state: GameState, readonly player: number, emissary: number, readonly x: number, readonly y: number) {
     this.emissary = emissary;
@@ -138,11 +152,25 @@ class Session {
     if (state.players[player]!.nation === EMPRESS_NATION) this.titles[1] = this.titles[2] = 'Empress';
   }
 
-  speech(key: string | null, text: string | null, mood: number, options: { width?: number; disabled?: number; kind?: 'speech' | 'dialog' } = {}): MeetingStep {
-    return {
+  /** Zapis zmiennych animacji (kolejność jak w oryginale nie ma znaczenia — czyta je dopiero klatka w oknie). */
+  anim(writes: { mood?: number; talk?: number; stern?: number }): void {
+    if (writes.mood !== undefined) this.mood = writes.mood;
+    if (writes.talk !== undefined) this.pending.talk = writes.talk;
+    if (writes.stern !== undefined) this.pending.stern = writes.stern;
+  }
+
+  speech(
+    key: string | null, text: string | null,
+    options: { width?: number; disabled?: number; kind?: 'speech' | 'dialog'; mood?: number; talk?: number; stern?: number } = {},
+  ): MeetingStep {
+    this.anim(options);
+    const step: MeetingStep = {
       kind: options.kind ?? 'speech', player: this.player, key, text, values: { ...this.values },
-      width: options.width ?? 80, disabled: options.disabled ?? 0, mood,
+      width: options.width ?? 80, disabled: options.disabled ?? 0, mood: this.mood,
+      talk: this.pending.talk ?? null, stern: this.pending.stern ?? null,
     };
+    this.pending = {};
+    return step;
   }
 
   /**
@@ -164,7 +192,8 @@ class Session {
     }
     if (this.emissary === -1) return -1;
     yield { kind: 'portrait', player: this.player };
-    yield this.speech(null, this.greeting(), 1);
+    // L17d1: Var_3936 = 1, Var_67e8 = −1, Var_7ef4 = 0, Var_d76c = 12, potem powitanie (F6_0000_1874)
+    yield this.speech(null, this.greeting(), { mood: 1, talk: 12 });
     return this.emissary;
   }
 
@@ -190,11 +219,12 @@ class Session {
   *treatyText(): SubFlow<void> {
     this.values.RPLC1 = this.state.players[this.player]!.nationAdjective;
     this.values.US = this.state.players[this.state.humanPlayer]!.nationAdjective;
-    yield this.speech('*TREATY', null, 1);
+    yield this.speech('*TREATY', null, { talk: 12 });
   }
 
-  /** F6_0000_16ac: koniec rozmowy. */
+  /** F6_0000_16ac: koniec rozmowy (Var_3936 = −1). */
   close(): MeetingStep {
+    this.mood = -1;
     this.asked = false;
     this.emissary = 0;
     return { kind: 'close', player: this.player };
@@ -251,11 +281,11 @@ function* acquireTechnology(session: Session, taker: number, giver: number): Sub
   if (options.length === 0) return;
   if (taker === h) {
     let chosen = -1;
-    while (chosen === -1) chosen = yield session.speech(null, menu, 1);
+    while (chosen === -1) chosen = yield session.speech(null, menu);
     researchFinished(state, taker, giver, options[chosen] ?? options[0]!);
     return;
   }
-  if (giver === h) yield session.speech(null, `${state.players[taker]!.nationPlural} take\n${TECHS[best]!.name}.\n`, 1);
+  if (giver === h) yield session.speech(null, `${state.players[taker]!.nationPlural} take\n${TECHS[best]!.name}.\n`);
   researchFinished(state, taker, giver, best);
   changeProductionOnContinent(state, taker, -1);
 }
@@ -276,6 +306,7 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
   const x = options.x ?? -1;
   const y = options.y ?? -1;
   const session = new Session(state, player, visit ? 1 : 0, x, y);
+  session.anim({ stern: 0 }); // L008f: Var_6b8e = 0
   const rel = () => ai.diplomacy[h]!;
   const atPeace = () => (rel() & Diplomacy.Peace) !== 0;
   const vendetta = () => (rel() & Diplomacy.Vendetta) !== 0;
@@ -409,9 +440,11 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
     if (humanTechs < aiTechs || offeredTech === -1) break;
     if ((yield* session.receive()) === -1) break;
     session.values.RPLC1 = TECHS[offeredTech]!.name;
-    if ((yield session.speech('*EXCHANGE', null, 1)) !== 1) break;
+    if ((yield session.speech('*EXCHANGE', null, { mood: 1, talk: 12 })) !== 1) break;
+    session.anim({ mood: -1 }); // L07a4: bez animacji podczas wymiany
     yield* acquireTechnology(session, player, h);
     yield* acquireTechnology(session, h, player);
+    session.anim({ mood: 1 });
     hostile = 0;
   }
 
@@ -436,7 +469,7 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
     if (enemyAtPeaceWithHuman !== -1 && (yield* session.receive()) !== -1 && attitude !== 0) {
       session.values.THEM = state.players[enemyAtPeaceWithHuman]!.nationPlural;
       session.values.RPLC1 = hostile !== 0 ? 'demand' : 'request';
-      if ((yield session.speech('*CANCEL', null, hostile !== 0 ? 2 : 1)) === 1) {
+      if ((yield session.speech('*CANCEL', null, { mood: hostile !== 0 ? 2 : 1, talk: 12 })) === 1) {
         hostile = 0;
         if (state.rng.next(2) !== 0) tribute = 0;
         clearDiplomacyFlags(state, h, enemyAtPeaceWithHuman, Diplomacy.Peace);
@@ -447,7 +480,7 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
     // ── *TRIBUTE (L0952–L0a28) ──
     if (tribute !== 0 && attitude === 2 && human.gold > tribute && (yield* session.receive()) !== -1) {
       session.values.BUCKS = String(tribute);
-      if ((yield session.speech('*TRIBUTE', null, 2)) === 1) {
+      if ((yield session.speech('*TRIBUTE', null, { stern: 0, mood: 2, talk: 12 })) === 1) {
         human.gold -= tribute;
         ai.gold += tribute;
         hostile = 0;
@@ -458,28 +491,29 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
     // ── *TAKECIV: żądanie technologii (L0a28–L0ad0) ──
     if (attitude !== 0 && wantedTech !== -1 && tribute !== DONE && (yield* session.receive()) !== -1) {
       session.values.RPLC1 = TECHS[wantedTech]!.name;
-      if ((yield session.speech('*TAKECIV', null, 2)) === 1) {
+      if ((yield session.speech('*TAKECIV', null, { stern: 0, mood: 2, talk: 12 })) === 1) {
         researchFinished(state, player, h, wantedTech);
         hostile = 0;
       }
       tribute = DONE;
     }
 
-    // ── wypowiedzenie wojny (L0ad0–L0c29) ──
+    // ── wypowiedzenie wojny (L0ad0–L0c29); w oknie bez ramki L0b1a: Var_6b8e = 1, Var_3936 = 2, Var_d76c = 12 ──
+    const warAnim = { stern: 1, mood: 2, talk: 12 } as const;
     if (hostile !== 0 && atPeace() && tribute > 50) {
       const received = (yield* session.receive()) !== -1;
-      yield session.speech('*PROVOKE', null, 2, { width: 40, kind: received ? 'speech' : 'dialog' });
+      yield session.speech('*PROVOKE', null, { width: 40, ...(received ? warAnim : { kind: 'dialog' }) });
       clearDiplomacyFlags(state, h, player, Diplomacy.Peace);
     } else if (hostile !== 0 && tribute === DONE) {
       if ((yield* session.receive()) !== -1) {
-        yield session.speech('*REJECT', null, 2, { width: 40 });
+        yield session.speech('*REJECT', null, { width: 40, ...warAnim });
         clearDiplomacyFlags(state, h, player, Diplomacy.Peace);
       }
     } else if (hostile !== 0) {
       const contact = options.hadContact ?? (rel() & Diplomacy.Contact) !== 0;
       if (!contact || visit) {
         const received = (yield* session.receive()) !== -1;
-        yield session.speech('*RID', null, 2, { width: 40, kind: received ? 'speech' : 'dialog' });
+        yield session.speech('*RID', null, { width: 40, ...(received ? warAnim : { kind: 'dialog' }) });
         clearDiplomacyFlags(state, h, player, Diplomacy.Peace);
       }
     }
@@ -490,15 +524,19 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
     }
 
     // ── L1097: przyjaźń albo nastawienie ──
+    session.anim({ stern: 0 });
     if (hostile === 0 && atPeace() && (yield* session.receive()) !== -1) {
       if (attitude !== 0 && tribute !== DONE) {
-        yield session.speech('*ATTITUDE', null, 1);
+        yield session.speech('*ATTITUDE', null, { mood: 1, talk: 4 });
       } else {
         const title = session.titles[human.government] ?? '';
         yield session.speech(null, `We welcome the friendship of the\n${human.nationAdjective} people and their most\n` +
-          `wise and munificent leader:\n${title} ${human.leader}.\n`, 0);
+          `wise and munificent leader:\n${title} ${human.leader}.\n`, { mood: 0, talk: 12 });
       }
     }
+
+    // L11d6: Var_6b8e = 1
+    session.anim({ stern: 1 });
 
     // ── L11d6: groźby i prośby człowieka (*THREAT) ──
     if (atPeace() && (yield* session.receive()) !== -1) {
@@ -518,14 +556,14 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
 
   /** L0c65–L1097: *PEACE i — po odmowie człowieka — oferty komputera (*GIVECIV, *GIVECASH, *GROVEL) albo *MOBILIZE. */
   function* peaceTalks(): Flow {
-    if ((yield session.speech('*PEACE', null, 0)) === 1) {
+    if ((yield session.speech('*PEACE', null, { stern: 0, mood: 0, talk: 12 })) === 1) {
       yield* session.treatyText();
       signPeaceTreaty(state, player);
       ai.contactCountdown = state.turn + 16;
       return;
     }
     if (isRepublican(human.government)) {
-      yield session.speech(null, 'You are overruled by the Senate.\nTreaty signed.\n', 0);
+      yield session.speech(null, 'You are overruled by the Senate.\nTreaty signed.\n');
       signPeaceTreaty(state, player);
       return;
     }
@@ -534,7 +572,7 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
     // *GIVECIV (L0d2a)
     if (fear >= 4 && offeredTech !== -1 && noTreaty()) {
       session.values.RPLC1 = TECHS[offeredTech]!.name;
-      if ((yield session.speech('*GIVECIV', null, 0)) === 1) {
+      if ((yield session.speech('*GIVECIV', null, { mood: 0, talk: 12 })) === 1) {
         researchFinished(state, h, player, offeredTech);
         yield* session.treatyText();
         signPeaceTreaty(state, player);
@@ -546,7 +584,7 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
       const cash = clamp(fear * 2 - 4, 0, Math.trunc(ai.gold / 50)) * 50;
       if (cash !== 0) {
         session.values.BUCKS = String(cash);
-        if ((yield session.speech('*GIVECASH', null, 0)) === 1) {
+        if ((yield session.speech('*GIVECASH', null, { mood: 0, talk: 12 })) === 1) {
           yield* session.treatyText();
           signPeaceTreaty(state, player);
           // wzorzec: „sub [si], ax” — odejmowane od skarbca komputera (rejestr SI nieczytelny w tłumaczeniu)
@@ -559,7 +597,7 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
     // *GROVEL (L0eed): komputer z jednym miastem oddaje skarbiec i wszystkie technologie
     if (fear !== 0 && ai.cityCount <= 1 && noTreaty()) {
       session.values.BUCKS = String(ai.gold);
-      if ((yield session.speech('*GROVEL', null, 0)) === 1) {
+      if ((yield session.speech('*GROVEL', null, { mood: 0, talk: 12 })) === 1) {
         yield* session.treatyText();
         signPeaceTreaty(state, player);
         human.gold += ai.gold;
@@ -571,7 +609,7 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
       }
     }
     // *MOBILIZE (L1041)
-    if (!atPeace()) yield session.speech('*MOBILIZE', null, 2);
+    if (!atPeace()) yield session.speech('*MOBILIZE', null, { stern: 1, mood: 2, talk: 4 });
   }
 
   /** L1209–L15e2: opcje człowieka w *THREAT — 0 pożegnanie, 1 namowa do wojny z trzecią cywilizacją, 2 żądanie trybutu. */
@@ -581,21 +619,21 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
       let disabled = 0;
       if (state.turn - countdown < 16 || isRepublican(human.government)) disabled = 4;
       if (((1 << player) | (1 << h)) === state.activeCivs) disabled |= 2;
-      const choice = yield session.speech('*THREAT', null, 1, { disabled });
+      const choice = yield session.speech('*THREAT', null, { disabled });
       if (choice === 2) {
         const cash = s16(clamp(fear, 0, Math.trunc(ai.gold / 50)) * 50);
         if (cash !== 0) {
           session.values.BUCKS = String(cash);
-          yield session.speech('*GIVEMORE', null, 0);
+          yield session.speech('*GIVEMORE', null, { mood: 0, talk: 12 });
           // wzorzec dodaje AX po oknie; we wcześniejszej wersji też — przyjmujemy kwotę z -0x22, jak przy odjęciu
           human.gold += cash;
           ai.gold -= cash;
           ai.contactCountdown = state.turn;
         } else if (initiallyHostile !== 0) {
           clearDiplomacyFlags(state, h, player, Diplomacy.Peace);
-          yield session.speech('*PROVOKE', null, 2);
+          yield session.speech('*PROVOKE', null, { mood: 2, talk: 12 });
         } else {
-          yield session.speech(null, 'We ignore your feeble threats.\n', 1);
+          yield session.speech(null, 'We ignore your feeble threats.\n', { mood: 1, talk: 4 });
         }
       }
       if (choice !== 1) return;
@@ -607,29 +645,31 @@ function* meetWithKingFlow(state: GameState, player: number, options: MeetWithKi
         targets.push(j);
         text += `${state.players[j]!.nationPlural}\n `;
       }
-      const pick = yield session.speech(null, text, 1);
+      const pick = yield session.speech(null, text);
+      session.anim({ mood: 1 }); // L1426
       if (pick === -1 || targets[pick] === undefined) return;
       const target = targets[pick]!;
       const enemy = state.players[target]!;
       session.values.RPLC1 = enemy.nationPlural;
+      session.anim({ talk: 4 }); // L144a
       if (!(ai.diplomacy[target]! & Diplomacy.Contact)) {
-        yield session.speech('*NOCONTACT', null, 1);
+        yield session.speech('*NOCONTACT', null);
         return;
       }
       if (!(ai.diplomacy[target]! & Diplomacy.Peace)) {
-        yield session.speech('*ATWAR', null, 1);
+        yield session.speech('*ATWAR', null);
         continue; // goto L1209: ponownie *THREAT
       }
       const price = s16(clamp(Math.trunc((Math.trunc(enemy.militaryPower / 2) * Math.trunc(ai.gold / 100)) / 50), 2, 9999) * 50);
       session.values.BUCKS = String(price);
-      if ((yield session.speech('*MERCENARY', null, 1)) !== 1) return;
+      if ((yield session.speech('*MERCENARY', null)) !== 1) return;
       if (human.gold >= price) {
         ai.gold += price;
         human.gold -= price;
         // Wzorzec (i jego najstarsza wersja) nie zmienia tu flag dyplomacji — tylko komunikat.
-        yield session.speech(null, `${ai.nationPlural} declare war\non the ${enemy.nationPlural}.\n`, 1);
+        yield session.speech(null, `${ai.nationPlural} declare war\non the ${enemy.nationPlural}.\n`);
       } else {
-        yield session.speech('*UNFORTUNATE', null, 1);
+        yield session.speech('*UNFORTUNATE', null);
       }
       return;
     }
@@ -651,7 +691,8 @@ export function aiRequestMeeting(
       session.values.THEM = state.players[enemy]!.nationPlural;
       if (request === 'helpme') session.values.BUCKS = String(amount);
       else session.values.RPLC1 = extend ? 'extend our' : 'agree to a';
-      if ((yield session.speech(request === 'helpme' ? '*HELPME' : '*CRUSADE', null, 1)) === 1) {
+      // Diplomacy (Segment_2517 L0243): Var_3936 = 1, Var_d76c = 12
+      if ((yield session.speech(request === 'helpme' ? '*HELPME' : '*CRUSADE', null, { mood: 1, talk: 12 })) === 1) {
         acceptAiRequest(state, request, player, enemy, amount);
       }
     }
@@ -669,7 +710,8 @@ export function envoyMeeting(state: GameState, player: number, tech: number): Ki
     if ((yield* session.receive()) === -1) return;
     session.values.US = state.players[player]!.nationPlural;
     session.values.RPLC1 = TECHS[tech]?.name ?? '';
-    yield session.speech('*GAPE', null, 2);
+    // ResearchFinished (Segment_1ade L1fe6): Var_3936 = 2, Var_d76c = 12
+    yield session.speech('*GAPE', null, { mood: 2, talk: 12 });
     yield session.close();
   })());
 }

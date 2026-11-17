@@ -146,4 +146,60 @@ describe('rozmowy z władcami (MeetWithKing)', () => {
     expect(s.players[h]!.gold).toBe(200);
     expect(s.players[ai]!.diplomacy[h]! & Diplomacy.Peace).not.toBe(0);
   });
+
+  it('kroki niosą zapisy animacji twarzy (Var_3936, Var_d76c, Var_6b8e) jak w F6_0000_0000', () => {
+    const { s, h, ai } = setup();
+    const A = s.players[ai]!;
+    const H = s.players[h]!;
+    Object.assign(A.continents[1]!, { cityCount: 3, attack: 10, defense: 200 });
+    Object.assign(H.continents[1]!, { cityCount: 2, attack: 1, defense: 5 });
+    A.cityCount = 3;
+    A.government = Government.Monarchy;
+    A.militaryPower = 100;
+    H.militaryPower = 10;
+    H.gold = 1000;
+    const steps = runMeeting(meetWithKing(s, ai, { x: 10, y: 10, previousCountdown: -100, hadContact: true }),
+      (st) => (st.kind === 'speech' && st.key === '*TRIBUTE' ? 1 : 0));
+    const anim = steps
+      .filter((st) => st.kind === 'speech')
+      .map((st) => (st.kind === 'speech' ? [st.key ?? 'greeting', st.mood, st.talk, st.stern] : []));
+    expect(anim).toEqual([
+      // L008f: Var_6b8e = 0 przed rozmową, powitanie: mina 1, 12 klatek mówienia
+      ['greeting', 1, 12, 0],
+      ['*TRIBUTE', 2, 12, 0],
+      ['*PEACE', 0, 12, 0],
+      // L1041: *MOBILIZE — surowo, 4 klatki
+      ['*MOBILIZE', 2, 4, 1],
+    ]);
+  });
+
+  it('pokój z przyjaźnią: *TREATY bez zmiany miny, przyjaźń spokojnie, *THREAT po Var_6b8e = 1', () => {
+    const { s, h, ai } = setup();
+    const A = s.players[ai]!;
+    const H = s.players[h]!;
+    Object.assign(A.continents[1]!, { cityCount: 2, attack: 1, defense: 1 });
+    Object.assign(H.continents[1]!, { cityCount: 1, attack: 5, defense: 10 });
+    A.cityCount = 2;
+    A.militaryPower = 5;
+    H.militaryPower = 50;
+    const steps = runMeeting(meetWithKing(s, ai, { x: 10, y: 10, previousCountdown: -100, hadContact: true }),
+      (st) => (st.kind === 'speech' && st.key === '*PEACE' ? 1 : 0));
+    const anim = steps
+      .filter((st) => st.kind === 'speech')
+      .map((st) => (st.kind === 'speech' ? [st.key ?? st.text!.slice(0, 10), st.mood, st.talk, st.stern] : []));
+    expect(anim[1]).toEqual(['*PEACE', 0, 12, 0]);
+    expect(anim[2]).toEqual(['*TREATY', 0, 12, null]);
+    expect(anim[3]).toEqual(['We welcome', 0, 12, 0]); // L1097: Var_6b8e = 0
+    expect(anim[4]).toEqual(['*THREAT', 0, null, 1]);
+  });
+
+  it('*HELPME: mina 1 i 12 klatek; po rozmowie Var_3936 = −1 (krok close)', () => {
+    const { s, h, ai } = setup();
+    const enemy = [1, 2, 3, 4, 5, 6, 7].find((p) => p !== h && p !== ai && s.activeCivs & (1 << p))!;
+    s.players[h]!.gold = 500;
+    const steps = runMeeting(aiRequestMeeting(s, 'helpme', ai, enemy, 100));
+    const help = steps.find((st) => st.kind === 'speech' && st.key === '*HELPME')!;
+    expect(help.kind === 'speech' && [help.mood, help.talk]).toEqual([1, 12]);
+    expect(steps.at(-1)!.kind).toBe('close');
+  });
 });

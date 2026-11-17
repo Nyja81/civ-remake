@@ -46,4 +46,9 @@ export const UI_OPTIONAL_FILES = [
   // panorama miasta (CityView): wzgórze, domy i ulice, budynki, cuda, mieszkańcy, animacje najazdu, zamieszek i święta
   'HILL.PIC', 'CITYPIX1.PIC', 'CITYPIX3.PIC', 'WONDERS.PIC', 'WONDERS2.PIC', 'POP.PIC',
   'INVADERS.PIC', 'INVADER2.PIC', 'INVADER3.PIC', 'RIOT.PIC', 'RIOT2.PIC', 'LOVE1.PIC', 'LOVE2.PIC',
+  // animacja założenia miasta (Animations.FoundNewCity): osadnicy idący przez wzgórze
+  'SETTLERS.PIC',
+  // program gry — interfejs czyta z niego w czasie działania dane animacji twarzy władców i doradców (MeetWithKing);
+  // nic z niego nie trafia do repozytorium
+  'CIV.EXE',
 ] as const;
