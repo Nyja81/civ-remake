@@ -117,3 +117,25 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Odstępstwo od planu: mapa rysowana na zwykłym canvasie 2D (bez PixiJS i Reacta) — wystarcza na tym etapie.
 - Do zrobienia: etap 6 generatora (kontynenty/oceany), weryfikacja generatora z oryginałem, etap 2 (jednostki, ruch, mgła wojny).
 
+
+### 2026-11-17 — etapy 2–3 w silniku, część 4–6, widok mapy jak w oryginale
+- Wzorzec do przenoszenia reguł: OpenCivOne z codeberg.org/rhorvat/OpenCivOne (MIT) — dosłowne tłumaczenie kodu oryginału
+  (`src/Game/CodeObjects/*.cs`); klonować obok repozytorium, nie do niego.
+- `packages/engine/src/game/`: `types.ts` (stan gry jak w zapisie oryginału), `map.ts` (warstwy mapy, etapy 6–8 generatora:
+  kontynenty/oceany, atrakcyjność pól, czapy polarne; 49 kierunków), `units.ts` (tworzenie/usuwanie, zajętość pól, widoczność),
+  `movement.ts` (MoveUnit: ZOC, koszt terenu z losowaniem, drogi/kolej, statki z ładunkiem, ziemia innych cywilizacji),
+  `combat.ts` (AttackUnit, najlepszy obrońca), `huts.ts`, `cities.ts` (FindNewCity, DeleteCity, CityTakeover),
+  `techs.ts` (ResearchFinished, wybór badań komputera), `economy.ts` (ProcessCityState bez okna: praca mieszkańców, wzrost,
+  produkcja, handel, korupcja, podatki, nauka, zadowolenie, utrzymanie, zanieczyszczenie), `production.ts` (lista produkcji,
+  zakup), `government.ts`, `barbarians.ts`, `turn.ts` (rozkazy, kolejka jednostek, przebieg tury, kalendarz), `save.ts` (JSON),
+  `players.ts` (nowa gra, rozstawienie cywilizacji, mapa Ziemi), `ai.ts` (**tymczasowy** prosty przeciwnik).
+- Ważne ustalenie: we wzorcu `GetVisibleTerrainImprovements` czyta warstwę RZECZYWISTĄ, a `GetTerrainImprovements` — widok
+  człowieka (nazwy zamienione). Silnik: logika czyta `map.improvements`, rysowanie — `map.visibleImprovements`.
+- `packages/gfx/src/mapView.ts`: rysowanie widoku mapy do ekranu 320×200 jak w oryginale (DrawVisibleMap/DrawCell/DrawUnit):
+  teren, ulepszenia, mgła, miasta, jednostki w kolorach graczy (SP257 wg LoadBitmaps), minimapa.
+- Decyzja Damiana: interfejs, menu i ekrany startowe mają być takie same jak w oryginale, wygładzone 4× — robi to drugi agent
+  na gałęzi `ui-screens` (pakiet `packages/ui`).
+- Testy: 37 (silnik: gra, gospodarka, produkcja, symulacja 200 tur, zapis/odczyt; gfx: widok mapy na danych syntetycznych).
+- `docs/ARCHITECTURE.v2.md` — nowa wersja dokumentu (stan etapów, odstępstwa). Notatka Obsidian `Projekty/civ-remake.md` utworzona.
+- Do zrobienia: port AIEngine i GoTo (etap 6), dyplomacja i spotkania z władcami, statek kosmiczny, koniec gry i punktacja
+  (etap 7), atak jądrowy, klęski, globalne ocieplenie, okno miasta, pałac, doradcy, encyklopedia, dźwięk (etap 8), zapis `.SVE`.
