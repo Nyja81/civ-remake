@@ -93,3 +93,10 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   rysowanie mapy w TypeScripcie; aplikacja na Maca.
 - Notatka Obsidian `Projekty/civ-remake.md` nadal nieutworzona — brak dostępu do vaulta z tej sesji.
 
+### 2026-11-17 — mapa Ziemi
+- Wymaganie Damiana: gra ma mieć mapę Ziemi (opcja EARTH oryginału), obok światów losowych.
+- `packages/engine/src/world/earth.ts`: `worldFromMapPixels()` — zamiana pikseli `MAP.PIC` (obszar 80×50) na typy terenu
+  według tabeli terenu z CIV.EXE. Plik czyta `decodePic` z `packages/gfx`; sama mapa nie trafia do repozytorium.
+- Testy: 2 w silniku + 1 na pliku oryginału (21 testów z `CIV1_DIR`).
+- Do zrobienia: wybór „Earth / losowy świat / własne ustawienia” w menu nowej gry; pozycje startowe cywilizacji na Ziemi.
+
