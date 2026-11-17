@@ -17,7 +17,8 @@ import { confirmBreakTreaty, clearPeace } from './combat';
 import { GOVERNMENT_NAMES, processCities } from './economy';
 import { DIRECTIONS, cellIndex, distance, isValid, terrainAt, updateVisibleCell } from './map';
 import { fullMoves, moveUnit, type MoveOptions, type MoveResult } from './movement';
-import { aiChangeGovernment, aiUnitCommand, reassignPolicies, recalculateStatsAndPolicies, setGotoResolver, type AiCommand } from './ai';
+import { aiChangeGovernment, aiUnitCommand, reassignPolicies, recalculateStatsAndPolicies, type AiCommand } from './ai';
+import { getNextMove } from './goto';
 import { playerHasTech } from './techs';
 import { barbarianUprising } from './barbarians';
 import { checkGlobalWarming } from './catastrophes';
@@ -371,7 +372,7 @@ export function nextUnit(state: GameState, player: number, after = -1): number {
         if (u.type === NO_UNIT || u.movesLeft === 0) continue;
       }
       if (u.gotoX !== -1) {
-        // Idź do: etap 6 (UnitGoTo) — na razie najprostszy krok w stronę celu
+        // Idź do: GoTo oryginału (goto.ts)
         if (gotoStep(state, player, id)) {
           if (u.type === NO_UNIT || u.movesLeft === 0 || u.gotoX !== -1) { k--; continue; }
         }
@@ -398,82 +399,24 @@ function continueWork(state: GameState, player: number, unitId: number): void {
 }
 
 /**
- * Krok „idź do”: najkrótsza droga po polach znanych graczowi (BFS z kosztem ruchu: drogi 1, teren wg tabeli).
- * TYMCZASOWO zamiast algorytmu GoTo oryginału (UnitGoTo, etap 6). Zwraca true, jeśli wykonano ruch.
+ * Krok „idź do” człowieka (PlayerTurn, Label151): kierunek z F0_2e31_000e (goto.ts); -1 kończy „idź do”
+ * (cel i ostatni kierunek = -1), 0 — brak ruchu. Zwraca true, jeśli wykonano ruch.
+ * Zabezpieczenie silnika: ruch nieudany kasuje „idź do” (oryginał oddaje wtedy jednostkę graczowi w pętli okna),
+ * żeby `nextUnit` nie ponawiał w nieskończoność ruchu, który nie zużywa punktów.
  */
 function gotoStep(state: GameState, player: number, unitId: number): boolean {
   const u = state.players[player]!.units[unitId]!;
-  const dir = gotoDirection(state, player, unitId, u.gotoX, u.gotoY);
-  if (dir <= 0) {
+  const dir = getNextMove(state, player, unitId);
+  if (dir === -1) {
     u.gotoX = u.gotoY = -1;
+    u.gotoNextDirection = -1;
     return false;
   }
+  if (dir === 0) return false;
   const r = moveUnit(state, player, unitId, dir);
   afterUnitAction(state, player, unitId);
   if (r.kind !== 'moved') u.gotoX = u.gotoY = -1;
   return true;
-}
-
-/** Kierunek pierwszego kroku najtańszej drogi do (tx, ty) albo -1 (Dijkstra na siatce 80×50). */
-export function gotoDirection(state: GameState, player: number, unitId: number, tx: number, ty: number): number {
-  const u = state.players[player]!.units[unitId]!;
-  const def = UNITS[u.type]!;
-  const W = 80;
-  const start = u.y * W + u.x;
-  const goal = ty * W + ((tx % W) + W) % W;
-  if (start === goal) return 0;
-  const cost = new Float64Array(W * 50).fill(Infinity);
-  const first = new Int8Array(W * 50).fill(-1);
-  cost[start] = 0;
-  const open: number[] = [start];
-  while (open.length > 0) {
-    let bi = 0;
-    for (let k = 1; k < open.length; k++) if (cost[open[k]!]! < cost[open[bi]!]!) bi = k;
-    const cur = open.splice(bi, 1)[0]!;
-    if (cur === goal) break;
-    const cx = cur % W;
-    const cy = Math.trunc(cur / W);
-    for (let d = 1; d < 9; d++) {
-      const [dx, dy] = DIRECTIONS[d]!;
-      const ny = cy + dy;
-      if (!isValid(cx + dx, ny)) continue;
-      const nx = ((cx + dx) % W + W) % W;
-      const ni = ny * W + nx;
-      // Człowiek idzie tylko po polach odkrytych; komputer zna mapę (jak UnitGoTo dla graczy komputerowych).
-      if (ni !== goal && player === state.humanPlayer && !(state.map.explored[ni]! & (1 << player))) continue;
-      const t = state.map.terrain[ni]!;
-      const city = (state.map.improvements[ni]! & Improvement.City) !== 0;
-      if (def.movementType === MovementType.Land && t === Terrain.Water) continue;
-      if (def.movementType === MovementType.Water && t !== Terrain.Water && !city) continue;
-      const occ = state.map.occupant[ni]!;
-      if (ni !== goal && occ & 8 && (occ & 7) !== player) continue;
-      let step = 3;
-      if (def.movementType === MovementType.Land) {
-        const road = state.map.improvements[cur]! & state.map.improvements[ni]! & Improvement.Road;
-        step = road ? 1 : TERRAIN[t]!.movementCost * 3;
-      }
-      const c = cost[cur]! + step;
-      if (c < cost[ni]!) {
-        if (cost[ni] === Infinity) open.push(ni);
-        cost[ni] = c;
-        first[ni] = cur === start ? d : first[cur]!;
-      }
-    }
-  }
-  if (first[goal]! !== -1 || player === state.humanPlayer) return first[goal]!;
-  // Komputer: cel nieosiągalny (np. miasto w głębi lądu dla statku) — idzie ku najbliższemu osiągalnemu polu.
-  let best = -1;
-  let bestKey = Infinity;
-  for (let i = 0; i < W * 50; i++) {
-    if (cost[i] === Infinity || i === start) continue;
-    const key = distance(i % W, Math.trunc(i / W), tx, ty) * 1000 + cost[i]!;
-    if (key < bestKey) {
-      bestKey = key;
-      best = i;
-    }
-  }
-  if (best === -1 || distance(best % W, Math.trunc(best / W), tx, ty) >= distance(u.x, u.y, tx, ty)) return -1;
-  return first[best]!;
 }
 
 // ── przebieg tury ───────────────────────────────────────────────────────────────────────
@@ -559,20 +502,20 @@ function computerTurn(state: GameState, player: number): void {
 
 function executeAiCommand(state: GameState, player: number, id: number, cmd: AiCommand): void {
   const u = state.players[player]!.units[id]!;
-  if (cmd === 0) {
-    if (u.gotoX === -1) cmd = ' ';
-    else {
-      const dir = gotoDirection(state, player, id, u.gotoX, u.gotoY);
-      if (dir <= 0) {
-        u.gotoX = u.gotoY = -1;
-        cmd = ' ';
-      } else cmd = dir;
-    }
-  }
+  // PlayerTurn (Label151): rozkaz „idź do” daje kierunek z F0_2e31_000e; -1 kasuje cel i ostatni kierunek;
+  // bez celu ostatni kierunek = -1 (MoveUnit ustawia go potem dla komputera na kierunek wykonanego ruchu).
+  if (u.gotoX !== -1) {
+    const c = getNextMove(state, player, id);
+    if (c === -1) {
+      u.gotoX = u.gotoY = -1;
+      u.gotoNextDirection = -1;
+    } else cmd = c;
+  } else u.gotoNextDirection = -1;
+  // Rozkaz 0 (brak): oryginał nic nie robi i pyta AIEngine ponownie — licznik prób w computerTurn kończy to spacją.
+  if (cmd === 0) return;
   if (typeof cmd === 'number') {
-    const r = moveUnit(state, player, id, cmd);
+    moveUnit(state, player, id, cmd);
     if (u.type !== NO_UNIT) afterUnitAction(state, player, id);
-    if (r.kind !== 'moved' && u.type !== NO_UNIT) u.gotoX = u.gotoY = -1;
     return;
   }
   if (cmd === 'h' && UNITS[u.type]!.movementType === MovementType.Air) {
@@ -594,8 +537,6 @@ function executeAiCommand(state: GameState, player: number, id: number, cmd: AiC
   if (u.type !== NO_UNIT && (cmd === 'f' || cmd === 'u' || cmd === 'h')) u.movesLeft = 0;
   if (u.type !== NO_UNIT) afterUnitAction(state, player, id);
 }
-
-setGotoResolver(gotoDirection);
 
 /** Wykonuje turę od bieżącego gracza aż do początku ruchów człowieka (albo końca gry). */
 export function advanceToHuman(state: GameState): void {

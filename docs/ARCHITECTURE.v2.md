@@ -29,7 +29,7 @@ a nie źródłem kodu ani zasobów.
 |---|---|---|---|
 | 1 | Silnik zasad — stan gry i reguły, bez grafiki | `packages/engine` (`src/game/*`) | stan gry, ruch, walka, miasta, gospodarka, badania, ustroje, barbarzyńcy, zapis JSON |
 | 2 | Tabele danych — generowane z CIV.EXE właściciela licencji | `packages/engine/src/data` | technologie, jednostki, teren, budynki, cuda, nacje; ręcznie ze wzorca (do weryfikacji): przekształcenia terenu, nazwy miast |
-| 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine/src/game/ai.ts` | port AIEngine i oceny produkcji (SelectCityProduction); „idź do” komputera — tymczasowo najtańsza droga |
+| 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine/src/game/ai.ts` | port AIEngine i oceny produkcji (SelectCityProduction); „idź do” — GoTo oryginału (`goto.ts`) |
 | 4 | Komendy i zdarzenia — interfejs wydaje rozkazy, silnik odpowiada zdarzeniami i prośbami o decyzję | `packages/engine` | `unitMove`, `unitOrder`, `state.events`, odpowiedzi `confirm` |
 | 5 | Interfejs — ekran 320×200 jak w oryginale, wygładzany 4× | `packages/ui`, `apps/desktop` | ekrany startowe, menu, okna, ekran gry z mapą, rozkazami, oknem miasta, zapisem (scalone do `main`) |
 | 5a | Grafiki oryginału — dekoder `.PIC`, czcionki `FONTS.CV`, reguły rysowania mapy | `packages/gfx` | teren, ulepszenia, mgła, miasta, jednostki, minimapa (`mapView.ts`) |
@@ -83,7 +83,7 @@ a nie źródłem kodu ani zasobów.
 | 3 | Miasta i ekonomia | **gotowe w silniku**: zakładanie/zdobywanie, praca mieszkańców, wzrost, produkcja, handel, korupcja, podatki, zadowolenie, utrzymanie, zakup |
 | 4 | Technologie, ustroje, zadowolenie, cuda | w dużej części: odkrycia i wybór badań, ustroje i rewolucja, efekty cudów w gospodarce; brak: encyklopedia, część cudów (statek, Manhattan) |
 | 5 | Walka, barbarzyńcy | walka i powstania barbarzyńców gotowe; brak: atak jądrowy, klęski w miastach, globalne ocieplenie |
-| 6 | Przeciwnik komputerowy | **gotowe w silniku**: strategie kontynentów, cele jednostek, ruchy jednostek i barbarzyńców, wybór produkcji, ustroje komputera; brak: GoTo oryginału, działania dyplomatów i karawan komputera |
+| 6 | Przeciwnik komputerowy | **gotowe w silniku**: strategie kontynentów, cele jednostek, ruchy jednostek i barbarzyńców, wybór produkcji, ustroje komputera, GoTo oryginału z tablicami ścieżek 20×13 (`goto.ts`, człowiek i komputer); brak: działania dyplomatów i karawan komputera |
 | 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | **gotowe**: punktacja (`score.ts`), koniec gry (podbój, statek, koniec panowania), statek kosmiczny (`spaceship.ts` + okno); brak: rozmowy z władcami (MeetWithKing), dyplomacja komputer–komputer, Hall of Fame |
 | 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry i uproszczone okno miasta gotowe; pełne okno miasta, Civilopedia, doradcy, pałac, intro, dźwięk — do zrobienia |
 
@@ -101,7 +101,19 @@ a nie źródłem kodu ani zasobów.
 Nowsza, uporządkowana wersja wzorca (C# po refaktoryzacji) ma pojedyncze błędy przepisania. Przy wątpliwościach porównujemy
 z dosłownym tłumaczeniem asemblera z historii repozytorium wzorca (pliki `Segment_*.cs` sprzed commitów `fb7e4c7`, `5de93e8`).
 Znalezione i poprawione u nas: ocena jednostek w SelectCityProduction (×16·(koszt+2)), mapa ról w RecalculateStatsAndPolicies
-(pozycja jednostki, nie miasta). GoTo we wzorcu jest zastąpione własnym A* — oryginał zachowany jako „Old unfixable GoTo”.
+(pozycja jednostki, nie miasta). GoTo we wzorcu jest zastąpione własnym A* — oryginał zachowany jako „Old unfixable GoTo”;
+port u nas (`goto.ts`) idzie za asemblerem (`Segment_2e31.cs`, `Overlay_7.cs`). Błędy przepisania w tej części wzorca:
+- GetNextMove: warunek wywołania FindShortestPath(999) odwrócony (oryginał: cel BLISKO — |Δx| < 7 lub > 73 i |Δy| < 7);
+  wektor w kroku zachłannym bez nawiasów (dla |Δx| > |Δy| sam |Δx| zamiast max + |Δx| + |Δy|); na celu człowiek dostaje 0, nie -1.
+- ComputeGoToPath: gdy blok jednostki nie ma przejść, oryginał zwraca Y celu (zwykle „prawda”), wzorzec — fałsz.
+- CanUnitMove: wynik to współrzędne bloku (blok + kierunek), wzorzec mnoży przez 4; pole startowe sprawdzane w (blok·4 + 1),
+  wzorzec — w (blok + 1).
+- FindShortestPath: zmienna rozstrzygająca remisy żyje przez całą pętlę kierunków (wzorzec zeruje ją w każdym kierunku).
+- CheckUnitPath: warunek wstępny |Δx| ≤ 7 LUB |Δy| ≤ 7 (wzorzec: I).
+- ConstructLandPathArray: wołany CheckUnitPath(…, ląd, 20), wynik ≠ -1 i < 20 (wzorzec: nowy A*).
+- ConstructWaterPathArray: numer oceanu bloku docelowego nie jest zerowany przed kierunkiem (wzorzec zeruje).
+- Teren i numer kontynentu w overlayu 7 (F7_0000_176d/178e) czytane bez zawijania X — poza mapą trafiają w inne warstwy strony mapy.
+- Odległość F0_2dc4_0208: dłuższa różnica + połowa krótszej; wzorzec (i `distance` w silniku) liczy maksimum różnic.
 
 ## Otwarte kwestie
 
@@ -110,6 +122,9 @@ Znalezione i poprawione u nas: ocena jednostek w SelectCityProduction (×16·(ko
 - Generator losowy wzorca to MT19937 (nie rand() z MS C) — zgodność ziarna z oryginałem niesprawdzona.
 - Znaczenie pola `unknown1` w tabeli terenu (`terrainChangeId` to wartość piksela terenu na mapie oryginału).
 - Sposób, w jaki gra wyprowadza zakresy z `rand()`.
-- „Idź do” komputera: czy oryginał ogranicza drogę do pól odkrytych (u nas — tylko dla człowieka).
+- Odległość oryginału (F0_2dc4_0208: max + min/2) a `distance` w silniku (maksimum różnic, z nowszego wzorca) — sprawdzić
+  wszystkie użycia w `ai.ts` i pozostałych modułach (GoTo ma już własną `shortestDistance`).
+- GoTo: odczyty poza tablicami i stroną mapy (oryginał czyta sąsiednią pamięć) przyjęte jako 0; oryginał przelicza tablicę wody
+  przy odczycie zapisu, u nas obie tablice i pamięć FindShortestPath są w zapisie.
 - Pozostałe dane w CIV.EXE: nazwy miast, teksty, tablice strategii przeciwnika komputerowego.
 - Grafika: przejścia między różnymi typami terenu (na razie ostre krawędzie kafli), warianty kafli, pozostałe jednostki.

@@ -8,6 +8,7 @@ import { TERRAIN_MODIFICATIONS } from '../data/terrainModifications';
 import { hasSpecialResource } from '../world/features';
 import { MOVE_DIRECTIONS, Terrain, type World } from '../world/generate';
 import type { RandomSource } from '../world/random';
+import { constructLandPathArray, constructWaterPathArray, emptyGotoCache, PATH_CELLS } from './goto';
 import type { Continent, GameMap } from './types';
 
 export const X_MEDIAN = MAP_WIDTH / 2;
@@ -93,10 +94,17 @@ export function createGameMap(world: World, rng: RandomSource, seed: number): Ga
     explored: new Uint16Array(n),
     continents: emptyGroups(16),
     oceans: emptyGroups(16),
+    landPath: new Uint8Array(PATH_CELLS),
+    waterPath: new Uint8Array(PATH_CELLS),
+    gotoCache: emptyGotoCache(),
   };
   // Znacznik wariantu rzeki to w oryginale bit 0x80 warstwy ulepszeń.
   for (let i = 0; i < n; i++) if (map.riverVariant[i]) map.improvements[i] = map.visibleImprovements[i] = 0x80;
   buildGroups(map);
+  // Oryginał (F7_0000_0a33) liczy tablice ścieżek „idź do” zaraz po etapie 6, przed oceną pól pod miasta
+  // (warstwy własności ziemi i atrakcyjności są jeszcze puste — czytają je odwołania poza mapą, zob. goto.ts).
+  constructLandPathArray(map);
+  constructWaterPathArray(map);
   scoreBuildSites(map, seed);
   addPolarCaps(map, rng);
   return map;

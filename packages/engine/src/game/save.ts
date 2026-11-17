@@ -2,10 +2,13 @@
  * Zapis i odczyt stanu gry (własny format JSON; zapis .SVE oryginału — etap 0, do zrobienia).
  */
 import { mscRandom } from '../world/random';
+import { constructPathArrays, emptyGotoCache } from './goto';
 import { emptyPlayer } from './players';
-import type { GameState, Player } from './types';
+import type { GameMap, GameState, GotoCache, Player } from './types';
 
 const ARRAYS = ['terrain', 'riverVariant', 'improvements', 'visibleImprovements', 'group', 'buildScore', 'landOwner', 'occupant'] as const;
+/** Tablice ścieżek „idź do” (goto.ts); zapisy sprzed ich wprowadzenia ich nie mają. */
+const PATH_ARRAYS = ['landPath', 'waterPath'] as const;
 
 // base64 bez Buffer (silnik działa też w przeglądarce)
 function toB64(a: Uint8Array): string {
@@ -27,6 +30,9 @@ export function saveGame(state: GameState): string {
   void events;
   const mapOut: Record<string, unknown> = { continents: map.continents, oceans: map.oceans };
   for (const k of ARRAYS) mapOut[k] = toB64(map[k]);
+  for (const k of PATH_ARRAYS) mapOut[k] = toB64(map[k]);
+  const c = map.gotoCache;
+  mapOut.gotoCache = { lastX: c.lastX, lastY: c.lastY, costs: toB64(new Uint8Array(c.costs.buffer, c.costs.byteOffset, c.costs.byteLength)) };
   mapOut.explored = toB64(new Uint8Array(map.explored.buffer, map.explored.byteOffset, map.explored.byteLength));
   return JSON.stringify({ version: SAVE_VERSION, rng: rng.state ?? 0, map: mapOut, ...rest });
 }
@@ -39,6 +45,19 @@ export function loadGame(json: string): GameState {
   for (const k of ARRAYS) map[k] = fromB64(m[k] as string);
   const explored = fromB64(m.explored as string);
   map.explored = new Uint16Array(explored.buffer, explored.byteOffset, explored.byteLength / 2).slice();
+  const cache = m.gotoCache as { lastX: number; lastY: number; costs: string } | undefined;
+  map.gotoCache = cache
+    ? ({ lastX: cache.lastX, lastY: cache.lastY, costs: new Int8Array(fromB64(cache.costs).buffer) } satisfies GotoCache)
+    : emptyGotoCache();
+  if (PATH_ARRAYS.every((k) => typeof m[k] === 'string')) {
+    for (const k of PATH_ARRAYS) map[k] = fromB64(m[k] as string);
+  } else {
+    // Zapis bez tablic ścieżek: przeliczenie z bieżącej mapy (oryginał przelicza przy odczycie tablicę wody, F7_0000_1440;
+    // tablicę lądu ma w zapisie .SVE). Wynik może się różnić od tablic z chwili stworzenia mapy (zmieniony teren, warstwy).
+    map.landPath = new Uint8Array(260);
+    map.waterPath = new Uint8Array(260);
+    constructPathArrays(map as unknown as GameMap);
+  }
   const rng = mscRandom(0);
   rng.state = data.rng;
   const { version, rng: _r, map: _m, ...rest } = data;

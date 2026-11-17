@@ -186,6 +186,24 @@ export interface GameMap {
   explored: Uint16Array;
   continents: Continent[];
   oceans: Continent[];
+  /**
+   * Tablice ścieżek „idź do” 20×13 (pole = blok 4×4 mapy, indeks x·13+y; bit k−1 = przejście w kierunku k):
+   * ląd (Arr_db44, F7_0000_1188) i woda (Arr_7f38, F7_0000_1440). Liczone przy tworzeniu mapy (goto.ts).
+   */
+  landPath: Uint8Array;
+  waterPath: Uint8Array;
+  /** Pamięć FindShortestPath (Var_6796/Var_6798, Arr_b780) — wpływa na kolejne wywołania, więc jest częścią stanu. */
+  gotoCache: GotoCache;
+}
+
+/**
+ * Pamięć F0_2e31_0c1d_FindShortestPath: ostatni cel (Var_6796, Var_6798) i koszty dojścia w oknie 16×16 wokół niego
+ * (Arr_b780, bajty ze znakiem, indeks (x − celX + 8)·16 + (y − celY + 8)).
+ */
+export interface GotoCache {
+  lastX: number;
+  lastY: number;
+  costs: Int8Array;
 }
 
 export interface GameSettings {
