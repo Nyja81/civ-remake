@@ -28,3 +28,4 @@ export * from './game/government';
 export * from './game/save';
 export * from './game/production';
 export * from './game/catastrophes';
+export * from './game/disasters';

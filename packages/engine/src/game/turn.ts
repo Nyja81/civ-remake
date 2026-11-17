@@ -21,6 +21,7 @@ import { aiMoveUnit, aiPlayerTurnStart } from './ai';
 import { playerHasTech } from './techs';
 import { barbarianUprising } from './barbarians';
 import { checkGlobalWarming } from './catastrophes';
+import { randomDisasters } from './disasters';
 import { availableGovernments } from './government';
 import { playerHasWonder } from './cities';
 import { WonderId } from './buildings';
@@ -509,7 +510,8 @@ export function endHumanTurn(state: GameState): void {
 function endOfTurn(state: GameState): void {
   barbarianUprising(state);
   checkGlobalWarming(state);
-  // Pominięte do czasu kolejnych etapów: klęski w miastach, ranking graczy, raporty,
+  randomDisasters(state);
+  // Pominięte do czasu kolejnych etapów: oddanie cudów komputerowi (GiveWonderToAI), ranking graczy, raporty,
   // pałac, statek kosmiczny (etapy 7–8).
   state.turn++;
   if (state.year < 1000) {
