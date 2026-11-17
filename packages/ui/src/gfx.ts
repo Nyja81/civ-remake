@@ -168,9 +168,9 @@ export class Gfx {
     this.drawRectangle(x - 2, y - 2, width + 3, height + 3, 0);
   }
 
-  /** DrawTools.DrawRectangleAndFillWithPattern */
-  drawRectangleAndFillWithPattern(x: number, y: number, x1: number, y1: number): void {
-    this.fillRectangleWithPattern(x, y, x1 - x, y1 - y);
+  /** DrawTools.DrawRectangleAndFillWithPattern (wariant z własnym wzorem: punkt i rozmiar wzoru na ekranie 2). */
+  drawRectangleAndFillWithPattern(x: number, y: number, x1: number, y1: number, px = 288, py = 120, pw = 32, ph = 16): void {
+    this.fillRectangleWithPattern(x, y, x1 - x, y1 - y, px, py, pw, ph);
     this.drawRectangle(x, y, x1 - x, y1 - y, 1);
   }
 

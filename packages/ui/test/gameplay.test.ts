@@ -96,22 +96,23 @@ describe('koniec gry', () => {
 });
 
 describe('miasto', () => {
-  it('założenie miasta pyta o nazwę; klik w miasto otwiera okno z listą produkcji', async () => {
+  it('założenie miasta pyta o nazwę i otwiera okno miasta; klik w miasto otwiera okno, CHANGE zmienia produkcję', async () => {
     const { ui, state, screen } = setup();
     const h = state.humanPlayer;
     const u = state.players[h]!.units[screen.activeUnit]!;
     const { x, y } = u;
-    // 'b' = Found New City, potem okno „City Name...”: wpisujemy nazwę
-    await drive(ui, [key('W'), key('a'), key('w'), key('Enter')], () => screen.handle(key('b')));
+    // 'b' = Found New City, okno „City Name...”: wpisujemy nazwę; potem okno nowego miasta — Esc je zamyka
+    await drive(ui, [key('W'), key('a'), key('w'), key('Enter'), key('Escape')], () => screen.handle(key('b')));
     const cityId = cityAt(state, x, y);
     expect(cityId).not.toBe(-1);
     expect(state.cityNames[state.cities[cityId]!.nameId]).toBe('Waw');
-    // klik w pole miasta: okno miasta → Change production → druga opcja → Close
+    // klik w pole miasta: okno miasta → klik w CHANGE → lista produkcji: druga pozycja → Esc zamyka okno
     screen.drawVisibleMap(x - 7, y - 6);
     const sx = 80 + 7 * 16 + 4;
     const sy = 8 + (y - screen.viewY) * 16 + 4;
-    await drive(ui, [key('Enter'), key('ArrowDown'), key('Enter'), key('ArrowDown'), key('ArrowDown'), key('Enter')], () => screen.handle(click(sx, sy)));
-    expect(state.cities[cityId]!.production).not.toBe(-999);
+    const before = state.cities[cityId]!.production;
+    await drive(ui, [click(240, 110), key('ArrowDown'), key('Enter'), key('Escape')], () => screen.handle(click(sx, sy)));
+    expect(state.cities[cityId]!.production).not.toBe(before);
   });
 });
 

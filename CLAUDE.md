@@ -206,3 +206,35 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Paczka 0.3.0 (arm64, niepodpisana). Testy: 89 (12 pominiętych bez `CIV1_DIR`).
 - Do zrobienia: MeetWithKing (rozmowy z władcami) i dyplomacja komputer–komputer, Hall of Fame, GoTo oryginału.
 
+
+### 2026-11-17 — etap 8: okno miasta
+- `packages/ui/src/screens/cityWindow.ts`: pełne okno miasta zamiast uproszczonego `cityDialog` — port części rysującej
+  i interaktywnej CityWorker.F0_1d12_0045_ProcessCityState (tryb 1): tytuł z liczbą ludności, mieszkańcy z podziałem
+  na zadowolonych/spokojnych/niezadowolonych i specjalistów (F0_1d12_6ed4_DrawResources), „City Resources” (żywność, tarcze,
+  handel z brakami i korupcją, luksus/podatek/nauka), jednostki utrzymywane (tarcze, żywność osadników, niezadowolenie),
+  mapka 5×5 z plonami pól (F0_1d12_692d_CityResources) i polami sąsiednich miast w czerwonej ramce, magazyn żywności,
+  lista budynków i cudów z monetami i stroną MORE (F0_1d12_7045_DrawWonderOrImprovement), produkcja z CHANGE/AUTO/BUY
+  (migający CHANGE przy niemożliwej produkcji), zakładki INFO (jednostki w mieście, szlaki handlowe, zanieczyszczenie),
+  HAPPY (kolejne kroki zadowolenia: luksus, budynki, stan wojenny/jednostki poza miastem, cuda), MAP
+  (F0_1d12_72b7_DrawCityWorldMap, F0_1d12_73ea_DrawCityRectangle), RENAME, EXIT.
+- Obsługa jak w oryginale: klik w pole mapki (przydział mieszkańca), klik w specjalistę i klawisze 1–9, klik w jednostkę
+  w mieście (budzi), klik w budynek / klawisz S (sprzedaż), B (zakup), C (zmiana produkcji), A i prawy przycisk na CHANGE (AUTO),
+  I/H/M/V (zakładki), P (kursor pól), M (następna strona budynków), R (nazwa); inne klawisze i kliknięcia zamykają okno.
+- Silnik: `cityManagement.ts` — `cityTileIndex` (FindCityOffset), `toggleCityTile` (L5aa6), `specialistAt`/`cycleSpecialist`
+  (Get/SetSpecialWorkerFlags), `sellBuilding` (L5740, raz na turę), `activateUnitInCity`, `toggleAutoProduction`,
+  `supportedUnits` (koszty jednostek jak w pętli L32e0); `economy.ts` — `cityNeighborArea` (cityArea), raport `processCity(…, 1)`
+  rozszerzony o kroki zadowolenia, żywność do wyżywienia, zanieczyszczenie, kolejność pracy pól; zdarzenia `showCity`
+  (Var_b1e8). Przebieg tury bez zmian.
+- Ekran gry: okno po kliknięciu w miasto (ProcessCityState1AndRefreshMap: ekran zapamiętany na ekranie 1), po założeniu miasta
+  i po komunikatach o mieście człowieka (budowa, niepokoje, spadek ludności — raz na miasto); `gfx`: `drawCellWithUnit`.
+- Ustalenie: nowsza wersja wzorca ma błąd w zakupie — wg dosłownego tłumaczenia (Segment_1d12, 0x4e32) okno „Cost to complete”
+  pokazuje się zawsze, a zakup następuje po „Yes” przy wystarczającym złocie.
+- Testy: 119 (12 pominiętych bez `CIV1_DIR`); nowe `packages/engine/test/cityManagement.test.ts`, `packages/ui/test/cityWindow.test.ts`.
+- **Niesprawdzone na plikach oryginału**: położenie ikon z SP257.PIC (żywność, tarcze, handel, monety, nauka, luksus, ikona 13,
+  mieszkańcy 8×16, symbol zanieczyszczenia) i rysunków budynków z SP299.PIC, wzór tła (208,100), kolory i czcionka 2.
+- Odstępstwa: okno zawsze rysuje się od nowa (oryginał po zmianie specjalisty lub pola nie przerysowuje mapki — możliwa różnica
+  w nakładaniu się ikon plonów sąsiednich pól); `toggleCityTile` porównuje z liczbą specjalistów po ostatnim przeliczeniu,
+  nie z Var_e8b8 z początku przebiegu; lista produkcji bez stron „more...”; okno nie otwiera się dla miast budujących cud
+  ukończony gdzie indziej; limit 127 jednostek liczony z tablicy jednostek, nie z UnitCount.
+- Do zrobienia: zakładka VIEW — panorama miasta (CityView.F19_0000_0000_ShowCityLayout); na razie wraca do INFO.
+  Notatka Obsidian `Projekty/civ-remake.md` — brak dostępu do vaulta z tej sesji.
