@@ -155,7 +155,7 @@ describe('panorama miasta (F19_0000_0000)', () => {
     expect(colors.has(31)).toBe(true); // budynki (bez Combustion), mury
     expect(colors.has(33)).toBe(true); // Oracle z WONDERS.PIC
     expect(colors.has(34)).toBe(true); // Piramidy w tle z WONDERS2.PIC
-    expect(ui.gfx.screen.getPixel(78, 20)).toBe(0); // ramka okna komunikatu w (80, 8)
+    expect(ui.gfx.screen.getPixel(80, 20)).toBe(0); // ramka okna komunikatu w (80, 8)
     expect(ui.gfx.screen.getPixel(84, 12)).not.toBe(5);
     await invadersAnimation(ui, assets, state, state.humanPlayer);
     expect(ui.gfx.palette.rgb[253 * 3]).toBe(12); // kolor 253 = (3, 3, 3) w skali VGA

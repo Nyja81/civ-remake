@@ -18,15 +18,15 @@ function landDirection(state: GameState, x: number, y: number): number {
 }
 
 describe('nowa gra', () => {
-  it('rozstawia po jednym osadniku każdej cywilizacji, daleko od siebie', () => {
+  it('rozstawia osadników każdej cywilizacji (drugi przy słabym starcie — F5_0000_0fe6) na lądzie', () => {
     for (const seed of [1, 2, 3, 4, 5]) {
       const s = game(seed);
       const starts: [number, number][] = [];
       for (let p = 1; p < 8; p++) {
         if (!(s.activeCivs & (1 << p))) continue;
         const units = s.players[p]!.units.filter((u) => u.type !== NO_UNIT);
-        expect(units.length, `ziarno ${seed}, gracz ${p}`).toBe(1);
-        expect(units[0]!.type).toBe(0);
+        expect([1, 2], `ziarno ${seed}, gracz ${p}`).toContain(units.length);
+        for (const u of units) expect([u.type, u.x, u.y]).toEqual([0, units[0]!.x, units[0]!.y]);
         expect(terrainAt(s.map, units[0]!.x, units[0]!.y)).not.toBe(Terrain.Water);
         starts.push([units[0]!.x, units[0]!.y]);
       }
@@ -156,7 +156,11 @@ describe('ruch i rozkazy', () => {
     unitOrder(s, h, id, 'fortify');
     expect(s.players[h]!.units[id]!.status & UnitStatus.Fortifying).not.toBe(0);
     endHumanTurn(s);
-    unitOrder(s, h, 0, 'skip');
+    // pozostałe jednostki (także drugi osadnik z wyrównania startu) czekają; ufortyfikowana nie wraca do kolejki
+    for (let n = 0, next = nextUnit(s, h); next !== -1 && n < 10; n++, next = nextUnit(s, h)) {
+      expect(next).not.toBe(id);
+      unitOrder(s, h, next, 'skip');
+    }
     expect(nextUnit(s, h)).toBe(-1);
     expect(s.players[h]!.units[id]!.status & UnitStatus.Fortified).not.toBe(0);
   });
@@ -217,7 +221,7 @@ describe('tura i kalendarz', () => {
 import { getNextMove } from '../src';
 describe('idź do', () => {
   it('GoTo oryginału prowadzi jednostkę lądową do celu na tym samym kontynencie', () => {
-    const s = game(5);
+    const s = game(6); // przy ziarnie 5 (generator jak w oryginale) osadnik po drodze wchodzi do chaty i ginie
     advanceToHuman(s);
     const h = s.humanPlayer;
     const u = s.players[h]!.units[0]!;

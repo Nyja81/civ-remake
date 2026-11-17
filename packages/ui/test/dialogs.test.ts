@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { editBox, playerNameDialog } from '../src/editBox';
 import type { UiEvent } from '../src/input';
-import { layoutMenuBox, showMenuBox } from '../src/menuBox';
+import { layoutMenuBox, menuHasFrame, showMenuBox } from '../src/menuBox';
 import { plainUi } from './synthetic';
 
 const key = (k: string, extra: Partial<{ alt: boolean }> = {}): UiEvent => ({ type: 'key', key: k, ...extra });
@@ -11,15 +11,24 @@ const click = (x: number, y: number, button: 'left' | 'right' = 'left'): UiEvent
 const MENU = 'Title:\n Alpha\n Beta\n Gamma\n';
 
 describe('okno menu (ShowMenuBox)', () => {
-  it('układ: nagłówek nie jest opcją, okno z ramką ma marginesy 4 piksele', () => {
+  it('układ jak F0_2d05_0475: tekst od (x + 5, y + 5), ramka przy parzystym y (i y = 139), obrys W + 3 × H + 3', () => {
     const ui = plainUi();
     const l = layoutMenuBox(ui, MENU, 100, 50);
     expect(l.optionLines).toEqual([1, 2, 3]);
     expect(l.optionChars).toEqual(['a', 'b', 'g']);
     expect(l.lineHeight).toBe(8);
-    expect([l.contentLeft, l.contentTop]).toEqual([104, 54]);
-    expect(l.windowHeight).toBe(4 * 8 + 8);
-    expect(l.windowWidth).toBe(l.contentWidth + 8);
+    expect([l.contentLeft, l.contentTop]).toEqual([105, 55]);
+    expect(l.windowHeight).toBe(4 * 8 + 6 + 3);
+    expect(l.windowWidth).toBe(l.contentWidth + 8 + 3);
+    expect(menuHasFrame(50)).toBe(true);
+    expect(menuHasFrame(35)).toBe(false);
+    expect(menuHasFrame(139)).toBe(true);
+    ui.input.push(key('Escape'));
+    return showMenuBox(ui, MENU, 100, 50).then(() => {
+      expect(ui.gfx.screen.getPixel(100, 50)).toBe(0); // czarny obrys w (x, y)
+      expect(ui.gfx.screen.getPixel(101, 51)).toBe(8); // cień: górna krawędź ciemna
+      expect(ui.gfx.screen.getPixel(101, 60)).toBe(15); // lewa jasna
+    });
   });
 
   it('strzałki i Enter wybierają opcję; podświetlenie zamienia tło 7 na 11', async () => {
@@ -88,11 +97,11 @@ describe('okno menu (ShowMenuBox)', () => {
     expect(ui.gfx.screen.getPixel(158, 35)).toBe(9); // bez ramki
   });
 
-  it('za długie wiersze są skracane z dopiskiem "..."', () => {
+  it('liczba wierszy obcięta do (192 − y) / wysokość wiersza; wiersze nie są skracane', () => {
     const ui = plainUi();
     const l = layoutMenuBox(ui, ` ${'x'.repeat(80)}\n Short\n`, 200, 10);
-    expect(l.items[0]!.endsWith('...')).toBe(true);
-    expect(l.contentWidth).toBeLessThanOrEqual(320 - 8 - 200);
+    expect(l.items[0]!.length).toBe(81);
+    expect(layoutMenuBox(ui, ' a\n'.repeat(30), 100, 150).items.length).toBe(5);
   });
 });
 

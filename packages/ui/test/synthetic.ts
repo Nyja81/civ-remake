@@ -139,10 +139,15 @@ export function stripes(fn: (x: number, y: number) => number, width = 320, heigh
   return p;
 }
 
-/** Plik tekstowy z sekcjami jak KING.TXT: 0x212 bajtów nagłówka, potem wiersze. */
+/**
+ * Plik tekstowy z sekcjami jak KING.TXT: 0x200 bajtów tablicy skrótów, potem wiersz z cyframi '0' zakończony CR LF
+ * (jak w plikach oryginału — od 0x200 czyta je F0_2f4d_01ad), od 0x212 wiersze.
+ */
 export function sectionFile(lines: string[]): Uint8Array {
   const body = new TextEncoder().encode(lines.join('\r\n') + '\r\n');
   const out = new Uint8Array(0x212 + body.length);
+  out.fill(0x30, 0x200, 0x210);
+  out.set([13, 10], 0x210);
   out.set(body, 0x212);
   return out;
 }

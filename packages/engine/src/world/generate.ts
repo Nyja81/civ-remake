@@ -1,10 +1,14 @@
 /**
  * Generator świata — etapy 1–5 (lądy, temperatura, klimat, wiek planety, rzeki).
  *
- * Źródło: funkcja GenerateNewMap z projektu OpenCivOne (MIT), czyli czytelne przepisanie kodu oryginału.
- * STAN WERYFIKACJI: logika przeniesiona krok po kroku, ale jeszcze nieporównana z dosłownym tłumaczeniem
- * oryginału ani z samym oryginałem (m.in. sposób losowania zakresów). Do czasu porównania nie gwarantujemy,
- * że to samo ziarno da tę samą mapę co w oryginale.
+ * Źródło: dosłowne tłumaczenie asemblera F7_0000_0012 z pierwszego commitu wzorca OpenCivOne (ec23ac3, Overlay_7):
+ * GenerateNewMap z F7_0000_08be/0988 (chmury lądu), F7_0000_05d4 (góra → woda) i F7_0000_065c (rzeki).
+ * Oryginał buduje mapę na stronie mapy (ekran 1, 320×200): teren w (x, y) jako wartości pikseli (0 woda / wysokość lądu
+ * w etapie 1, potem `terrainChangeId`), bufor chmury w (x + 160, y), znaczniki wariantu rzeki w (x, y + 50), kopia
+ * zapasowa przy rzekach w (160, 0)–(319, 99). Tu ta sama strona jako tablica bajtów, odczyt poza nią daje 0.
+ * Sprawdzone z zapisami oryginału (tools/dosbox/worldcheck.ts, test packages/engine/test/originalWorld.test.ts).
+ * Nowszy wzorzec (MapInitAndIntro.GenerateNewMap) różni się w wielu miejscach — m.in. kształt chmury, brak ramki
+ * wody i wypełniania przekątnych, o jedną rzekę za dużo, znaczniki wariantu rzeki przy nieudanej próbie.
  */
 import { MAP_HEIGHT, MAP_WIDTH } from '../data/enums';
 import type { RandomSource } from './random';
@@ -42,177 +46,229 @@ export interface World {
   readonly riverVariant: Uint8Array;
 }
 
-const wrapX = (x: number) => ((x % MAP_WIDTH) + MAP_WIDTH) % MAP_WIDTH;
+/** Wartość piksela strony mapy → typ terenu (kolumna `terrainChangeId` tabeli terenu). */
+const PIXEL_TERRAIN: Readonly<Record<number, Terrain>> = {
+  1: Terrain.Water, 2: Terrain.Forest, 3: Terrain.Swamp, 6: Terrain.Plains, 7: Terrain.Tundra, 9: Terrain.River,
+  10: Terrain.Grassland, 11: Terrain.Jungle, 12: Terrain.Hills, 13: Terrain.Mountains, 14: Terrain.Desert, 15: Terrain.Arctic,
+};
+
+const PAGE_WIDTH = 320;
+const PAGE_HEIGHT = 200;
+
+/** Strona mapy oryginału (ekran 1): piksel (x, y) pod adresem y·320 + x — bez obcinania współrzędnych, jak sterownik grafiki. */
+class MapPage {
+  readonly pixels = new Uint8Array(PAGE_WIDTH * PAGE_HEIGHT);
+  get(x: number, y: number): number {
+    const a = y * PAGE_WIDTH + x;
+    return a >= 0 && a < this.pixels.length ? this.pixels[a]! : 0;
+  }
+  set(x: number, y: number, v: number): void {
+    const a = y * PAGE_WIDTH + x;
+    if (a >= 0 && a < this.pixels.length) this.pixels[a] = v;
+  }
+  /** F0_1000_0bfa — wypełnienie prostokąta. */
+  fill(x: number, y: number, w: number, h: number, v: number): void {
+    for (let j = y; j < y + h; j++) this.pixels.fill(v, j * PAGE_WIDTH + x, j * PAGE_WIDTH + x + w);
+  }
+  /** F0_1000_07fb — kopia prostokąta w obrębie strony. */
+  copy(sx: number, sy: number, w: number, h: number, dx: number, dy: number): void {
+    const block = new Uint8Array(w * h);
+    for (let j = 0; j < h; j++) block.set(this.pixels.subarray((sy + j) * PAGE_WIDTH + sx, (sy + j) * PAGE_WIDTH + sx + w), j * w);
+    for (let j = 0; j < h; j++) this.pixels.set(block.subarray(j * w, (j + 1) * w), (dy + j) * PAGE_WIDTH + dx);
+  }
+  /** F0_2d05_0a05 — obrys prostokąta od (x, y) do (x + w, y + h). */
+  rectangle(x: number, y: number, w: number, h: number, v: number): void {
+    for (let i = x; i <= x + w; i++) {
+      this.set(i, y, v);
+      this.set(i, y + h, v);
+    }
+    for (let j = y; j <= y + h; j++) {
+      this.set(x, j, v);
+      this.set(x + w, j, v);
+    }
+  }
+}
 
 export function generateWorld(rng: RandomSource, options: WorldOptions = DEFAULT_WORLD): World {
-  const terrain = new Uint8Array(MAP_WIDTH * MAP_HEIGHT).fill(Terrain.Water);
-  const riverVariant = new Uint8Array(MAP_WIDTH * MAP_HEIGHT);
-  // Poza zakresem pionowym oryginał czyta „brak terenu” (piksel 0), a zapis nie zmienia mapy.
-  const get = (x: number, y: number): number => (y < 0 || y >= MAP_HEIGHT ? -1 : terrain[y * MAP_WIDTH + wrapX(x)]!);
-  const set = (x: number, y: number, t: Terrain) => {
-    if (y >= 0 && y < MAP_HEIGHT) terrain[y * MAP_WIDTH + wrapX(x)] = t;
-  };
+  const page = new MapPage();
+  const px = (x: number, y: number) => page.get(x, y);
+  const put = (x: number, y: number, v: number) => page.set(x, y, v);
+  const dx = (d: number) => MOVE_DIRECTIONS[d]![0];
+  const dy = (d: number) => MOVE_DIRECTIONS[d]![1];
 
-  // Etap 1 — lądy: losowe „chmury”, które podnoszą teren (woda → równiny → wzgórza → góry).
-  const targetCells = options.landMass * 320 + 640;
-  for (let total = 0; total < targetCells; ) {
-    const cloud = new Uint8Array(MAP_WIDTH * MAP_HEIGHT);
+  // Etap 1 — lądy (L0073): chmury F7_0000_08be, aż liczba podniesionych pól (Var_67fe) dojdzie do 320·masa + 640.
+  // Wartość piksela rośnie o 1 przy każdej chmurze: 0 woda, 1 równina, 2 wzgórza, 3 i więcej góry.
+  let raised = 0;
+  while (options.landMass * 8 * 40 + 640 > raised) {
+    page.fill(160, 0, 80, 50, 0);
     let x = rng.next(72) + 4;
     let y = rng.next(34) + 8;
-    let size = rng.next(64) + 1;
-    do {
-      cloud[y * MAP_WIDTH + x] = 1;
-      cloud[(y - 1) * MAP_WIDTH + x] = 1;
-      cloud[y * MAP_WIDTH + wrapX(x + 1)] = 1;
-      cloud[(y + 1) * MAP_WIDTH + x] = 1;
-      cloud[y * MAP_WIDTH + wrapX(x - 1)] = 1;
-      switch (rng.next(4)) {
-        case 0: y -= 1; break;
-        case 1: x += 1; break;
-        case 2: y += 1; break;
-        case 3: x -= 1; break;
-      }
-      x = wrapX(x);
-      size--;
-    } while (size > 0 && y > 4 && y < 45);
-    let count = 0;
-    for (let cx = 0; cx < MAP_WIDTH; cx++) {
-      for (let cy = 0; cy < MAP_HEIGHT; cy++) {
-        if (!cloud[cy * MAP_WIDTH + cx]) continue;
-        const t = get(cx, cy);
-        if (t === Terrain.Water) set(cx, cy, Terrain.Plains);
-        else if (t === Terrain.Plains) set(cx, cy, Terrain.Hills);
-        else if (t === Terrain.Hills) set(cx, cy, Terrain.Mountains);
-        count++;
+    // F7_0000_0988: kształt (x, y), (x + 1, y), (x, y + 1); krok o 1 w kierunku N/E/S/W; koniec przy brzegach
+    for (let size = rng.next(64) + 1; ; ) {
+      put(x + 160, y, 15);
+      put(x + 161, y, 15);
+      put(x + 160, y + 1, 15);
+      const d = rng.next(4) * 2 + 1;
+      x += dx(d);
+      y += dy(d);
+      if (--size === 0 || x <= 2 || x >= 77 || y <= 2 || y >= 46) break;
+    }
+    for (let cx = 0; cx < 80; cx++) {
+      for (let cy = 0; cy < 50; cy++) {
+        if (px(cx + 160, cy) === 0) continue;
+        put(cx, cy, px(cx, cy) + 1);
+        raised++;
       }
     }
-    total += count;
   }
-
-  // Etap 2 — temperatura: równiny zamieniają się w pustynię, tundrę lub lód zależnie od szerokości geograficznej.
-  for (let x = 0; x < MAP_WIDTH; x++) {
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-      if (get(x, y) !== Terrain.Plains) continue;
-      const band = Math.trunc((Math.abs(rng.next(8) + y - 29) + (1 - options.temperature)) / 6) + 1;
-      if (band === 0 || band === 1) set(x, y, Terrain.Desert);
-      else if (band === 4 || band === 5) set(x, y, Terrain.Tundra);
-      else if (band === 6 || band === 7) set(x, y, Terrain.Arctic);
+  // ramka wody: obrysy (0, 0)–(79, 49) i (1, 1)–(78, 48)
+  page.rectangle(0, 0, 79, 49, 0);
+  page.rectangle(1, 1, 77, 47, 0);
+  // L00c4: pola stykające się tylko narożnikiem (wzór 0110 albo 1001 w kwadracie 2×2) wypełniane równiną;
+  // po zmianie powrót o kolumnę i wiersz (zmienna pętli zewnętrznej też się cofa)
+  for (let x = 1; x < 79; x++) {
+    for (let y = 1; y < 49; y++) {
+      let edges = 0;
+      if (px(x, y) !== 0) edges |= 1;
+      if (px(x + 1, y) !== 0) edges |= 2;
+      if (px(x, y + 1) !== 0) edges |= 4;
+      if (px(x + 1, y + 1) !== 0) edges |= 8;
+      if (edges === 6 || edges === 9) {
+        put(x + 1, y, 1);
+        put(x, y + 1, 1);
+        put(x + 1, y + 1, 1);
+        if (x !== 0) x--;
+        if (y !== 0) y--;
+      }
     }
   }
 
-  // Etap 3 — klimat: wilgoć niesiona znad oceanu, najpierw z zachodu na wschód, potem odwrotnie.
+  // Etap 2 — temperatura (L01b1): woda → 1, równina wg szerokości, 2 → wzgórza, więcej → góry
+  for (let x = 0; x < 80; x++) {
+    for (let y = 0; y < 50; y++) {
+      const v = px(x, y);
+      if (v === 0) put(x, y, 1);
+      else if (v === 2) put(x, y, 12);
+      else if (v !== 1) put(x, y, 13);
+      else {
+        const band = Math.trunc((Math.abs(-(rng.next(8) + y - 29)) + (1 - options.temperature)) / 6) + 1;
+        if (band === 0 || band === 1) put(x, y, 14);
+        else if (band === 2 || band === 3) put(x, y, 6);
+        else if (band === 4 || band === 5) put(x, y, 7);
+        else if (band === 6 || band === 7) put(x, y, 15);
+      }
+    }
+  }
+
+  // Etap 3 — klimat (L0448): wilgoć znad oceanu z zachodu na wschód, potem ze wschodu na zachód
   const dryness = 7 - options.climate * 2;
-  for (let y = 0; y < MAP_HEIGHT; y++) {
+  for (let y = 0; y < 50; y++) {
     const latitude = Math.abs(25 - y);
     let wet = 0;
-    for (let x = 0; x < MAP_WIDTH; x++) {
-      const t = get(x, y);
-      if (t === Terrain.Water) {
+    for (let x = 0; x < 80; x++) {
+      const v = px(x, y);
+      if (v === 1) {
         if (Math.abs(12 - latitude) + options.climate * 4 > wet) wet++;
       } else if (wet > 0) {
         wet -= rng.next(dryness);
-        if (t === Terrain.Plains) set(x, y, Terrain.Grassland);
-        else if (t === Terrain.Tundra) set(x, y, Terrain.Arctic);
-        else if (t === Terrain.Hills) set(x, y, Terrain.Forest);
-        else if (t === Terrain.Mountains) wet -= 3;
-        else if (t === Terrain.Desert) set(x, y, Terrain.Plains);
+        if (v === 6) put(x, y, 10);
+        else if (v === 7) put(x, y, 15);
+        else if (v === 12) put(x, y, 2);
+        else if (v === 13) wet -= 3;
+        else if (v === 14) put(x, y, 6);
       }
     }
     wet = 0;
-    for (let x = MAP_WIDTH - 1; x >= 0; x--) {
-      const t = get(x, y);
-      if (t === Terrain.Water) {
+    for (let x = 79; x >= 0; x--) {
+      const v = px(x, y);
+      if (v === 1) {
         if (Math.trunc(latitude / 2) + options.climate > wet) wet++;
       } else if (wet > 0) {
         wet -= rng.next(dryness);
-        if (t === Terrain.Swamp || t === Terrain.Hills) set(x, y, Terrain.Forest);
-        else if (t === Terrain.Plains) set(x, y, Terrain.Grassland);
-        else if (t === Terrain.Grassland) {
-          set(x, y, latitude < 10 ? Terrain.Jungle : Terrain.Swamp);
+        if (v === 3 || v === 12) put(x, y, 2);
+        else if (v === 6) put(x, y, 10);
+        else if (v === 10) {
+          put(x, y, latitude < 10 ? 11 : 3);
           wet = -2;
-        } else if (t === Terrain.Mountains) {
+        } else if (v === 13) {
           wet -= 3;
-          set(x, y, Terrain.Forest);
-        } else if (t === Terrain.Desert) set(x, y, Terrain.Plains);
+          put(x, y, 2);
+        } else if (v === 14) put(x, y, 6);
       }
     }
   }
 
-  // Etap 4 — wiek planety: erozja i wypiętrzanie w losowych miejscach i wzdłuż losowych spacerów.
+  // Etap 4 — wiek planety (L046d): parzyste kroki — losowe pole, nieparzyste — krok w losowym kierunku (bez zawijania)
   let ex = 0;
   let ey = 0;
-  const erosionSteps = 800 + 800 * options.age;
-  for (let i = 0; i < erosionSteps; i++) {
-    if (i & 1) {
-      const [dx, dy] = MOVE_DIRECTIONS[rng.next(8) + 1]!;
-      ex += dx;
-      ey += dy;
+  for (let e = 0; e < 800 * options.age + 800; e++) {
+    if (e & 1) {
+      const d = rng.next(8) + 1;
+      ex += dx(d);
+      ey += dy(d);
     } else {
-      ex = rng.next(MAP_WIDTH);
-      ey = rng.next(MAP_HEIGHT);
+      ex = rng.next(80);
+      ey = rng.next(50);
     }
-    switch (get(ex, ey)) {
-      case Terrain.Forest: set(ex, ey, Terrain.Jungle); break;
-      case Terrain.Swamp: set(ex, ey, Terrain.Grassland); break;
-      case Terrain.Plains:
-      case Terrain.Tundra: set(ex, ey, Terrain.Hills); break;
-      case Terrain.Grassland: set(ex, ey, Terrain.Forest); break;
-      case Terrain.Jungle: set(ex, ey, Terrain.Swamp); break;
-      case Terrain.Hills:
-      case Terrain.Arctic: set(ex, ey, Terrain.Mountains); break;
-      case Terrain.Mountains:
-        if (
-          get(ex - 1, ey - 1) !== Terrain.Water && get(ex - 1, ey + 1) !== Terrain.Water &&
-          get(ex + 1, ey - 1) !== Terrain.Water && get(ex + 1, ey + 1) !== Terrain.Water
-        ) set(ex, ey, Terrain.Water);
+    switch (px(ex, ey)) {
+      case 2: put(ex, ey, 11); break; // las → dżungla
+      case 3: put(ex, ey, 10); break; // bagno → łąka
+      case 6: case 7: put(ex, ey, 12); break; // równina, tundra → wzgórza
+      case 10: put(ex, ey, 2); break; // łąka → las
+      case 11: put(ex, ey, 3); break; // dżungla → bagno
+      case 12: case 15: put(ex, ey, 13); break; // wzgórza, lód → góry
+      case 13: // F7_0000_05d4: góra bez wody na przekątnych → woda
+        if (px(ex - 1, ey - 1) !== 1 && px(ex - 1, ey + 1) !== 1 && px(ex + 1, ey - 1) !== 1 && px(ex + 1, ey + 1) !== 1) put(ex, ey, 1);
         break;
-      case Terrain.Desert: set(ex, ey, Terrain.Plains); break;
+      case 14: put(ex, ey, 6); break; // pustynia → równina
     }
   }
 
-  // Etap 5 — rzeki: start na wzgórzach, meandrowanie aż do morza lub innej rzeki; nieudane próby są cofane.
+  // Etap 5 — rzeki (F7_0000_065c): do (masa + klimat)·2 + 6 udanych prób, najwyżej 256 prób
   const riverTarget = (options.landMass + options.climate) * 2 + 6;
-  let rivers = 0;
-  for (let attempt = 0; attempt < 256 && rivers <= riverTarget; attempt++) {
-    if (!terrain.includes(Terrain.Hills)) break;
-    const terrainBackup = terrain.slice();
-    let startX: number;
-    let startY: number;
+  let hasHills = false;
+  for (let i = 0; i < 4000; i++) if (page.pixels[Math.trunc(i / 80) * PAGE_WIDTH + (i % 80)] === 12) hasHills = true;
+  for (let attempt = 0, rivers = 0; hasHills && attempt < 256 && rivers < riverTarget; attempt++) {
+    page.copy(0, 0, 160, 100, 160, 0); // kopia zapasowa: teren, warstwa (x + 80) i znaczniki (x, y + 50)
+    let x: number;
+    let y: number;
     do {
-      startX = rng.next(MAP_WIDTH);
-      startY = rng.next(MAP_HEIGHT);
-    } while (get(startX, startY) !== Terrain.Hills);
-    let rx = startX;
-    let ry = startY;
-    let ends = false;
-    let cell: number;
-    let steps = 0;
+      x = rng.next(80);
+      y = rng.next(50);
+    } while (px(x, y) !== 12);
+    const startX = x;
+    const startY = y;
     let direction = rng.next(4) * 2;
+    let steps = 0;
+    let ends = false;
+    let v: number;
     do {
-      set(rx, ry, Terrain.River);
-      for (let d = 1; d < 9; d += 2) {
-        const [dx, dy] = MOVE_DIRECTIONS[d]!;
-        if (get(rx + dx, ry + dy) === Terrain.Water) ends = true;
-      }
+      put(x, y, 9);
+      ends = false;
+      for (let d = 1; d <= 8; d += 2) if (px(x + dx(d), y + dy(d)) === 1) ends = true;
       const previous = direction;
       direction = ((rng.next(2) - (steps & 1)) * 2 + direction) & 7;
-      if ((previous ^ 4) > direction && ry >= 0 && ry < MAP_HEIGHT) riverVariant[ry * MAP_WIDTH + wrapX(rx)] = 1;
-      const [dx, dy] = MOVE_DIRECTIONS[direction + 1]!;
-      rx += dx;
-      ry += dy;
-      cell = get(rx, ry);
+      if ((previous ^ 4) > direction) put(x, y + 50, 8);
+      x += dx(direction + 1);
+      y += dy(direction + 1);
+      v = px(x, y);
       steps++;
-    } while (!ends && cell !== Terrain.Water && cell !== Terrain.River && cell !== Terrain.Mountains);
-    if ((!ends && cell !== Terrain.River) || steps < 5) {
-      terrain.set(terrainBackup); // znaczniki wariantu zostają — tak jak w źródle
-    } else {
+    } while (!ends && v !== 13 && v !== 1 && v !== 9);
+    if ((ends || v === 9) && steps >= 5) {
       rivers++;
-      for (let d = 1; d < 22; d++) {
-        const [dx, dy] = MOVE_DIRECTIONS[d]!;
-        if (get(startX + dx, startY + dy) === Terrain.Forest) set(startX + dx, startY + dy, Terrain.Jungle);
-      }
+      for (let d = 1; d <= 21; d++) if (px(startX + dx(d), startY + dy(d)) === 2) put(startX + dx(d), startY + dy(d), 11);
+    } else {
+      page.copy(160, 0, 160, 100, 0, 0); // przywrócenie (także znaczników wariantu rzeki)
     }
   }
 
+  const terrain = new Uint8Array(MAP_WIDTH * MAP_HEIGHT);
+  const riverVariant = new Uint8Array(MAP_WIDTH * MAP_HEIGHT);
+  for (let y = 0; y < MAP_HEIGHT; y++) {
+    for (let x = 0; x < MAP_WIDTH; x++) {
+      terrain[y * MAP_WIDTH + x] = PIXEL_TERRAIN[px(x, y)] ?? Terrain.Water;
+      riverVariant[y * MAP_WIDTH + x] = px(x, y + 50) & 8 ? 1 : 0;
+    }
+  }
   return { terrain, riverVariant };
 }

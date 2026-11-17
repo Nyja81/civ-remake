@@ -38,7 +38,7 @@ export async function showLogoAndMainGameMenu(
 
   while (choice === null) {
     if (selected === GameType.None) {
-      selected = (await showMenuBox(ui, MAIN_MENU_TEXT, 100, 140, { frame: true, clearInput: true })).index;
+      selected = (await showMenuBox(ui, MAIN_MENU_TEXT, 100, 140, { clearInput: true })).index;
     }
     switch (selected) {
       case GameType.NewGame:
@@ -47,7 +47,7 @@ export async function showLogoAndMainGameMenu(
       case GameType.LoadGame: {
         // Zapisy silnika (JSON) i — z folderu gry — CIVIL?.SVE oryginału; okno wyboru zapisu dostarcza aplikacja (flow.ts).
         const state = loadSaved ? await loadSaved(ui) : null;
-        if (!loadSaved) await showMenuBox(ui, 'Loading saved games\nis not available.\n', 80, 80, { frame: true, clearInput: true });
+        if (!loadSaved) await showMenuBox(ui, 'Loading saved games\nis not available.\n', 80, 80, { clearInput: true });
         if (state) {
           choice = { kind: 'load', state };
         } else {
@@ -121,7 +121,7 @@ export async function customizeWorld(ui: Ui, assets: GameAssets): Promise<WorldO
     let defaultIndex = 1;
     let value = -1;
     while (value === -1) {
-      const r = await showMenuBox(ui, menu.text, 200, menu.y, { frame: false, help: true, clearInput: true, defaultIndex });
+      const r = await showMenuBox(ui, menu.text, 200, menu.y, { clearInput: true, defaultIndex });
       value = r.index;
       if (value !== -1 && r.help) {
         // Pomoc (Help.F4_0000_0000_DisplayHelpContent) jeszcze nie istnieje — pytanie wraca z tą samą opcją.

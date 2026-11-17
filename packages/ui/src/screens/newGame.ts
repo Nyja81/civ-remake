@@ -8,7 +8,7 @@ import { NATIONS } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
 import { playerNameDialog, tribeNameDialog } from '../editBox';
 import { showMenuBox } from '../menuBox';
-import { adjustTextBlockWidth, replaceKeywords, textSection } from '../text';
+import { kingSectionText } from '../text';
 import type { Ui } from '../ui';
 import type { MapChoice } from './mainMenu';
 
@@ -131,17 +131,21 @@ export async function showInitText(
   ui: Ui, assets: GameAssets, settings: Pick<NewGameSettings, 'nation' | 'leaderName' | 'difficulty'>, technologies: readonly string[],
 ): Promise<void> {
   const king = assets.optional('KING.TXT');
-  const section = king ? textSection(king, '*INIT') : null;
+  const section = king ? kingSectionText(king, '*INIT', { US: settings.nation, RPLC1: settings.leaderName }) : null;
   if (section === null) return;
   const gfx = ui.gfx;
-  let text = adjustTextBlockWidth(replaceKeywords(section, { US: settings.nation, RPLC1: settings.leaderName }), 80);
-  for (const t of technologies) text += `${t}, `;
+  // F5_0000_0000 L06b6: nazwy znanych technologii z ", ", po drugiej — "\n"; na końcu "and Roads.\n"
+  let text = section;
+  technologies.forEach((t, i) => {
+    text += `${t}, `;
+    if (i === 1) text += '\n';
+  });
   text += 'and Roads.\n';
 
   gfx.fillRect(0, 0, 320, 200, 15);
   drawRandomFoodIcons(ui);
   drawDifficultyImage(ui, settings.difficulty, 134, 20);
-  gfx.drawTextBlock(88, 81, text.replace(/\^/g, '\n'), 150, 0);
+  gfx.drawTextBlockUnits(text, 0x63, 88, 81, 0);
   ui.present();
   ui.input.clear();
   await ui.waitKeyOrClick();

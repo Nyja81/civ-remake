@@ -1,0 +1,31 @@
+# Ekrany startowe: menu główne, Customize World, ustawienia nowej gry (DIFFS), tekst *INIT.
+# Oryginał zaczyna się po pytaniach o grafikę/dźwięk/mysz (dosbox.py start).
+dosbox sleep 6
+keys space
+dosbox sleep 4
+dosbox park
+shot menu-main
+keys Down Down Down Return
+dosbox sleep 2
+shot custom-landmass
+keys Return
+shot custom-temperature
+keys Return
+shot custom-climate
+keys Return
+shot custom-age
+keys Return
+# historia świata w trakcie budowy mapy — klawisz ją przerywa (kbhit w F7_0000_17cf), mapa powstaje dalej
+dosbox sleep 6
+dosbox keys Escape
+dosbox sleep 15
+shot diffs-level
+keys Return
+shot diffs-civs
+keys Return
+shot diffs-tribe
+keys Return
+shot diffs-name
+keys Return
+dosbox sleep 3
+shot init-text

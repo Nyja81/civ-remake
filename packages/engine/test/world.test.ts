@@ -15,10 +15,12 @@ describe('generator świata', () => {
     for (let seed = 1; seed <= 200; seed++) {
       const world = generateWorld(mscRandom(seed));
       expect(world.terrain.length).toBe(MAP_WIDTH * MAP_HEIGHT);
-      // lądy powstają tylko w wierszach 4–45, więc pasy przy biegunach to zawsze woda
+      // ramka wody (F7_0000_0012: obrysy (0,0)–(79,49) i (1,1)–(78,48)) — czapy polarne dodaje dopiero createGameMap
       for (let y = 0; y < MAP_HEIGHT; y++) {
-        if (y >= 4 && y <= 45) continue;
-        for (let x = 0; x < MAP_WIDTH; x++) expect(world.terrain[y * MAP_WIDTH + x], `ziarno ${seed}`).toBe(Terrain.Water);
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (x >= 2 && x <= 77 && y >= 2 && y <= 47) continue;
+          expect(world.terrain[y * MAP_WIDTH + x], `ziarno ${seed}`).toBe(Terrain.Water);
+        }
       }
       for (const t of world.terrain) expect(t).toBeLessThanOrEqual(Terrain.River);
       const land = MAP_WIDTH * MAP_HEIGHT - count(world, Terrain.Water);

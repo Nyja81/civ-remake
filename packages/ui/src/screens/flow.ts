@@ -14,7 +14,7 @@ import type { Ui } from '../ui';
 import { GameScreen } from './gameScreen';
 import { decodeFameDta, type FameStore } from './hallOfFame';
 import { GameType, showMainGameIntro, showWorldHistory } from './intro';
-import { showLogoAndMainGameMenu, type SavedGameLoader } from './mainMenu';
+import { loadGameSheets, showLogoAndMainGameMenu, type SavedGameLoader } from './mainMenu';
 import { DIFFICULTY_NAMES, initNewGameData, showInitText, type NewGameSettings } from './newGame';
 
 /** Magazyn zapisów gry (w aplikacji: folder danych aplikacji). */
@@ -148,6 +148,8 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
     } else {
       // StartGame: historia świata w trakcie budowy mapy (MapInitAndIntro), potem ustawienia nowej gry
       await showWorldHistory(ui, assets);
+      // StartGame (0x11a8:0x054e): po budowie mapy SP299.PIC znowu na ekranie 2 — historia świata nadpisała go obrazami BIRTH
+      loadGameSheets(ui, assets);
       const settings = await initNewGameData(ui, assets, choice);
       const seed = hooks.seed?.() ?? Math.floor(Math.random() * 32768);
       state = newGame(newGameOptions(assets, settings, seed));

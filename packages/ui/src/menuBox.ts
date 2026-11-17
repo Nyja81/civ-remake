@@ -13,7 +13,10 @@ import type { Ui } from './ui';
 export interface MenuBoxOptions {
   /** Ramka i tło okna (windowFrame). Bez ramki menu leży na obrazie, a podświetlenie zamienia kolor tła obrazu. */
   readonly frame?: boolean;
-  /** Pomoc dostępna: napis "(HELP AVAILABLE)" i prawy przycisk myszy / Alt+H / F1 (helpOption). */
+  /**
+   * Napis "(HELP AVAILABLE)" i okno wyższe o 2 piksele (Var_2fa0 — w oryginale tylko lista produkcji i wybór badań).
+   * Prośbę o pomoc (prawy przycisk, Alt+H, F1) okno przyjmuje zawsze; wynik ma wtedy `help`.
+   */
   readonly help?: boolean;
   /** Wyczyść zaległe zdarzenia przed pokazaniem (emptyKeyboardAndMouse). */
   readonly clearInput?: boolean;
@@ -52,22 +55,27 @@ export interface MenuLayout {
   readonly windowHeight: number;
 }
 
-/** Wyliczenie układu okna (bez rysowania) — osobno, żeby dało się je przetestować. */
+/**
+ * Wyliczenie układu okna (bez rysowania) — F0_2d05_0475 z dosłownego tłumaczenia asemblera (ec23ac3):
+ * tekst zawsze od (x + 5, y + 5 + i·wiersz); ramka tylko przy parzystym `y` (oraz przy y = 139 — menu paska gry):
+ * czarny obrys w (x, y) o wymiarach (W + 2) × (H + 2), wnętrze i cień od (x + 1, y + 1) o wymiarach W × H,
+ * gdzie W = najdłuższy wiersz + 8, H = wiersze · wysokość + 6 (+ 2 z pomocą). Liczba wierszy obcięta do (192 − y) / wysokość.
+ */
 export function layoutMenuBox(ui: Ui, text: string, x: number, y: number, options: MenuBoxOptions = {}): MenuLayout {
   const gfx = ui.gfx;
-  const frame = options.frame ?? true;
+  const frame = options.frame ?? menuHasFrame(y);
   const help = options.help ?? false;
-  let items = text.trimEnd().split('\n').filter((s) => s.length > 0);
+  // Wiersze = fragmenty zakończone '\n' (Var_658e liczy znaki '\n'); końcówka bez '\n' nie jest rysowana ani liczona
+  // jako opcja (L05c5: przy tekście bez '\n' na końcu licznik opcji maleje o 1) — np. " " po ostatniej opcji.
+  let items = text.split('\n');
+  items.pop();
 
   let lineHeight = gfx.textHeight();
   if (lineHeight === 9) lineHeight--;
   if (options.lineHeight !== undefined) lineHeight = options.lineHeight;
 
-  const frameSize = frame ? 8 : 0;
-  const maxContentWidth = 320 - frameSize - x;
-  const maxContentHeight = 200 - frameSize - y;
-  const maxLineCount = Math.trunc((maxContentHeight - (help && frame ? 8 : 0)) / lineHeight);
-  if (items.length > maxLineCount) items = items.slice(0, Math.max(0, maxLineCount));
+  const maxLineCount = Math.max(0, Math.trunc((192 - y) / lineHeight));
+  if (items.length > maxLineCount) items = items.slice(0, maxLineCount);
 
   const optionChar = items.find((s) => s.startsWith(' ') || s.startsWith('_'))?.[0];
   const optionLines: number[] = [];
@@ -76,64 +84,60 @@ export function layoutMenuBox(ui: Ui, text: string, x: number, y: number, option
   const width = (s: string) => measureText(gfx.font, s).width;
 
   for (let i = 0; i < items.length; i++) {
-    let item = items[i]!;
-    let itemWidth = width(item);
-    // skracanie zbyt długich wierszy z dopiskiem "..."
-    while (itemWidth > maxContentWidth && item.length > 0) {
-      item = item.substring(0, item.length - 1);
-      itemWidth = width(item + '...');
-      if (itemWidth <= maxContentWidth) {
-        item += '...';
-        items[i] = item;
-      }
-    }
-    maxLineWidth = Math.max(maxLineWidth, itemWidth);
-    if (optionChar !== undefined && item.startsWith(optionChar)) {
+    const item = items[i]!;
+    maxLineWidth = Math.max(maxLineWidth, width(item));
+    if (optionChar !== undefined && (item.startsWith(' ') || item.startsWith('_'))) {
       optionLines.push(i);
       if (((options.checked ?? 0) & (1 << (optionLines.length - 1))) !== 0) items[i] = '^' + item.substring(1);
       optionChars.push(item.length > 1 ? item[1]!.toLowerCase() : '');
     }
   }
 
-  const contentLeft = x + (frame ? 4 : 0);
-  const contentTop = y + (frame ? 4 : 0);
-  const contentWidth = maxLineWidth;
-  const contentHeight = items.length * lineHeight + (help && frame ? 8 : 0);
+  const innerWidth = maxLineWidth + 8;
+  const innerHeight = items.length * lineHeight + 6 + (help ? 2 : 0);
   return {
-    items, optionLines, optionChars, lineHeight, contentLeft, contentTop, contentWidth, contentHeight,
-    windowWidth: contentWidth + frameSize,
-    windowHeight: contentHeight + frameSize,
+    items, optionLines, optionChars, lineHeight,
+    contentLeft: x + 5,
+    contentTop: y + 5,
+    contentWidth: maxLineWidth,
+    contentHeight: items.length * lineHeight,
+    windowWidth: frame ? innerWidth + 3 : innerWidth,
+    windowHeight: frame ? innerHeight + 3 : innerHeight,
   };
 }
 
+/** Okno ma ramkę przy parzystym Y i przy Y = 139 (TEST y, 1 i CMP y, 0x8b w F0_2d05_0031/0475). */
+export const menuHasFrame = (y: number) => (y & 1) === 0 || y === 139;
+
 export async function showMenuBox(ui: Ui, text: string, x: number, y: number, options: MenuBoxOptions = {}): Promise<MenuBoxResult> {
   const gfx = ui.gfx;
-  const frame = options.frame ?? true;
+  const frame = options.frame ?? menuHasFrame(y);
   const help = options.help ?? false;
   const disabled = options.disabled ?? 0;
   const layout = layoutMenuBox(ui, text, x, y, options);
-  const { items, optionLines, optionChars, lineHeight, contentLeft, contentTop, contentWidth, contentHeight } = layout;
+  const { items, optionLines, optionChars, lineHeight, contentLeft, contentTop, contentWidth } = layout;
 
   let selected = 0;
   if (options.defaultIndex !== undefined && options.defaultIndex !== -1) selected = Math.min(optionLines.length - 1, options.defaultIndex);
 
-  // kolory
+  // kolory (F0_2d05_0031): tło 7, wzór 22 (8 dla y = 139); bez ramki — kolor obrazu w (x, y) i bez zamiany wzoru
   let background = 7;
   let highlight = y === 139 ? 8 : 22;
-  if (!frame && y !== 139) {
-    background = gfx.screen.getPixel(x, y); // menu na obrazie: tłem jest kolor obrazu
+  if (!frame) {
+    background = gfx.screen.getPixel(x, y);
     highlight = -1;
   }
   const textColor = background === 15 ? 3 : 15;
+  const right = x + contentWidth + 8; // Var_de0e
+  const bottom = y + items.length * lineHeight + 6 + (help ? 2 : 0);
 
-  if (frame) gfx.fillRectangleWithDoubleShadow(x, y, layout.windowWidth, layout.windowHeight, 7);
+  if (frame) gfx.drawWindowFrame(x, y, right - x, bottom - y, 7);
 
-  if (frame && help) {
+  if (help) {
+    // F0_2d05_0475 L075b: napis czcionką 2 w (de0e − 74, dół − 4), kolor 10 — także bez ramki
     const fontId = gfx.fontId;
     gfx.fontId = 2;
-    const helpText = '(HELP AVAILABLE)';
-    const size = measureText(gfx.font, helpText);
-    gfx.drawString(helpText, contentLeft + contentWidth - size.width, contentTop + contentHeight - size.height, 10);
+    gfx.drawString('(HELP AVAILABLE)', right - 0x4a, bottom - 4, 10);
     gfx.fontId = fontId;
   }
 
@@ -149,7 +153,7 @@ export async function showMenuBox(ui: Ui, text: string, x: number, y: number, op
       if (lineHeight > 9) gfx.drawStringWithShadow(item, contentLeft, ly, textColor);
       else gfx.drawString(item, contentLeft, ly, textColor);
     } else {
-      gfx.drawString(item, contentLeft, ly, (disabled & (1 << optionIndex)) !== 0 ? 4 : 0);
+      gfx.drawString(item, contentLeft, ly, (disabled & (1 << optionIndex)) !== 0 ? 3 : 0);
     }
   }
 
@@ -157,9 +161,12 @@ export async function showMenuBox(ui: Ui, text: string, x: number, y: number, op
   if (options.noWait) return { index: -1, help: false, mousePressed: false, mouse: { x: ui.input.mouse.x, y: ui.input.mouse.y } };
 
   const isDisabled = (i: number) => i >= 0 && (disabled & (1 << i)) !== 0;
-  const inside = (px: number, py: number) =>
-    px >= contentLeft && px <= contentLeft + contentWidth && py >= contentTop && py <= contentTop + contentHeight;
-  const optionAt = (py: number) => optionLines.indexOf(Math.trunc((py - contentTop) / lineHeight));
+  // L018a: opcja = (mysz.y − y − 4) / wiersz − pierwszy wiersz opcji; poza x..de0e — brak opcji
+  const inside = (px: number, py: number) => px >= x && px <= x + contentWidth + 8 && py >= y && py <= y + 4 + items.length * lineHeight;
+  const optionAt = (py: number) => {
+    const o = Math.trunc((py - y - 4) / lineHeight) - (optionLines[0] ?? 0);
+    return o >= 0 && o < optionLines.length ? o : -1;
+  };
 
   let oldSelected = -1;
   let helpRequested = false;
@@ -169,10 +176,11 @@ export async function showMenuBox(ui: Ui, text: string, x: number, y: number, op
   const updateHighlight = () => {
     if (selected < 0 || selected >= optionLines.length) selected = -1;
     if (selected === oldSelected) return;
+    // F0_1000_0784 w (x + 3, y + 4 + wiersz·wysokość), szerokość d4c8 + 5
     const mark = (index: number, on: boolean) => {
-      const ly = contentTop + optionLines[index]! * lineHeight - 1;
-      gfx.screen.replaceColor(contentLeft, ly, contentWidth, lineHeight, on ? background : 11, on ? 11 : background);
-      if (highlight !== -1) gfx.screen.replaceColor(contentLeft, ly, contentWidth, lineHeight, on ? highlight : 3, on ? 3 : highlight);
+      const ly = y + 4 + optionLines[index]! * lineHeight;
+      gfx.screen.replaceColor(x + 3, ly, contentWidth + 5, lineHeight, on ? background : 11, on ? 11 : background);
+      if (highlight !== -1) gfx.screen.replaceColor(x + 3, ly, contentWidth + 5, lineHeight, on ? highlight : 3, on ? 3 : highlight);
     };
     if (oldSelected !== -1) mark(oldSelected, false);
     if (selected !== -1) mark(selected, true);
@@ -203,10 +211,9 @@ export async function showMenuBox(ui: Ui, text: string, x: number, y: number, op
         const o = optionAt(e.y);
         if (o !== -1) selected = o;
         if (e.button === 'right') {
-          if (help) {
-            helpRequested = true;
-            exit = true;
-          }
+          // L0177: prawy przycisk (db3a = 2) zawsze zgłasza prośbę o pomoc (Var_2f9c), także bez napisu
+          helpRequested = true;
+          exit = true;
         } else if (!isDisabled(selected)) {
           exit = true;
         }

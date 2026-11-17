@@ -160,12 +160,15 @@ export class Gfx {
     this.drawShadowRectangle(x, y, width - 1, height - 1, 15, 8);
   }
 
-  /** DrawTools.FillRectangleWithDoubleShadow — tło okna menu z podwójną ramką. */
-  fillRectangleWithDoubleShadow(x: number, y: number, width: number, height: number, color: number): void {
-    if (color === 7 && this.patternAvailable) this.fillRectangleWithPattern(x, y, width, height);
-    else this.fillRect(x, y, width, height, color);
-    this.drawShadowRectangle(x - 1, y - 1, width + 1, height + 1, 15, 8);
-    this.drawRectangle(x - 2, y - 2, width + 3, height + 3, 0);
+  /**
+   * F0_2d05_096c — okno menu: wnętrze (wzór albo kolor) i cień 15/8 od (x + 1, y + 1) o wymiarach width × height,
+   * czarny obrys od (x, y) do (x + width + 2, y + height + 2).
+   */
+  drawWindowFrame(x: number, y: number, width: number, height: number, color: number): void {
+    if (color === 7 && this.patternAvailable) this.fillRectangleWithPattern(x + 1, y + 1, width, height);
+    else this.fillRect(x + 1, y + 1, width, height, color);
+    this.drawShadowRectangle(x + 1, y + 1, width, height, 15, 8);
+    this.drawRectangle(x, y, width + 2, height + 2, 0);
   }
 
   /** DrawTools.DrawRectangleAndFillWithPattern (wariant z własnym wzorem: punkt i rozmiar wzoru na ekranie 2). */
@@ -192,6 +195,37 @@ export class Gfx {
    */
   drawTextBlock(x: number, y: number, text: string, maxWidth: number, color: number): number {
     return this.layoutTextBlock(text, y, maxWidth, (line, ly) => this.drawString(line, x, ly, color));
+  }
+
+  /**
+   * F0_2f4d_0088 dokładnie jak w asemblerze: szerokość w jednostkach po 8 pikseli; wiersz kończy '\n', '^' albo
+   * przekroczenie szerokości (łamanie na ostatniej spacji, '\n' lub '^'); po '^' pomijany jest jeden znak.
+   * Rysuje, dopóki Y ≤ 192; zwraca nowe Y.
+   */
+  drawTextBlockUnits(text: string, widthUnits: number, x: number, y: number, color: number): number {
+    const lineHeight = this.textHeight();
+    const maxWidth = widthUnits << 3;
+    let start = 0;
+    let lastSeparator = 0;
+    let width = 0;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i]!;
+      width += measureText(this.font, ch).width;
+      if (ch === ' ' || ch === '\n' || ch === '^') lastSeparator = i;
+      if (ch !== '\n' && ch !== '^' && width <= maxWidth) continue;
+      this.drawString(text.substring(start, lastSeparator), x, y, color);
+      y += lineHeight;
+      width = 0;
+      start = lastSeparator + 1;
+      if (ch === '^') start++;
+      i = lastSeparator;
+      if (y > 192) return y;
+    }
+    if (width > 0 && y <= 192) {
+      this.drawString(text.substring(start), x, y, color);
+      y += lineHeight;
+    }
+    return y;
   }
 
   /** DrawTools.GetTextBlockHeight */
