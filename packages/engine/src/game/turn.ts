@@ -30,6 +30,7 @@ import { Government, Improvement, NO_UNIT, UnitStatus, type GameState } from './
 import { cityAt, deleteUnit, exploreCell, nearestCity, unitsAt, updateUnitVisibility } from './units';
 import { PIXEL_TO_TERRAIN } from '../world/earth';
 import { civilizationScore } from './score';
+import { diplomacyTurn } from './diplomacy';
 
 export type Order =
   | 'skip' | 'disband' | 'pillage' | 'build' | 'fortify' | 'sentry' | 'irrigate' | 'mine' | 'road'
@@ -500,6 +501,7 @@ function updateGovernmentAndDiplomacy(state: GameState, player: number): void {
   anarchy(state, player);
   // Komputer: znacznik „obalony rząd” (bit Allied w Diplomacy[0]) zgłasza zmianę po raz drugi (ChangeCurrentGovernment).
   if (player !== state.humanPlayer && p.diplomacy[0]! & 4) aiChangeGovernment(state, player, p.government);
+  diplomacyTurn(state, player);
 }
 
 function anarchy(state: GameState, player: number): void {

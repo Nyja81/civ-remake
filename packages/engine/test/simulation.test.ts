@@ -33,7 +33,8 @@ describe('symulacja wielu tur', () => {
       }
       const aiCities = s.cities.filter((c) => c.status !== -1 && c.owner !== s.humanPlayer).length;
       expect(aiCities, `ziarno ${seed}`).toBeGreaterThan(3);
-      expect(s.year).toBeGreaterThan(0);
+      // bierny człowiek może przegrać (komputer atakuje jak w oryginale); inaczej gra dochodzi do naszej ery
+      if (s.gameOver === 0) expect(s.year).toBeGreaterThan(0);
     }
   });
 });

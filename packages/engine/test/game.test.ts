@@ -205,6 +205,8 @@ describe('tura i kalendarz', () => {
     expect(s.turn).toBe(1);
     expect(s.year).toBe(-3980);
     expect(s.players[h]!.units[0]!.movesLeft).toBe(3);
+    // tylko kalendarz: bez przeciwników komputerowych (bierny człowiek mógłby przegrać przed 1 r.)
+    s.activeCivs = (1 << h) | 1;
     for (let i = 0; i < 199; i++) endHumanTurn(s);
     expect(s.year).toBe(1);
     endHumanTurn(s);

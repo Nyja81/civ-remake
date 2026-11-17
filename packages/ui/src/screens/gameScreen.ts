@@ -11,9 +11,9 @@
  * (unitMove, unitOrder, nextUnit, endHumanTurn) i pokazuje zdarzenia jako okna.
  */
 import {
-  advanceToHuman, BUILDINGS, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
+  acceptAiRequest, advanceToHuman, BUILDINGS, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
   MovementType, nextUnit, NO_UNIT, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
-  TERRAIN, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameState, type MoveResult, type Order,
+  TERRAIN, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameEvent, type GameState, type MoveResult, type Order,
 } from '@civ-remake/engine';
 import { drawMapView, drawMiniMap, drawUnit, prepareSprites, type MapSprites, type TextDrawer } from '@civ-remake/gfx';
 import type { GameAssets } from '../assets';
@@ -23,7 +23,7 @@ import { showDialog, showMenuBox } from '../menuBox';
 import { editBox } from '../editBox';
 import { Palette, readPaletteRange } from '../palette';
 import { Surface } from '../surface';
-import { textSection, yearToString } from '../text';
+import { replaceKeywords, textSection, yearToString } from '../text';
 import type { Ui } from '../ui';
 import { showScoreScreen } from './reports';
 import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
@@ -285,7 +285,7 @@ export class GameScreen {
     const events = this.state.events;
     while (this.eventsSeen < events.length) {
       const ev = events[this.eventsSeen++]!;
-      if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message') continue;
+      if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message' && ev.kind !== 'aiRequest') continue;
       if (typeof ev.text === 'string' && ev.text) {
         await showDialog(this.ui, ev.text.endsWith('\n') ? ev.text : `${ev.text}\n`, 100, 80);
       } else if (ev.kind === 'advice' && this.state.settings.instantAdvice && typeof ev.key === 'string') {
@@ -299,12 +299,39 @@ export class GameScreen {
         chooseResearch(this.state, ev.suggested);
       } else if (ev.kind === 'chooseGovernment' && Array.isArray(ev.options)) {
         await this.governmentDialog(ev.options as number[]);
+      } else if (ev.kind === 'aiRequest' && typeof ev.player === 'number') {
+        await this.aiRequestDialog(ev);
       } else if (ev.kind === 'spaceshipPart' && typeof ev.part === 'number') {
         await spaceshipPartDialog(this.ui, this.assets, this.state, ev.part, ev.placed === true);
         await this.redrawMapWithBlankingEffect();
       } else if (ev.kind === 'gameEnd') {
         await this.gameEndDialog(ev.reason === 'conquest', ev.canContinue === true);
       }
+    }
+  }
+
+  /**
+   * Prośba komputera (Diplomacy: *HELPME / *CRUSADE): najpierw pytanie o przyjęcie posła (MeetWithKing.F6_0000_16cd),
+   * potem tekst z KING.TXT w (36, 139); opcja 1 = zgoda. Portret władcy — razem z pełnym MeetWithKing.
+   */
+  async aiRequestDialog(ev: GameEvent): Promise<void> {
+    const p = ev.player as number;
+    const ai = this.state.players[p]!;
+    const enemy = this.state.players[ev.enemy as number]!;
+    const receive = await showDialog(this.ui,
+      `An emissary from the\n${ai.nationPlural} wishes to\nspeak with you.\nWill you receive him?\n Yes.\n No.\n`, 100, 80);
+    if (receive !== 0) return;
+    const key = ev.request === 'helpme' ? '*HELPME' : '*CRUSADE';
+    const king = this.assets.optional('KING.TXT');
+    const section = king ? textSection(king, key) : null;
+    const values = { US: ai.nationPlural, THEM: enemy.nationPlural, BUCKS: String(ev.amount ?? 0), RPLC1: ev.extend ? 'extend our' : 'agree to a' };
+    // Bez KING.TXT — własny tekst w tym samym układzie (opcja 1 = zgoda)
+    const fallback = ev.request === 'helpme'
+      ? `We are at war with the\n$THEM. Will you\nsend us $BUCKS gold?\n No.\n Yes.\n`
+      : `Will you $RPLC1 alliance\nagainst the $THEM?\n No.\n Yes.\n`;
+    const text = replaceKeywords((section ?? fallback).replace(/\^/g, '\n').replace(/([^\n])$/, '$1\n'), values);
+    if ((await showDialog(this.ui, text, 36, 139)) === 1) {
+      acceptAiRequest(this.state, ev.request === 'helpme' ? 'helpme' : 'crusade', p, ev.enemy as number, (ev.amount as number) ?? 0);
     }
   }
 
