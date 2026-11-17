@@ -22,6 +22,8 @@ export const UI_OPTIONAL_FILES = [
   'TORCH.PIC', // kursor myszy
   'HELP.TXT', // porady (Instant Advice)
   'DOCKER.PIC', // rysunki części statku kosmicznego
+  // obrazy ustroju z portretami doradców (LoadGovernmentImage) — raporty wojskowy, handlu i nauki
+  'GOVT0A.PIC', 'GOVT0M.PIC', 'GOVT1A.PIC', 'GOVT1M.PIC', 'GOVT2A.PIC', 'GOVT2M.PIC', 'GOVT3A.PIC',
   'FAME.DTA', // tabela Hall of Fame z kopii gry (tylko odczyt — własna tabela w folderze danych aplikacji)
   'STORY.TXT', 'BIRTH2.PIC', 'BIRTH3.PIC', 'BIRTH4.PIC', 'BIRTH5.PIC', 'BIRTH6.PIC', 'BIRTH7.PIC', 'BIRTH8.PIC',
   'BIRTH1.PAL', 'BIRTH2.PAL', 'BIRTH3.PAL', 'BIRTH4.PAL', 'BIRTH5.PAL', 'BIRTH6.PAL', 'BIRTH7.PAL', 'BIRTH8.PAL',

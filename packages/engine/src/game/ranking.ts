@@ -5,6 +5,7 @@ import { BUILDINGS, WONDERS } from '../data/buildings';
 import { Tech } from '../data/techs';
 import { UNITS } from '../data/units';
 import { cityName } from './cities';
+import { recordScoreGraph } from './reports';
 import { selectNextResearch, playerHasTech } from './techs';
 import { Diplomacy, type GameState } from './types';
 
@@ -16,6 +17,7 @@ export function rankPlayers(state: GameState): void {
     scores[i] = Math.trunc(p.gold / 32) + p.totalCitySize * 8 + p.techCount;
     UNITS.forEach((u, j) => { scores[i]! += u.cost * p.activeUnits[j]!; });
     if (!(state.activeCivs & (1 << i))) scores[i] = 0;
+    recordScoreGraph(state, i, scores[i]!);
   }
   for (let i = 1; i < 8; i++) {
     let best = -1;

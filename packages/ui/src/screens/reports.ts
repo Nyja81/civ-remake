@@ -1,22 +1,26 @@
 /**
- * Ekrany raportów. Źródło: Reports.F14_0000_001c_DrawReportScreen (nagłówek raportu) i
+ * Ekrany raportów (pozostałe raporty doradców i świata — advisors.ts). Źródło: Reports.F14_0000_001c_DrawReportScreen (nagłówek raportu) i
  * GameEngine.F20_0000_0ca9_ShowCivilizationScorePopup (okno „CIVILIZATION SCORE”) z OpenCivOne (MIT).
  * Liczby wyniku liczy silnik (`civilizationScore`); tu tylko rysunek w układzie oryginału.
  */
-import { civilizationScore, GOVERNMENT_NAMES, WONDERS, type GameState } from '@civ-remake/engine';
+import { civilizationScore, WONDERS, type GameState } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
 import { yearToString } from '../text';
 import type { Ui } from '../ui';
 
-/** DrawReportScreen: tło w kolorze `fill`, tytuł i nagłówek władcy. */
+/** Array_19b2_GovernmentTypeNames — tytuł władcy w nagłówku raportu. */
+export const LEADER_TITLES = ['Mr.', 'Emperor', 'King', 'Comrade', 'President', 'President'] as const;
+
+/** DrawReportScreen: tło w kolorze `fill`, tytuł i nagłówek władcy („Emperor Caesar: 3950 BC”). */
 export function drawReportScreen(ui: Ui, state: GameState, title: string, fill: number): void {
   const g = ui.gfx;
   const h = state.players[state.humanPlayer]!;
+  ui.input.clear(); // ClearKeyboardAndMouseEvents
   g.fillRect(0, 0, 320, 200, fill);
   g.drawCenteredString(title, 160, 2, 15);
   const kind = h.government <= 1 ? 'Empire' : h.government <= 3 ? 'Kingdom' : 'Republic';
   g.drawCenteredString(`${kind} of the ${h.nationPlural}`, 160, 10, 15);
-  g.drawCenteredString(`${GOVERNMENT_NAMES[h.government]} ${h.leader}: ${yearToString(state.year)}`, 160, 18, 15);
+  g.drawCenteredString(`${LEADER_TITLES[h.government] ?? ''} ${h.leader}: ${yearToString(state.year)}`, 160, 18, 15);
 }
 
 /**
