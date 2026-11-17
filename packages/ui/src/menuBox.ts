@@ -23,6 +23,8 @@ export interface MenuBoxOptions {
   readonly disabled?: number;
   /** Maska bitowa opcji zaznaczonych (Var_d7f2_MenuBoxCheckedOptions). */
   readonly checked?: number;
+  /** Stała wysokość wiersza — w rozmowie z władcą (Var_3936 ≠ −1) wzorzec przyjmuje 8. */
+  readonly lineHeight?: number;
 }
 
 export interface MenuBoxResult {
@@ -57,6 +59,7 @@ export function layoutMenuBox(ui: Ui, text: string, x: number, y: number, option
 
   let lineHeight = gfx.textHeight();
   if (lineHeight === 9) lineHeight--;
+  if (options.lineHeight !== undefined) lineHeight = options.lineHeight;
 
   const frameSize = frame ? 8 : 0;
   const maxContentWidth = 320 - frameSize - x;

@@ -31,6 +31,7 @@ export * from './game/catastrophes';
 export * from './game/disasters';
 export * from './game/ranking';
 export * from './game/diplomacy';
+export * from './game/kingMeeting';
 export * from './game/ai';
 export * from './game/score';
 export * from './game/spaceship';

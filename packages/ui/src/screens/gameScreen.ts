@@ -11,7 +11,7 @@
  * (unitMove, unitOrder, nextUnit, endHumanTurn) i pokazuje zdarzenia jako okna.
  */
 import {
-  acceptAiRequest, advanceToHuman, BUILDINGS, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
+  advanceToHuman, aiRequestMeeting, envoyMeeting, meetWithKing, type KingKeywords, type KingMeeting, BUILDINGS, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
   MovementType, nextUnit, NO_UNIT, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
   TERRAIN, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameEvent, type GameState, type MoveResult, type Order,
 } from '@civ-remake/engine';
@@ -27,6 +27,7 @@ import { replaceKeywords, textSection, yearToString } from '../text';
 import type { Ui } from '../ui';
 import { showScoreScreen } from './reports';
 import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
+import { runKingMeeting } from './king';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
 
@@ -89,6 +90,8 @@ export class GameScreen {
   private readonly textDrawer: TextDrawer;
   private eventsSeen = 0;
   private blinkHidden = false;
+  /** Array_30b8 — słowa kluczowe tekstów KING.TXT, trwałe między rozmowami (początkowo jak po *INIT). */
+  private readonly kingKeywords: KingKeywords;
 
   constructor(
     private readonly ui: Ui,
@@ -98,6 +101,8 @@ export class GameScreen {
   ) {
     this.sprites = prepareSprites({ ter: assets.pic('TER257.PIC'), sp: assets.pic('SP257.PIC'), sp299: assets.pic('SP299.PIC') });
     this.gamePalette = buildGamePalette(assets);
+    const me = state.players[state.humanPlayer]!;
+    this.kingKeywords = { US: me.nationPlural, RPLC1: me.leader };
     this.textDrawer = (dst, text, x, y, color, shadow) => {
       const s = dst instanceof Surface ? dst : (Object.assign(Object.create(Surface.prototype), dst) as Surface);
       if (shadow) s.drawText(ui.gfx.font, text, x, y + 1, 0);
@@ -285,7 +290,8 @@ export class GameScreen {
     const events = this.state.events;
     while (this.eventsSeen < events.length) {
       const ev = events[this.eventsSeen++]!;
-      if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message' && ev.kind !== 'aiRequest') continue;
+      const fromAi = ev.kind === 'aiRequest' || ev.kind === 'meetLeader' || ev.kind === 'envoy';
+      if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message' && !fromAi) continue;
       if (typeof ev.text === 'string' && ev.text) {
         await showDialog(this.ui, ev.text.endsWith('\n') ? ev.text : `${ev.text}\n`, 100, 80);
       } else if (ev.kind === 'advice' && this.state.settings.instantAdvice && typeof ev.key === 'string') {
@@ -299,8 +305,19 @@ export class GameScreen {
         chooseResearch(this.state, ev.suggested);
       } else if (ev.kind === 'chooseGovernment' && Array.isArray(ev.options)) {
         await this.governmentDialog(ev.options as number[]);
+      } else if (ev.kind === 'meetLeader' && typeof ev.player === 'number') {
+        // Diplomacy.UpdateDiplomacyStatus → MeetWithKing.F6_0000_0000(gracz, x, y, 0)
+        await this.kingMeeting(meetWithKing(this.state, ev.player, {
+          x: typeof ev.x === 'number' ? ev.x : -1,
+          y: typeof ev.y === 'number' ? ev.y : -1,
+          previousCountdown: typeof ev.previousCountdown === 'number' ? ev.previousCountdown : undefined,
+          hadContact: ev.first !== true,
+        }));
       } else if (ev.kind === 'aiRequest' && typeof ev.player === 'number') {
         await this.aiRequestDialog(ev);
+      } else if (ev.kind === 'envoy' && typeof ev.player === 'number' && typeof ev.tech === 'number') {
+        // GameEngine.ResearchFinished: poseł z wieścią o odkryciu (*GAPE)
+        await this.kingMeeting(envoyMeeting(this.state, ev.player, ev.tech));
       } else if (ev.kind === 'spaceshipPart' && typeof ev.part === 'number') {
         await spaceshipPartDialog(this.ui, this.assets, this.state, ev.part, ev.placed === true);
         await this.redrawMapWithBlankingEffect();
@@ -311,28 +328,31 @@ export class GameScreen {
   }
 
   /**
-   * Prośba komputera (Diplomacy: *HELPME / *CRUSADE): najpierw pytanie o przyjęcie posła (MeetWithKing.F6_0000_16cd),
-   * potem tekst z KING.TXT w (36, 139); opcja 1 = zgoda. Portret władcy — razem z pełnym MeetWithKing.
+   * Prośba komputera (Diplomacy: *HELPME / *CRUSADE): poseł (MeetWithKing.F6_0000_16cd), sala tronowa z portretem,
+   * tekst z KING.TXT w (36, 139), opcja 1 = zgoda; na końcu F6_0000_16ac.
    */
   async aiRequestDialog(ev: GameEvent): Promise<void> {
-    const p = ev.player as number;
-    const ai = this.state.players[p]!;
-    const enemy = this.state.players[ev.enemy as number]!;
-    const receive = await showDialog(this.ui,
-      `An emissary from the\n${ai.nationPlural} wishes to\nspeak with you.\nWill you receive him?\n Yes.\n No.\n`, 100, 80);
-    if (receive !== 0) return;
-    const key = ev.request === 'helpme' ? '*HELPME' : '*CRUSADE';
-    const king = this.assets.optional('KING.TXT');
-    const section = king ? textSection(king, key) : null;
-    const values = { US: ai.nationPlural, THEM: enemy.nationPlural, BUCKS: String(ev.amount ?? 0), RPLC1: ev.extend ? 'extend our' : 'agree to a' };
-    // Bez KING.TXT — własny tekst w tym samym układzie (opcja 1 = zgoda)
-    const fallback = ev.request === 'helpme'
-      ? `We are at war with the\n$THEM. Will you\nsend us $BUCKS gold?\n No.\n Yes.\n`
-      : `Will you $RPLC1 alliance\nagainst the $THEM?\n No.\n Yes.\n`;
-    const text = replaceKeywords((section ?? fallback).replace(/\^/g, '\n').replace(/([^\n])$/, '$1\n'), values);
-    if ((await showDialog(this.ui, text, 36, 139)) === 1) {
-      acceptAiRequest(this.state, ev.request === 'helpme' ? 'helpme' : 'crusade', p, ev.enemy as number, (ev.amount as number) ?? 0);
-    }
+    const request = ev.request === 'helpme' ? 'helpme' : 'crusade';
+    await this.kingMeeting(aiRequestMeeting(this.state, request, ev.player as number, ev.enemy as number,
+      typeof ev.amount === 'number' ? ev.amount : 0, ev.extend === true));
+  }
+
+  /** Rozmowa z władcą (screens/king.ts) prowadzona krokami silnika. */
+  async kingMeeting(meeting: KingMeeting): Promise<void> {
+    await runKingMeeting(this.ui, this.assets, this.state, meeting, this.kingKeywords, {
+      centerMap: (x, y) => {
+        this.drawVisibleMap(x, y);
+        this.ui.present();
+      },
+      advice: async (key, values) => {
+        if (!this.state.settings.instantAdvice) return;
+        const text = this.adviceText(key);
+        if (text) await showDialog(this.ui, replaceKeywords(text, values), 60, 60);
+      },
+      close: () => this.redrawMapWithBlankingEffect(),
+    });
+    this.redrawAll();
+    this.ui.present();
   }
 
   /**
