@@ -23,3 +23,5 @@ export * from './game/huts';
 export * from './game/players';
 export * from './game/economy';
 export * from './game/turn';
+export * from './game/barbarians';
+export * from './game/government';
