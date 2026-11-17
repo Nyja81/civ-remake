@@ -31,10 +31,10 @@ a nie źródłem kodu ani zasobów.
 | 2 | Tabele danych — generowane z CIV.EXE właściciela licencji | `packages/engine/src/data` | technologie, jednostki, teren, budynki, cuda, nacje; ręcznie ze wzorca (do weryfikacji): przekształcenia terenu, nazwy miast |
 | 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine/src/game/ai.ts` | **tymczasowy** uproszczony; port AIEngine — do zrobienia |
 | 4 | Komendy i zdarzenia — interfejs wydaje rozkazy, silnik odpowiada zdarzeniami i prośbami o decyzję | `packages/engine` | `unitMove`, `unitOrder`, `state.events`, odpowiedzi `confirm` |
-| 5 | Interfejs — ekran 320×200 jak w oryginale, wygładzany 4× | `packages/ui`, `apps/desktop` | ekrany startowe, menu, okna, układ ekranu gry (gałąź `ui-screens`) |
+| 5 | Interfejs — ekran 320×200 jak w oryginale, wygładzany 4× | `packages/ui`, `apps/desktop` | ekrany startowe, menu, okna, ekran gry z mapą, rozkazami, oknem miasta, zapisem (scalone do `main`) |
 | 5a | Grafiki oryginału — dekoder `.PIC`, czcionki `FONTS.CV`, reguły rysowania mapy | `packages/gfx` | teren, ulepszenia, mgła, miasta, jednostki, minimapa (`mapView.ts`) |
 | 6 | Pakiet zastępczy grafiki — wektorowy (SVG) i Freeciv „trident” | `packages/art`, `tools/tileset` | próbki |
-| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support` | `apps/desktop` | paczka 0.1.0 (arm64) |
+| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support/<aplikacja>/saves` | `apps/desktop` | paczka 0.2.0 (arm64, niepodpisana) |
 | 8 | Wzorzec i testy porównawcze — tylko dla dewelopera | `packages/oracle` | odczyt tabel z CIV.EXE |
 
 ### Zasady projektowe silnika
@@ -85,7 +85,7 @@ a nie źródłem kodu ani zasobów.
 | 5 | Walka, barbarzyńcy | walka i powstania barbarzyńców gotowe; brak: atak jądrowy, klęski w miastach, globalne ocieplenie |
 | 6 | Przeciwnik komputerowy | **tymczasowy** prosty; port AIEngine + GoTo — do zrobienia |
 | 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | do zrobienia (silnik zgłasza kontakt jako zdarzenie) |
-| 8 | Widok miasta, pałac, doradcy, dźwięk | interfejs ekranów i menu w toku (gałąź `ui-screens`); reszta do zrobienia |
+| 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry i uproszczone okno miasta gotowe; pełne okno miasta, Civilopedia, doradcy, pałac, intro, dźwięk — do zrobienia |
 
 ### Odstępstwa od układu oryginału (świadome)
 

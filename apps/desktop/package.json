@@ -1,7 +1,7 @@
 {
   "name": "@civ-remake/desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Civ Remake — aplikacja na Maca",
   "main": "dist/main.cjs",
   "scripts": {

@@ -175,3 +175,12 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Do zrobienia: pełny widok miasta, Civilopedia i doradcy, okna podatków, FindCity, pomoc (HELP AVAILABLE), mini-pałac
   i liczba mieszkańców w panelu, animowana historia świata (STORY.TXT, BIRTH2–8), cykle palety (animacje kolorów w intro i na mapie),
   podział długiej listy produkcji na strony, odczyt Hall of Fame, porównanie wyglądu z oryginałem w DOSBoxie.
+
+### 2026-11-17 — scalenie interfejsu, kolejne części etapów 5–7, paczka 0.2.0
+- Gałąź `ui-screens` scalona do `main`; ramka minimapy rysowana wg `DrawShadowRectangle` wzorca (góra/prawa kolor 8, dół/lewa 15).
+- Silnik: broń jądrowa i katastrofa elektrowni (`catastrophes.ts`), globalne ocieplenie, klęski w miastach (`disasters.ts`),
+  ranking i cuda komputera (`ranking.ts`), wyrównanie kosztu badań co 50 tur, punkty za cuda, kontakt dyplomatyczny i zdarzenie
+  `meetLeader` (`diplomacy.ts`), „idź do” po najtańszej drodze (tymczasowo zamiast GoTo oryginału).
+- Paczka 0.2.0 (arm64) zbudowana `electron-packager`em na Linuksie; **niepodpisana** (rcodesign niedostępny w tej sesji) —
+  na Macu: `xattr -cr "Civ Remake.app" && codesign --force --deep -s - "Civ Remake.app"`.
+- Testy: 78 (12 pominiętych bez `CIV1_DIR`).
