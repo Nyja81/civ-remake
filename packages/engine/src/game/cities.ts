@@ -3,6 +3,7 @@
  * Actions.CityTakeover i CityWorker.PlayerHasWonder z OpenCivOne (MIT).
  * Gospodarka miasta (praca mieszkańców, wzrost, produkcja) — w economy.ts.
  */
+import { spaceshipLost } from './spaceship';
 import { MAP_HEIGHT } from '../data/enums';
 import { WONDERS } from '../data/buildings';
 import { TERRAIN_MODIFICATIONS } from '../data/terrainModifications';
@@ -190,6 +191,7 @@ export function cityTakeover(state: GameState, player: number, cityId: number, u
   } else {
     city.shields = 0;
     city.status &= ~(CityStatus.CivilDisorder | CityStatus.AutoProduction | CityStatus.Celebrating);
+    if (hasBuilding(city, BuildingId.Palace)) spaceshipLost(state, loser); // SpaceshipArrivalFailed
     city.buildings &= 0xfffffbb6; // Palace, Temple, Courthouse, Cathedral
     if (!byDiplomat) city.buildings = (city.buildings & (0xaaaa >>> state.rng.next(2))) >>> 0;
     if (!byDiplomat || city.size > 1) {

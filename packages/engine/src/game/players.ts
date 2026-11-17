@@ -2,6 +2,7 @@
  * Gracze i nowa gra. Źródło: StartGameMenu.InitNewGameData i InitPlayerData z OpenCivOne (MIT).
  * Okna wyboru (poziom, liczba cywilizacji, plemię, imię) pokazuje interfejs — tu przychodzą gotowe wybory.
  */
+import { emptySpaceship } from './spaceship';
 import { MAX_CITIES, MAX_PLAYERS, MAX_UNITS_PER_PLAYER } from '../data/enums';
 import { CITY_NAMES } from '../data/cityNames';
 import { NATIONS } from '../data/nations';
@@ -44,7 +45,7 @@ export function emptyPlayer(): Player {
   return {
     nation: -1, leader: '', nationPlural: '', nationAdjective: '', gold: 0, government: Government.Anarchy,
     taxRate: 0, scienceRate: 0, researchProgress: 0, score: 0, researching: -1, techs: new Array<boolean>(72).fill(false),
-    techCount: 0, futureTechs: 0, spaceshipEta: -1, spaceshipSuccess: 0, spaceshipPopulation: 0, cityCount: 0, totalCitySize: 0, settlerCount: 0, ranking: 0, contactCountdown: 0,
+    techCount: 0, futureTechs: 0, spaceshipEta: -1, spaceshipSuccess: 0, spaceshipPopulation: 0, spaceshipLaunchYear: -1, spaceship: emptySpaceship(), cityCount: 0, totalCitySize: 0, settlerCount: 0, ranking: 0, contactCountdown: 0,
     xStart: 0, waiting: -1, diplomacy: new Array<number>(8).fill(0),
     units: Array.from({ length: MAX_UNITS_PER_PLAYER }, emptyUnit),
     continents: Array.from({ length: 16 }, () => ({ strategy: 0, cityCount: 0, attack: 0, defense: 0 })),
@@ -77,7 +78,7 @@ export function newGame(options: NewGameOptions): GameState {
     map, players: Array.from({ length: MAX_PLAYERS }, emptyPlayer),
     cities: Array.from({ length: MAX_CITIES }, emptyCity),
     wonderCity: new Array<number>(22).fill(-1), cityNames: [...CITY_NAMES], cityNameTaken: new Array<boolean>(256).fill(false),
-    techFirstDiscoveredBy: new Array<number>(72).fill(0), techCatchUp: 0, globalWarming: 0, pollutionLevel: 0, pollutedSquares: 0, gameOver: 0, humanLowest: false, aiFlags: 0, aiMakeContact: false,
+    techFirstDiscoveredBy: new Array<number>(72).fill(0), techCatchUp: 0, globalWarming: 0, pollutionLevel: 0, pollutedSquares: 0, gameOver: 0, spaceshipFlags: 0, aiSpaceshipSuccess: 0, humanLowest: false, aiFlags: 0, aiMakeContact: false,
     rng, events: [],
   };
 

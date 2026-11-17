@@ -19,6 +19,7 @@ import { hasSpecialResource } from '../world/features';
 import { Terrain } from '../world/generate';
 import { aiSelectProduction, setCityFigures } from './ai';
 import { nuclearEffects } from './catastrophes';
+import { spaceshipPartBuilt } from './spaceship';
 import { BuildingId, WonderId, addBuilding, hasBuilding, removeBuilding } from './buildings';
 import { cityName, deleteCity, playerHasWonder, testIfPlayerDestroyed } from './cities';
 import { CITY_OFFSETS, cellIndex, distance, isValid, terrainAt, updateVisibleCell, wrapX } from './map';
@@ -695,7 +696,9 @@ function completeProduction(state: GameState, cityId: number, ratio: number, new
         } else {
           changeProduction(state, cityId, aiSelectProduction(state, player, cityId));
         }
-        // Części statku kosmicznego (22–24) — etap 7
+        if (built > 21 && built < 25) {
+          spaceshipPartBuilt(state, cityId, built, cost, (pl, t) => playerHasTech(state, pl, t), (part) => BUILDINGS[21 + part]!.requiredTech);
+        }
         if (built === 1) {
           for (const c of state.cities) if (c.owner === player && c !== city) removeBuilding(c, BuildingId.Palace);
           addBuilding(city, BuildingId.Palace);

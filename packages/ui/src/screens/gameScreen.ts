@@ -26,6 +26,7 @@ import { Surface } from '../surface';
 import { textSection, yearToString } from '../text';
 import type { Ui } from '../ui';
 import { showScoreScreen } from './reports';
+import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
 
@@ -298,6 +299,9 @@ export class GameScreen {
         chooseResearch(this.state, ev.suggested);
       } else if (ev.kind === 'chooseGovernment' && Array.isArray(ev.options)) {
         await this.governmentDialog(ev.options as number[]);
+      } else if (ev.kind === 'spaceshipPart' && typeof ev.part === 'number') {
+        await spaceshipPartDialog(this.ui, this.assets, this.state, ev.part, ev.placed === true);
+        await this.redrawMapWithBlankingEffect();
       } else if (ev.kind === 'gameEnd') {
         await this.gameEndDialog(ev.reason === 'conquest', ev.canContinue === true);
       }
@@ -600,10 +604,13 @@ export class GameScreen {
       case 2:
         if ((await showMenuBox(ui, ADVISORS_MENU, MENU_X[2], 8)).index >= 0) action = 'advisor';
         break;
-      case 3:
-        // SpaceShips nieaktywne, dopóki nikt nie buduje statku
-        if ((await showMenuBox(ui, WORLD_MENU, MENU_X[3], 8, { disabled: 0x20 })).index >= 0) action = 'world';
+      case 3: {
+        // SpaceShips nieaktywne, dopóki nikt nie buduje statku (Menus: SpaceshipFlags & 0xfe00)
+        const r = await showMenuBox(ui, WORLD_MENU, MENU_X[3], 8, { disabled: (this.state.spaceshipFlags & 0xfe00) === 0 ? 0x20 : 0 });
+        if (r.index === 5) shortcut = 'spaceships';
+        else if (r.index >= 0) action = 'world';
         break;
+      }
       case 4:
         if ((await showMenuBox(ui, CIVILOPEDIA_MENU, MENU_X[4], 8)).index >= 0) action = 'civilopedia';
         break;
@@ -612,7 +619,10 @@ export class GameScreen {
     gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
     ui.present();
     if (action) await showDialog(ui, 'Not available yet.\n', 100, 80);
-    if (shortcut === 'revolution') await this.revolutionDialog();
+    if (shortcut === 'spaceships') {
+      await spaceshipNationDialog(ui, this.assets, this.state);
+      await this.redrawMapWithBlankingEffect();
+    } else if (shortcut === 'revolution') await this.revolutionDialog();
     else if (shortcut === 'save') {
       await this.options.save!(this.state);
       await showDialog(ui, 'Game saved.\n', 100, 80);

@@ -1,6 +1,6 @@
 /** Rozgrywka na ekranie gry: okna zdarzeń silnika, miasto, zapis — na syntetycznych plikach gry. */
 import { describe, expect, it } from 'vitest';
-import { advanceToHuman, cityAt, newGame, nextUnit, saveGame, TECHS, type GameState } from '@civ-remake/engine';
+import { addSpaceshipPart, advanceToHuman, cityAt, isLaunched, newGame, nextUnit, saveGame, TECHS, type GameState } from '@civ-remake/engine';
 import type { UiEvent } from '../src/input';
 import { savedGameLoader, saveName, type SaveStore } from '../src/screens/flow';
 import { GameScreen } from '../src/screens/gameScreen';
@@ -42,6 +42,23 @@ describe('okna zdarzeń silnika', () => {
     const { ui, state, screen } = setup();
     state.events.push({ kind: 'news', text: 'Hello\nworld!\n' });
     await drive(ui, [key('Enter')], () => screen.processEvents());
+  });
+});
+
+describe('statek kosmiczny', () => {
+  it('moduł: wybór rodzaju, plan statku, start klawiszem L z potwierdzeniem', async () => {
+    const { ui, state, screen } = setup();
+    const p = state.humanPlayer;
+    for (let i = 0; i < 33; i++) addSpaceshipPart(state, p, 0);
+    addSpaceshipPart(state, p, 1, 3);
+    addSpaceshipPart(state, p, 1, 4);
+    addSpaceshipPart(state, p, 2, 7);
+    addSpaceshipPart(state, p, 2, 8);
+    state.events.push({ kind: 'spaceshipPart', player: p, part: 2, placed: false });
+    // Type? → Habitation (pierwsza), plan statku → L → potwierdzenie (druga opcja), komunikat startu
+    await drive(ui, [key('Enter'), key('l'), key('ArrowDown'), key('Enter'), key('Enter')], () => screen.processEvents());
+    expect(isLaunched(state, p)).toBe(true);
+    expect(state.players[p]!.spaceshipPopulation).toBe(1);
   });
 });
 

@@ -645,7 +645,7 @@ function endOfTurn(state: GameState): void {
     if (state.year === 21) state.year = 20;
   } else if (state.year < 1500) state.year += 10;
   else if (state.year < 1750) state.year += 5;
-  else if (state.year < 1850) state.year += 2;
+  else if (state.year < 1850 && (state.spaceshipFlags & 0xfe) === 0) state.year += 2;
   else state.year += 1;
   if (state.year === 0) {
     for (const p of state.players) p.researchProgress *= 2;

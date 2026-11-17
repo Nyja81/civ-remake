@@ -94,6 +94,9 @@ export interface Player {
   spaceshipEta: number;
   spaceshipSuccess: number;
   spaceshipPopulation: number;
+  spaceshipLaunchYear: number;
+  /** Plan statku 15×12 (indeks x·12 + y): numer rysunku części albo -1. */
+  spaceship: number[];
   cityCount: number;
   totalCitySize: number;
   settlerCount: number;
@@ -245,6 +248,9 @@ export interface GameState {
   humanLowest: boolean;
   /** 0 = gra trwa. */
   gameOver: number;
+  /** Bity 0–7: statek wystrzelony; bity 8–15: statek w budowie. */
+  spaceshipFlags: number;
+  aiSpaceshipSuccess: number;
   rng: RandomSource;
   events: GameEvent[];
 }

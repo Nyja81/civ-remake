@@ -47,6 +47,7 @@ export function loadGame(json: string): GameState {
   void _m;
   const base = rest as unknown as GameState;
   const state: GameState = { ...base, aiFlags: base.aiFlags ?? 0, aiMakeContact: base.aiMakeContact ?? false,
+    spaceshipFlags: base.spaceshipFlags ?? 0, aiSpaceshipSuccess: base.aiSpaceshipSuccess ?? 0,
     map: map as unknown as GameState['map'], rng, events: [] };
   // Zapisy ze starszych wersji: brakujące pola gracza z wartości początkowych
   state.players = state.players.map((p: Player) => ({ ...emptyPlayer(), ...p }));

@@ -244,9 +244,9 @@ export async function showMenuBox(ui: Ui, text: string, x: number, y: number, op
 /**
  * MenuBoxDialog.ShowDialog — okno na chwilę: zapamiętuje ekran 0 na ekranie 1, pokazuje okno i przywraca ekran.
  */
-export async function showDialog(ui: Ui, text: string, x: number, y: number): Promise<number> {
+export async function showDialog(ui: Ui, text: string, x: number, y: number, disabled = 0): Promise<number> {
   ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
-  const result = await showMenuBox(ui, text, x, y, { frame: true, clearInput: true });
+  const result = await showMenuBox(ui, text, x, y, { frame: true, clearInput: true, disabled });
   ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
   ui.present();
   return result.index;
