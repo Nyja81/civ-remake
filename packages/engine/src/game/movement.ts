@@ -55,7 +55,7 @@ export function moveUnit(state: GameState, player: number, unitId: number, direc
 
   // Barbarzyńcy (poza dyplomatą) niszczą ulepszenia w pobliżu miast człowieka
   if (player === 0 && unit.type !== 26) {
-    const here = state.map.visibleImprovements[cellIndex(unit.x, unit.y)]!;
+    const here = state.map.improvements[cellIndex(unit.x, unit.y)]!;
     const near = nearestCity(state, unit.x, unit.y);
     if (!(here & Improvement.City) && here & (Improvement.Mine | Improvement.Irrigation) && unit.type !== 3 && unit.type !== 7 &&
       near !== -1 && state.cities[near]!.owner === state.humanPlayer) {
@@ -72,7 +72,7 @@ export function moveUnit(state: GameState, player: number, unitId: number, direc
   const nx = wrapX(unit.x + dx);
   const ny = unit.y + dy;
   const newTerrain = terrainAt(state.map, nx, ny);
-  const newImp = state.map.visibleImprovements[cellIndex(nx, ny)]!;
+  const newImp = state.map.improvements[cellIndex(nx, ny)]!;
   const otherId = activeUnitAt(state, nx, ny);
   const otherPlayer = occupantPlayer(state, nx, ny);
 
@@ -131,7 +131,7 @@ export function moveUnit(state: GameState, player: number, unitId: number, direc
   if (unit.movesLeft === 0) return blocked();
 
   if (def.movementType === MovementType.Land) {
-    const here = state.map.visibleImprovements[cellIndex(unit.x, unit.y)]!;
+    const here = state.map.improvements[cellIndex(unit.x, unit.y)]!;
     if (here & newImp & Improvement.Road && unit.movesLeft !== 0) {
       if (!(here & Improvement.Railroad) || !human || unit.gotoX !== -1) unit.movesLeft -= 1;
     } else {
@@ -182,7 +182,7 @@ export function moveUnit(state: GameState, player: number, unitId: number, direc
         }
       }
     }
-    if (player !== owner && state.map.visibleImprovements[cellIndex(nx, ny)]! & 0xe) unit.visibleBy |= 1 << owner;
+    if (player !== owner && state.map.improvements[cellIndex(nx, ny)]! & 0xe) unit.visibleBy |= 1 << owner;
   }
 
   const cityOwner = cellOwner(state, nx, ny);
@@ -191,7 +191,7 @@ export function moveUnit(state: GameState, player: number, unitId: number, direc
     const humanDip = state.players[state.humanPlayer]!.diplomacy;
     if (humanDip[player]! & Diplomacy.Embassy || humanDip[cityOwner]! & Diplomacy.Embassy) unit.visibleBy |= 1 << state.humanPlayer;
   }
-  if (newTerrain === Terrain.Water && state.map.visibleImprovements[cellIndex(nx, ny)]! & 2) unit.visibleBy |= 1 << cityOwner;
+  if (newTerrain === Terrain.Water && state.map.improvements[cellIndex(nx, ny)]! & 2) unit.visibleBy |= 1 << cityOwner;
   const seenBefore = (unit.visibleBy & (1 << state.humanPlayer)) !== 0 || human;
 
   // Przesunięcie jednostki (i ładunku, jeśli to statek albo lotniskowiec)

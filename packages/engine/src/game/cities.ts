@@ -9,7 +9,7 @@ import { TERRAIN_MODIFICATIONS } from '../data/terrainModifications';
 import { Tech } from '../data/techs';
 import { Terrain } from '../world/generate';
 import { BuildingId, WonderId, hasBuilding } from './buildings';
-import { DIRECTIONS, cellIndex, isValid, terrainAt, wrapX } from './map';
+import { DIRECTIONS, cellIndex, isValid, terrainAt, updateVisibleCell, wrapX } from './map';
 import { CityStatus, Government, Improvement, NO_UNIT, type City, type GameState } from './types';
 import { activeUnitAt, cellOwner, deleteUnit, exploreCell, setCellOwner, unitsAt } from './units';
 import { UNITS } from '../data/units';
@@ -74,7 +74,7 @@ export function foundCity(state: GameState, player: number, x: number, y: number
   state.map.improvements[i]! &= ~(Improvement.Fortress | Improvement.Mine);
   state.map.improvements[i]! |= Improvement.City | Improvement.Road;
   if (TERRAIN_MODIFICATIONS[terrainAt(state.map, x, y)]!.irrigationEffect < -1) state.map.improvements[i]! |= Improvement.Irrigation;
-  if (state.map.explored[i]! & (1 << state.humanPlayer)) state.map.visibleImprovements[i] = state.map.improvements[i]!;
+  if (state.currentPlayer === state.humanPlayer) updateVisibleCell(state.map, x, y);
 
   city.status = 0;
   city.x = x;
@@ -103,7 +103,7 @@ export function foundCity(state: GameState, player: number, x: number, y: number
     } else {
       state.map.landOwner[ci] = player;
     }
-    if (player !== state.humanPlayer && d <= 24 && state.map.visibleImprovements[ci]! & Improvement.City && cellOwner(state, nx, ny) === state.humanPlayer) {
+    if (player !== state.humanPlayer && d <= 24 && state.map.improvements[ci]! & Improvement.City && cellOwner(state, nx, ny) === state.humanPlayer) {
       city.visibleSize = 1;
       exploreCell(state, state.humanPlayer, x, y);
     }

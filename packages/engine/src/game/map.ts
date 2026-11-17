@@ -62,6 +62,12 @@ export function directionOf(dx: number, dy: number): number {
   return MOVE_DIRECTIONS.findIndex(([x, y]) => x === nx && y === dy);
 }
 
+/** UpdateVisibleCellStatus: gracz-człowiek widzi aktualne ulepszenia pola. */
+export function updateVisibleCell(map: GameMap, x: number, y: number): void {
+  const i = cellIndex(x, y);
+  map.visibleImprovements[i] = map.improvements[i]!;
+}
+
 export function terrainWithResource(map: GameMap, x: number, y: number, seed: number): number {
   const t = terrainAt(map, x, y);
   return t >= 0 && hasSpecialResource(wrapX(x), y, seed) ? t + 12 : t;

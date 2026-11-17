@@ -185,7 +185,7 @@ export function updateUnitVisibility(state: GameState, x: number, y: number, pla
   const def = UNITS[unit.type]!;
   const seesFar = (nx: number, ny: number) =>
     (def.sightRange & 2) !== 0 && (def.movementType !== MovementType.Water || terrainAt(state.map, nx, ny) === Terrain.Water);
-  const imp = (nx: number, ny: number) => state.map.visibleImprovements[cellIndex(nx, ny)]!;
+  const imp = (nx: number, ny: number) => state.map.improvements[cellIndex(nx, ny)]!;
   const hereIsCity = (imp(x, y) & Improvement.City) !== 0;
 
   if (player === state.humanPlayer) {
@@ -265,7 +265,7 @@ export function updateUnitVisibility(state: GameState, x: number, y: number, pla
  * Dla człowieka ujawnia przy okazji te jednostki i miasta. Używane przez strefę kontroli.
  */
 export function isEnemyUnitAdjacent(state: GameState, player: number, x: number, y: number): boolean {
-  if (state.map.visibleImprovements[cellIndex(x, y)]! & Improvement.City) return false;
+  if (state.map.improvements[cellIndex(x, y)]! & Improvement.City) return false;
   const water = terrainAt(state.map, x, y) === Terrain.Water;
   for (let d = 1; d < 9; d++) {
     const [dx, dy] = DIRECTIONS[d]!;

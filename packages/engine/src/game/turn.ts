@@ -15,7 +15,7 @@ import { Terrain } from '../world/generate';
 import { foundCity } from './cities';
 import { confirmBreakTreaty, clearPeace } from './combat';
 import { processCities } from './economy';
-import { DIRECTIONS, cellIndex, distance, isValid, terrainAt } from './map';
+import { DIRECTIONS, cellIndex, distance, isValid, terrainAt, updateVisibleCell } from './map';
 import { fullMoves, moveUnit, type MoveOptions, type MoveResult } from './movement';
 import { aiMoveUnit, aiPlayerTurnStart } from './ai';
 import { playerHasTech } from './techs';
@@ -59,13 +59,15 @@ export function unitOrder(state: GameState, player: number, unitId: number, orde
   const def = UNITS[unit.type]!;
   const t = terrainAt(state.map, unit.x, unit.y);
   const i = cellIndex(unit.x, unit.y);
-  const imp = () => state.map.visibleImprovements[i]!;
+  const imp = () => state.map.improvements[i]!;
   const advice = (key: string) => state.events.push({ kind: 'advice', key, player });
-  const finishWork = () => {
-    if (state.map.explored[i]! & (1 << state.humanPlayer)) state.map.visibleImprovements[i] = state.map.improvements[i]!;
+  // SetTerrainImprovements kopiuje zmianę do widoku człowieka, gdy ruch wykonuje człowiek; ClearTerrainImprovements — nie.
+  const showToHuman = () => updateVisibleCell(state.map, unit.x, unit.y);
+  const setImp = (bits: number) => {
+    state.map.improvements[i]! |= bits;
+    if (state.currentPlayer === state.humanPlayer) showToHuman();
   };
-  const setImp = (bits: number) => { state.map.improvements[i]! |= bits; finishWork(); };
-  const clearImp = (bits: number) => { state.map.improvements[i]! &= ~bits; finishWork(); };
+  const clearImp = (bits: number) => { state.map.improvements[i]! &= ~bits; };
   const busy = () => {
     unit.movesLeft = 0;
     unit.gotoX = unit.gotoY = -1;
@@ -100,6 +102,7 @@ export function unitOrder(state: GameState, player: number, unitId: number, orde
       if (v & (Improvement.Mine | Improvement.Irrigation)) clearImp(Improvement.Mine | Improvement.Irrigation);
       else if (v & Improvement.Railroad) clearImp(Improvement.Railroad | Improvement.Irrigation | Improvement.Mine);
       else clearImp(Improvement.Road);
+      if (near !== -1 && state.cities[near]!.owner === state.humanPlayer) showToHuman();
       if (near !== -1 && state.cities[near]!.owner !== player) clearPeace(state, state.humanPlayer, state.cities[near]!.owner);
       unit.movesLeft = 0;
       break;
@@ -228,6 +231,7 @@ export function unitOrder(state: GameState, player: number, unitId: number, orde
       unit.specialMoves++;
       if (unit.specialMoves >= 4) {
         clearImp(Improvement.Pollution);
+        showToHuman();
         state.pollutedSquares--;
         unit.status &= ~UnitStatus.CleanPollution;
         unit.specialMoves = 0;
@@ -287,7 +291,7 @@ export function canIrrigate(state: GameState, x: number, y: number): boolean {
     const [dx, dy] = DIRECTIONS[d]!;
     if (!isValid(x + dx, y + dy)) continue;
     const t = terrainAt(state.map, x + dx, y + dy);
-    const v = state.map.visibleImprovements[cellIndex(x + dx, y + dy)]!;
+    const v = state.map.improvements[cellIndex(x + dx, y + dy)]!;
     if (!(v & 1) && (t === Terrain.Water || t === Terrain.River || v & 2)) return true;
   }
   return false;
@@ -315,7 +319,7 @@ export function afterUnitAction(state: GameState, player: number, unitId: number
   if (unit.type === NO_UNIT || unit.movesLeft > 0) return;
   const def = UNITS[unit.type]!;
   if (def.turnsOutside !== 0) {
-    const inCity = state.map.visibleImprovements[cellIndex(unit.x, unit.y)]! & Improvement.City;
+    const inCity = state.map.improvements[cellIndex(unit.x, unit.y)]! & Improvement.City;
     const onCarrier = unitsAt(state, player, unit.x, unit.y).some((i) => state.players[player]!.units[i]!.type === 23);
     if (inCity || onCarrier) unit.specialMoves = def.turnsOutside;
     unit.specialMoves--;
@@ -395,7 +399,7 @@ function gotoStep(state: GameState, player: number, unitId: number): boolean {
     const t = terrainAt(state.map, u.x + dx, u.y + dy);
     const def = UNITS[u.type]!;
     if (def.movementType === MovementType.Land && t === Terrain.Water) continue;
-    if (def.movementType === MovementType.Water && t !== Terrain.Water && !(state.map.visibleImprovements[cellIndex(u.x + dx, u.y + dy)]! & 1)) continue;
+    if (def.movementType === MovementType.Water && t !== Terrain.Water && !(state.map.improvements[cellIndex(u.x + dx, u.y + dy)]! & 1)) continue;
     const dist = distance(u.x + dx, u.y + dy, u.gotoX, u.gotoY);
     if (dist < bestDist) {
       bestDist = dist;

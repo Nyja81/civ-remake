@@ -67,7 +67,7 @@ function strengths(state: GameState, p1: number, id1: number, p2: number, id2: n
   const d1 = UNITS[u1.type]!;
   const d2 = UNITS[u2.type]!;
   const t = terrainAt(state.map, u2.x, u2.y);
-  const imp = state.map.visibleImprovements[cellIndex(u2.x, u2.y)]!;
+  const imp = state.map.improvements[cellIndex(u2.x, u2.y)]!;
   const bonus = TERRAIN[t]!.defenseBonus;
   let attack = d1.attack * 8;
   let defense = bonus * d2.defense * (imp & Improvement.Fortress ? 8 : u2.status & UnitStatus.Fortified ? 6 : 4);
@@ -145,7 +145,7 @@ export function attackUnit(state: GameState, p1: number, id1: number, p2: number
     const dx = u2.x;
     const dy = u2.y;
     if (city === -1) {
-      if (!(state.map.visibleImprovements[cellIndex(dx, dy)]! & Improvement.Fortress)) {
+      if (!(state.map.improvements[cellIndex(dx, dy)]! & Improvement.Fortress)) {
         const stack = unitsAt(state, p2, dx, dy);
         players[p1]!.unitsDestroyed[p2]! += stack.length;
         for (const i of stack) deleteUnit(state, p2, i, true);

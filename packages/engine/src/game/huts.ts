@@ -75,7 +75,7 @@ function barbarians(state: GameState, player: number, unitId: number): void {
     const [dx, dy] = DIRECTIONS[d]!;
     const nx = u.x + dx;
     const ny = u.y + dy;
-    if (occupantPlayer(state, nx, ny) !== -1 || state.map.visibleImprovements[cellIndex(nx, ny)]! & Improvement.City) continue;
+    if (occupantPlayer(state, nx, ny) !== -1 || state.map.improvements[cellIndex(nx, ny)]! & Improvement.City) continue;
     const t = terrainAt(state.map, nx, ny);
     if (t === Terrain.Water || t < 0) continue;
     const id = createUnit(state, 0, TERRAIN[t]!.movementCost < 3 ? 6 : 3, nx, ny);
