@@ -268,3 +268,30 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Testy: `packages/engine/test/goto.test.ts` (symetria bitów tablic, szew wody, mapa syntetyczna, bliski i daleki cel z jeziorem,
   statek wzdłuż wybrzeża, cel nieosiągalny, zapis). Razem 103 (12 pominiętych bez `CIV1_DIR`).
 - Do zrobienia: porównać odległość oryginału (F0_2dc4_0208) z `distance` używanym w `ai.ts`.
+
+### 2026-11-17 — etap 8: doradcy i raporty świata
+- Silnik `packages/engine/src/game/reports.ts` (czyste funkcje liczące dane raportów; miasta przez `processCity(…, 1)` jak
+  ProcessCityState(i, -1)): `cityStatusReport`, `militaryReport`, `militaryLossesReport`, `tradeReport`, `intelligenceReport`,
+  `intelligenceDetail`, `attitudeReport`, `scienceReport`, `wondersOfTheWorld`, `topFiveCities`, `worldMapReport`,
+  `continentStatistics`, `demographicsReport` (z PrintPlayerRank), `playerHistoryReport`, `powerGraph`.
+- Raport historyka (F12_0000_09e2): losowanie rodzaju i historyka oraz punkty historii (`state.historyScores`) w silniku w chwili
+  zdarzenia `historyReport` (dane w `ev.report`) — generator zużyty w tej samej kolejności co w oryginale.
+- Wykres potęgi (F12_0000_0573): `rankPlayers` zapisuje `state.scoreGraph` (ScoreGraphData: co 4 tury, do tury 600); wykres
+  pokazywany na początku EndGame. Nowe pola stanu są opcjonalne (starsze zapisy działają bez zmian).
+- UI `packages/ui/src/screens/advisors.ts`: City Status, Military + Military Losses, Intelligence (INFO1–7: cyfra albo klik →
+  szczegóły F14_0000_1164), Attitude, Trade, Science, Wonders of the World, Top 5 Cities, World Map, Demographics, raport historyka,
+  wykres potęgi, statystyka kontynentów (tylko tryb debugowania: F9 przy `revealAll`; F8 — wykres potęgi). Civilization Score
+  podpięty do WORLD i F9. W `gameScreen.ts` zmienione tylko menu ADVISORS/WORLD, klawisze F1–F10, zdarzenie `historyReport`
+  i początek `endGame`. Nagłówek DrawReportScreen z tytułem władcy (Array_19b2: Emperor, King, Comrade, President).
+- Grafiki: mieszkańcy i żarówka z SP257.PIC, jednostki w kolorach graczy (`prepareSprites`), budynki/cuda i kafle mapy świata
+  z SP299.PIC, portrety doradców z GOVT0A–GOVT3A.PIC (nowe pliki opcjonalne; bez nich portret pominięty).
+- Testy: 136 (12 pominiętych bez `CIV1_DIR`): dane raportów w silniku, otwarcie każdego raportu z menu i klawiszami na syntetycznych
+  plikach, przejście do szczegółów wywiadu, raport historyka; testy końca gry z dodatkowym ekranem wykresu potęgi.
+- **Niesprawdzone na plikach oryginału**: wygląd wszystkich raportów (znaki czcionki `{ | } ~ \/` w raportach miast i handlu,
+  położenie ikon budynków i kafli 4×4 w SP299.PIC, kadry portretów z GOVT*.PIC), nazwy plików GOVT*.PIC, tempo raportu historyka.
+- Odstępstwa i wątpliwości: Science — „Researching …” bez liczb postępu (jak dosłowne tłumaczenie; nowszy wzorzec dopisuje
+  „(postęp/koszt)”); wykres potęgi — podpisy lat co 100 tur (dosłowne tłumaczenie; nowszy wzorzec ma tu błąd), tytuł
+  „CIVILIZATION POWERGraph” przepisany ze wzorca (do sprawdzenia); mini-pałac władcy w raporcie historyka (DrawMiniPalace)
+  pominięty do czasu widoku pałacu; przebarwienie niezadowolonych w DrawResources (Var_6542) pominięte; tryby debugowania
+  F1–F3, F7 (ShowDebugDetails) pominięte; Land Area liczy pola wg warstwy właściciela (GetCityOwner) jak wzorzec.
+- Do zrobienia: powtórka gry (Replay, View Replay) — silnik nie zbiera danych powtórki; mini-pałac w raporcie historyka.

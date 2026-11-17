@@ -269,6 +269,10 @@ export interface GameState {
   /** Bity 0–7: statek wystrzelony; bity 8–15: statek w budowie. */
   spaceshipFlags: number;
   aiSpaceshipSuccess: number;
+  /** Wykres potęgi (ScoreGraphData): wartość rankingu / 8 co 4 tury, indeks (tura / 4 % 150) · 8 + gracz; brak w starszych zapisach. */
+  scoreGraph?: number[];
+  /** HistoryRankingScore graczy z raportów historyka; [0] — liczba raportów. Brak w starszych zapisach. */
+  historyScores?: number[];
   rng: RandomSource;
   events: GameEvent[];
 }

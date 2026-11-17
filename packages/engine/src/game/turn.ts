@@ -24,6 +24,7 @@ import { barbarianUprising } from './barbarians';
 import { checkGlobalWarming } from './catastrophes';
 import { randomDisasters } from './disasters';
 import { giveWonderToAI, rankPlayers } from './ranking';
+import { playerHistoryReport } from './reports';
 import { availableGovernments } from './government';
 import { playerHasWonder } from './cities';
 import { WonderId } from './buildings';
@@ -603,7 +604,8 @@ function endOfTurn(state: GameState): void {
   }
   if (state.turn >= state.nextHistoryTurn) {
     state.nextHistoryTurn = state.rng.next(40) + state.turn + 20;
-    state.events.push({ kind: 'historyReport' });
+    // F12_0000_09e2_PlayerHistoryRankingReport: losowanie i ranking w silniku, okno rysuje interfejs
+    state.events.push({ kind: 'historyReport', report: playerHistoryReport(state) });
   }
   for (let w = 1; w < 22; w++) {
     const c = state.wonderCity[w]!;

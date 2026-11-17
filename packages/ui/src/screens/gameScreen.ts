@@ -29,6 +29,7 @@ import { showScoreScreen } from './reports';
 import { endGameHallOfFame, type FameStore } from './hallOfFame';
 import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
 import { runKingMeeting } from './king';
+import { ADVISOR_REPORTS, reportForKey, showHistoryReport, showPowerGraph, showReport, WORLD_REPORTS, type AdvisorReport, type WorldReport } from './advisors';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
 
@@ -169,6 +170,12 @@ export class GameScreen {
     if (e.alt) {
       const index = { g: 0, o: 1, a: 2, w: 3, c: 4 }[e.key.toLowerCase()];
       return index === undefined ? null : this.showTopMenu(index);
+    }
+    // PlayerTurn: F1–F6 doradcy, F7–F10 raporty świata
+    const report = reportForKey(e.key);
+    if (report) {
+      await this.showReport(report, e.key);
+      return null;
     }
     return this.command(e);
   }
@@ -325,6 +332,8 @@ export class GameScreen {
       } else if (ev.kind === 'spaceshipPart' && typeof ev.part === 'number') {
         await spaceshipPartDialog(this.ui, this.assets, this.state, ev.part, ev.placed === true);
         await this.redrawMapWithBlankingEffect();
+      } else if (ev.kind === 'historyReport' && ev.report) {
+        await showHistoryReport(this.ui, this.state, ev.report as Parameters<typeof showHistoryReport>[2]);
       } else if (ev.kind === 'gameEnd') {
         await this.gameEndDialog(ev.reason === 'conquest', ev.canContinue === true);
       }
@@ -380,8 +389,9 @@ export class GameScreen {
     else await this.endGame(score, conquest);
   }
 
-  /** EndGame (bez wykresu potęgi i powtórki — kolejne etapy): postaci sławne i Hall of Fame. */
+  /** EndGame: wykres potęgi (F12_0000_0573), postaci sławne i Hall of Fame; powtórka (Replay) — silnik nie zbiera jej danych. */
   async endGame(total: number, conquest = false): Promise<void> {
+    await showPowerGraph(this.ui, this.state);
     const score = civilizationScore(this.state, this.human, conquest);
     const entry = hallOfFameEntry(this.state, { ...score, total });
     const initial = this.options.fameInitial ? await this.options.fameInitial() : null;
@@ -652,6 +662,7 @@ export class GameScreen {
     let result: GameScreenResult | null = null;
     let action: string | null = null;
     let shortcut: string | null = null;
+    let report: AdvisorReport | WorldReport | null = null;
     switch (index) {
       case 0: {
         // View Replay dostępne dopiero po końcu gry (SpaceshipFlags & 0x100)
@@ -667,14 +678,16 @@ export class GameScreen {
       case 1:
         shortcut = await this.ordersMenu();
         break;
-      case 2:
-        if ((await showMenuBox(ui, ADVISORS_MENU, MENU_X[2], 8)).index >= 0) action = 'advisor';
+      case 2: {
+        const r = await showMenuBox(ui, ADVISORS_MENU, MENU_X[2], 8);
+        report = ADVISOR_REPORTS[r.index] ?? null;
         break;
+      }
       case 3: {
         // SpaceShips nieaktywne, dopóki nikt nie buduje statku (Menus: SpaceshipFlags & 0xfe00)
         const r = await showMenuBox(ui, WORLD_MENU, MENU_X[3], 8, { disabled: (this.state.spaceshipFlags & 0xfe00) === 0 ? 0x20 : 0 });
         if (r.index === 5) shortcut = 'spaceships';
-        else if (r.index >= 0) action = 'world';
+        else report = WORLD_REPORTS[r.index] ?? null;
         break;
       }
       case 4:
@@ -685,6 +698,7 @@ export class GameScreen {
     gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
     ui.present();
     if (action) await showDialog(ui, 'Not available yet.\n', 100, 80);
+    if (report) await this.showReport(report);
     if (shortcut === 'spaceships') {
       await spaceshipNationDialog(ui, this.assets, this.state);
       await this.redrawMapWithBlankingEffect();
@@ -694,6 +708,13 @@ export class GameScreen {
       await showDialog(ui, 'Game saved.\n', 100, 80);
     } else if (shortcut) return this.command({ type: 'key', key: shortcut });
     return result;
+  }
+
+  /** Raport doradcy albo świata (Reports); potem mapa od nowa — raport wywiadu zostawia na ekranie 1 własny obraz. */
+  private async showReport(report: AdvisorReport | WorldReport, key?: string): Promise<void> {
+    await showReport(this.ui, this.assets, this.state, report, this.options.revealAll === true, key);
+    this.redrawAll();
+    this.ui.present();
   }
 
   /** Menus.F0_2c84_01d8_OrdersMenu — rozkazy aktywnej jednostki; zwraca klawisz wybranego rozkazu. */

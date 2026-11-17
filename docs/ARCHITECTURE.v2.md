@@ -85,7 +85,7 @@ a nie źródłem kodu ani zasobów.
 | 5 | Walka, barbarzyńcy | walka i powstania barbarzyńców gotowe; brak: atak jądrowy, klęski w miastach, globalne ocieplenie |
 | 6 | Przeciwnik komputerowy | **gotowe w silniku**: strategie kontynentów, cele jednostek, ruchy jednostek i barbarzyńców, wybór produkcji, ustroje komputera, GoTo oryginału z tablicami ścieżek 20×13 (`goto.ts`, człowiek i komputer); brak: działania dyplomatów i karawan komputera |
 | 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | **gotowe**: punktacja (`score.ts`), koniec gry (podbój, statek, koniec panowania), statek kosmiczny (`spaceship.ts` + okno), dyplomacja komputer–komputer, prośby komputera, Hall of Fame, rozmowy z władcami (`kingMeeting.ts` + `screens/king.ts`, bez animacji twarzy); brak: rozmowa po wizycie dyplomaty |
-| 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry i uproszczone okno miasta gotowe; pełne okno miasta, Civilopedia, doradcy, pałac, intro, dźwięk — do zrobienia |
+| 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry i uproszczone okno miasta gotowe; **raporty doradców i świata** (ADVISORS, WORLD, F1–F10, historyk, wykres potęgi — `reports.ts` w silniku, `screens/advisors.ts`); pełne okno miasta, Civilopedia, pałac, intro, dźwięk — do zrobienia |
 
 ### Odstępstwa od układu oryginału (świadome)
 

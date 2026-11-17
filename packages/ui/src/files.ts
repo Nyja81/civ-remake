@@ -22,6 +22,8 @@ export const UI_OPTIONAL_FILES = [
   'TORCH.PIC', // kursor myszy
   'HELP.TXT', // porady (Instant Advice)
   'DOCKER.PIC', // rysunki części statku kosmicznego
+  // obrazy ustroju z portretami doradców (LoadGovernmentImage) — raporty wojskowy, handlu i nauki
+  'GOVT0A.PIC', 'GOVT0M.PIC', 'GOVT1A.PIC', 'GOVT1M.PIC', 'GOVT2A.PIC', 'GOVT2M.PIC', 'GOVT3A.PIC',
   'FAME.DTA', // tabela Hall of Fame z kopii gry (tylko odczyt — własna tabela w folderze danych aplikacji)
   // rozmowy z władcami (MeetWithKing): tło sali tronowej wg ustroju i portrety władców z paletami
   'BACK0A.PIC', 'BACK1A.PIC', 'BACK2A.PIC', 'BACK3A.PIC', 'BACK0M.PIC', 'BACK1M.PIC', 'BACK2M.PIC',
