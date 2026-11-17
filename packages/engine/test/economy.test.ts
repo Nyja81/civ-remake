@@ -55,3 +55,22 @@ describe('gospodarka miast', () => {
     expect(r.workers + r.specialists).toBe(s.cities[city]!.size);
   });
 });
+
+import { buyCost, buyProduction, productionOptions, setProduction } from '../src';
+describe('produkcja', () => {
+  it('lista produkcji zawiera dostępne jednostki i budynki, zakup ustawia tarcze', () => {
+    const { s, city } = foundCapital(34);
+    const opts = productionOptions(s, city);
+    expect(opts.find((o) => o.id === 0)?.name).toBe('Settlers');
+    expect(opts.find((o) => o.id === 1)?.name).toBe('Militia');
+    expect(opts.find((o) => o.id === -2)?.name).toBe('Barracks');
+    expect(opts.some((o) => o.id === -1)).toBe(false); // pałac już stoi
+    setProduction(s, city, 1);
+    // Militia 10 tarcz, 0 zebranych: (10*10/20 + 20) * 2 = 50
+    expect(buyCost(s, city)).toBe(50);
+    s.players[s.humanPlayer]!.gold = 60;
+    expect(buyProduction(s, city)).toBe(true);
+    expect(s.cities[city]!.shields).toBe(10);
+    expect(s.players[s.humanPlayer]!.gold).toBe(10);
+  });
+});
