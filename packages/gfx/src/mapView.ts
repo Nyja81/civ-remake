@@ -355,10 +355,10 @@ export function drawMiniMap(dst: Surface, state: GameState, viewX: number, viewY
     const cy = c.y - yMap;
     if (cy >= 0 && cy < 50) dst.pixels[(cy + 8) * dst.width + cx] = PLAYER_COLORS[c.owner]!;
   }
-  // DrawShadowRectangle(0, 8, 79, 49, 15, 8) i ramka widoku
-  fillRect(dst, 0, 8, 80, 1, 15);
-  fillRect(dst, 0, 8, 1, 50, 15);
-  fillRect(dst, 0, 57, 80, 1, 8);
+  // DrawShadowRectangle(0, 8, 79, 49, 15, 8): góra i prawa krawędź kolorem 8, dół i lewa kolorem 15 (jak we wzorcu)
+  fillRect(dst, 0, 8, 80, 1, 8);
+  fillRect(dst, 0, 57, 80, 1, 15);
   fillRect(dst, 79, 8, 1, 50, 8);
+  fillRect(dst, 0, 9, 1, 49, 15);
   drawRect(dst, viewX - xMap - 1, viewY - yMap + 7, 17, 10, 15);
 }

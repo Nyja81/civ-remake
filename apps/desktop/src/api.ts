@@ -9,7 +9,15 @@ export interface CivApi {
   load(): Promise<LoadResult>;
   /** Pokazuje okno wyboru folderu, zapamiętuje wybór i wczytuje pliki. */
   choose(): Promise<LoadResult>;
+  /** Zapisy gry w folderze danych aplikacji (na Macu ~/Library/Application Support/<aplikacja>/saves). */
+  listSaves(): Promise<string[]>;
+  readSave(name: string): Promise<string>;
+  writeSave(name: string, json: string): Promise<void>;
 }
 
-/** Pliki oryginału potrzebne do narysowania mapy. */
-export const REQUIRED_FILES = ['TER257.PIC', 'SP257.PIC', 'SP299.PIC', 'MAP.PIC'] as const;
+import { UI_OPTIONAL_FILES, UI_REQUIRED_FILES } from '@civ-remake/ui/files';
+
+/** Pliki oryginału potrzebne interfejsowi (ekrany startowe, menu, mapa). */
+export const REQUIRED_FILES: readonly string[] = UI_REQUIRED_FILES;
+/** Pliki wczytywane, jeśli są w folderze gry (intro, teksty, palety, kursor). */
+export const OPTIONAL_FILES: readonly string[] = UI_OPTIONAL_FILES;

@@ -1,0 +1,14 @@
+{
+  "name": "@civ-remake/ui",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./files": "./src/files.ts"
+  },
+  "dependencies": {
+    "@civ-remake/engine": "*",
+    "@civ-remake/gfx": "*"
+  }
+}
