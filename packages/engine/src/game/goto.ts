@@ -109,6 +109,9 @@ function pageTerrain(map: GameMap, x: number, y: number): number {
 /** F7_0000_178e / F0_2aea_1942: numer kontynentu/oceanu — piksel (x, y+50), bez zawijania X. */
 const pageGroup = (map: GameMap, x: number, y: number) => pagePixel(map, x, y + 50);
 
+/** F0_2aea_1942_GetGroupID tak jak w oryginale: piksel (x, y + 50) strony mapy, bez zawijania i sprawdzania granic. */
+export const pageGroupAt = pageGroup;
+
 /** F0_2aea_134a: teren pola (X zawijane; Y poza mapą — piksel strony mapy). */
 const terrainOf = (map: GameMap, x: number, y: number) => pageTerrain(map, wrapX(x), y);
 

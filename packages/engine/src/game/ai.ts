@@ -4,8 +4,9 @@
  * z OpenCivOne (MIT) — reguły w tej samej kolejności co we wzorcu.
  *
  * „Idź do” komputera i barbarzyńców: GoTo oryginału (goto.ts, F0_2e31_000e).
- * Odstępstwa: działania dyplomatów (DiplomatInteractionWithUnit, akcje w miastach) i ruch rakiety obok celu — etap 7;
- * statystyki Var_e3c2/Var_db42 z przeliczania miast (wybór despotyzmu/republiki) — przyjęte 0.
+ * Dyplomaci i karawany komputera: unitActions.ts (MoveUnit woła DiplomatActionOnCity; przekupienie jednostek —
+ * z oceny kierunków poniżej). Odległości — F0_2dc4_0289 (`distance`), w jednym miejscu F0_2dc4_0208 (`distanceOf`).
+ * Odstępstwa: statystyki Var_e3c2/Var_db42 z przeliczania miast (wybór despotyzmu/republiki) — przyjęte 0.
  */
 import { BUILDINGS, WONDERS } from '../data/buildings';
 import { MovementType, UnitRole } from '../data/enums';
@@ -19,11 +20,12 @@ import { Terrain } from '../world/generate';
 import { attackOdds, bestDefender } from './combat';
 import { BuildingId, hasBuilding, WonderId } from './buildings';
 import { cityTreasury, playerHasWonder } from './cities';
-import { DIRECTIONS, cellIndex, distance, isValid, terrainAt, wrapX } from './map';
+import { DIRECTIONS, cellIndex, distance, distanceOf, isValid, terrainAt, wrapX } from './map';
+import { bribeUnit } from './unitActions';
 import { getNextMove } from './goto';
 import { playerHasTech } from './techs';
 import { CityStatus, Diplomacy, Government, Improvement, NO_UNIT, UnitStatus, type GameState, type Player } from './types';
-import { activeUnitAt, cellHasHut, cellOwner, deleteUnit, isEnemyUnitAdjacent, nearestCity, occupantPlayer, unitsAt } from './units';
+import { activeUnitAt, cellHasHut, cellOwner, deleteUnit, isEnemyUnitAdjacent, nearestCity, occupantPlayer, placeUnit, unitsAt } from './units';
 
 const R = UnitRole;
 const int16 = (v: number) => (v << 16) >> 16;
@@ -502,9 +504,22 @@ export function aiUnitCommand(state: GameState, p: number, unitId: number): AiCo
       }
     });
     if (bestScore < 10 || pl.activeUnits[25]! < 2) return ' ';
-    unit.gotoX = state.cities[nearCity]!.x;
-    unit.gotoY = state.cities[nearCity]!.y;
-    return 0;
+    const target = state.cities[nearCity]!;
+    unit.gotoX = target.x;
+    unit.gotoY = target.y;
+    // L11c8–L129b: rakieta przenosi się od razu na pierwsze wolne pole obok celu i zwraca kierunek „do celu” jako
+    // kierunek pola XOR 4 — jak w oryginale, więc dla kierunku 4 wychodzi 0 (dalej „idź do”), a dla 8 — 12
+    // (pole z pierścienia 49 kierunków).
+    for (let d = 1; d < 9; d++) {
+      const [dx, dy] = DIRECTIONS[d]!;
+      const nx = wrapX(target.x + dx);
+      const ny = target.y + dy;
+      if (!isValid(nx, ny) || occupantPlayer(state, nx, ny) !== -1) continue;
+      placeUnit(state, p, unitId, nx, ny);
+      if (target.owner === state.humanPlayer) pl.contactCountdown = -2;
+      return d ^ 4;
+    }
+    return ' ';
   }
 
   if (unit.type === 26) {
@@ -671,7 +686,18 @@ export function aiUnitCommand(state: GameState, p: number, unitId: number): AiCo
     } else if (nOwner !== p) {
       enemyCity = true;
       if (role !== R.Settle) {
-        if (!(pl.diplomacy[nOwner]! & Diplomacy.Peace)) {
+        if (pl.diplomacy[nOwner]! & Diplomacy.Peace) {
+          // L2c6a–L2d50: przekupienie ufortyfikowanej jednostki sąsiada, który nie walczy z człowiekiem (F22_0000_0639)
+          if (role === R.LandAttack && strategy === R.LandAttack && def.movementType === MovementType.Land &&
+            state.players[otherPlayer]!.units[other]!.status & UnitStatus.Fortified &&
+            (pl.diplomacy[state.humanPlayer]! & (Diplomacy.Contact | Diplomacy.Peace)) === Diplomacy.Contact &&
+            (state.players[otherPlayer]!.diplomacy[state.humanPlayer]! & (Diplomacy.Contact | Diplomacy.Peace)) !== Diplomacy.Contact &&
+            human.continents[g]!.cityCount !== 0 && stackSum(state, otherPlayer, other, 'count') < 2 &&
+            (state.rng.next(8) === 0 || (nearCity !== -1 && state.cities[nearCity]!.owner === state.humanPlayer)) &&
+            !(imp(state, nx, ny) & Improvement.City)) {
+            bribeUnit(state, p, otherPlayer, other);
+          }
+        } else {
           other = bestDefender(state, otherPlayer, nx, ny);
           const target = state.players[otherPlayer]!.units[other]!;
           if (UNITS[target.type]!.movementType !== MovementType.Air || unit.type === 14 || imp(state, nx, ny) & Improvement.City) {
@@ -681,8 +707,16 @@ export function aiUnitCommand(state: GameState, p: number, unitId: number): AiCo
             if (imp(state, nx, ny) & Improvement.City) a *= 3;
             if (role === R.LandAttack && strategy === R.LandAttack) a *= 3;
             if (role === R.LandAttack && def.attack * 2 < stackSum(state, p, unitId, 'attack')) a *= 2;
-            if ((p !== 0 ? 6 : 12) > a) s -= 999;
-            s += a * 4;
+            if ((p !== 0 ? 6 : 12) > a) {
+              s -= 999;
+              // L2bbd–L2c56: przekupienie weterana albo ufortyfikowanej jednostki w terenie obronnym (F22_0000_0639)
+              const tu = state.players[otherPlayer]!.units[other]!;
+              if (role === R.LandAttack && strategy === R.LandAttack && def.movementType === MovementType.Land &&
+                tu.status & (UnitStatus.Veteran | UnitStatus.Fortified) && TERRAIN[nt]!.defenseBonus >= 4 &&
+                stackSum(state, otherPlayer, other, 'count') < 2 && state.rng.next(4) === 0 && !(imp(state, nx, ny) & Improvement.City)) {
+                bribeUnit(state, p, otherPlayer, other);
+              }
+            } else s += a * 4; // L2b9d: dodatek tylko powyżej progu
             check = true;
           }
         }
@@ -913,7 +947,7 @@ function settlerWork(state: GameState, p: number, unitId: number, t: number, nea
       const nm = TERRAIN_MODIFICATIONS[terrainAt(state.map, nx, ny)]!;
       if ((monarchy ? nm.aiAfterMonarchy : nm.aiBeforeMonarchy) && preferredImprovement(state, nx, ny) !== 0 &&
         (city.size >= 3 || terrainAt(state.map, nx, ny) !== Terrain.Hills || hasSpecialResource(nx, ny, state.mapSeed)) &&
-        distance(nx, ny, city.x, city.y) < 3) {
+        distanceOf(nx - city.x, ny - city.y) <= 2) { // F0_2dc4_0208 wprost na różnicach (0x25fb:0x2275), bez zawijania X
         unit.gotoX = nx;
         unit.gotoY = ny;
         return 0;

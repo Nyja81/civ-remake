@@ -10,7 +10,7 @@ import { TERRAIN_MODIFICATIONS } from '../data/terrainModifications';
 import { Tech } from '../data/techs';
 import { Terrain } from '../world/generate';
 import { BuildingId, WonderId, hasBuilding } from './buildings';
-import { DIRECTIONS, cellIndex, isValid, terrainAt, updateVisibleCell, wrapX } from './map';
+import { DIRECTIONS, cellIndex, distance, isValid, terrainAt, updateVisibleCell, wrapX } from './map';
 import { CityStatus, Government, Improvement, NO_UNIT, type City, type GameState } from './types';
 import { activeUnitAt, cellOwner, deleteUnit, exploreCell, setCellOwner, unitsAt } from './units';
 import { UNITS } from '../data/units';
@@ -155,12 +155,12 @@ export function deleteCity(state: GameState, cityId: number): void {
   }
 }
 
+/** F0_2dc4_0102 (najbliższe miasto) — odległość oryginału F0_2dc4_0289. */
 function nearestCityDistance(state: GameState, x: number, y: number): number {
   let best = Number.MAX_SAFE_INTEGER;
   for (const c of state.cities) {
     if (c.status === -1) continue;
-    const dx = Math.abs(wrapX(c.x - x + 40) - 40);
-    best = Math.min(best, Math.max(dx, Math.abs(c.y - y)));
+    best = Math.min(best, distance(c.x, c.y, x, y));
   }
   return best;
 }

@@ -336,3 +336,42 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Otwarte: odległość oryginału (max + min/2) w przeciwniku komputerowym, panorama miasta (VIEW), Civilopedia, pałac, intro (historia świata),
   dźwięk, powtórka (Replay), karawany i dyplomaci (także akcje dyplomaty człowieka), zapis `.SVE`, porównanie wyglądu z oryginałem.
 
+### 2026-11-17 — karawany, dyplomaci, odległość oryginału
+- Silnik `packages/engine/src/game/unitActions.ts` (asembler z ec23ac3: `Overlay_22.cs`, `Segment_2459.cs`, `Segment_1403.cs`;
+  teksty z danych CIV.EXE): `caravanArrives` (F0_2459_0948: przychód jednorazowy w złocie i postępie badań, komunikat
+  „Revenue: $…”, szlak zastępujący najsłabszy), `caravanEntersCity` (MoveUnit L1fd2: obce miasto — szlak od razu; własne —
+  „Will you?” Keep moving / Establish trade route / Help build WONDER (+10·koszt tarcz), szlak nieaktywny przy cudzie bliżej
+  niż 10), `diplomatMenu` + `diplomatAction` (F22_0000_0000: ambasada → raport wywiadu, Investigate City, kradzież z pytaniem
+  o traktat, sabotaż, bunt „Dissidents in …” z „Subvert city ($x2)” przy pokoju, Meet with King → `meetWithKing(…, { visit: true })`),
+  `bribeCost`/`bribeUnit` (F22_0000_0639), `inciteCityRevolt` (F22_0000_0af5; także bunt z klęski w `disasters.ts` zamiast
+  uproszczonego przejęcia), `minimumDistanceFromPalace` (F0_2517_0d97).
+- `movement.ts`: nowe wyniki ruchu `caravan`, `diplomat`, `bribe` (opcje `caravan`, `bribe`); zdarzenia `diplomatAction`,
+  `caravanArrived`, `diplomatVsUnit` usunięte. Dyplomata komputera działa od razu (kradzież, w okradzionym mieście sabotaż;
+  w mieście człowieka przy pokoju znika).
+- Komputer: `economy.ts` — zbudowana karawana od razu zakłada szlak z obcym miastem komputera o największym handlu; komputer bez
+  nowej jednostki (dyplomata) traci tarcze (L1ab6); zbudowana pierwsza rakieta zeruje licznik kontaktu człowieka. `ai.ts` —
+  przekupywanie jednostkami ataku lądowego (dwa miejsca w ocenie kierunków), rakieta przenoszona obok celu (L11c8), poprawka:
+  dodatek `atak × 4` tylko powyżej progu. Handel ze szlaków w `processCity` był już zgodny ze wzorcem.
+- Odległość oryginału: w asemblerze wszystkie odległości idą przez F0_2dc4_0289 (dłuższa różnica + połowa krótszej, |Δx| z
+  zawijaniem), także najbliższe miasto/jednostka (0102/0177); wyjątki: F0_2dc4_0208 wprost na różnicach (AIEngine 0x25fb:0x2275 —
+  `distanceOf`) i F0_2dc4_0243 (2·dłuższa + krótsza) w GetNearestCityDirection. `map.ts`: `distance` = 0289 (dotąd maksimum
+  różnic z nowszego wzorca), `distanceOf`, `distanceDoubled`; `cities.ts` (DeleteCity) bez własnego maksimum.
+  `turn.ts`: `nearestCityDirection` (F0_1866_226d) i HomeCityCommand dla samolotów człowieka i komputera (dotąd komputer leciał
+  „idź do” do najbliższego miasta).
+- UI: `packages/ui/src/screens/unitActions.ts` — okna karawany (100, 80), przekupienia (100, 80), menu dyplomaty (80, 80) z maską
+  nieaktywnych opcji, pytanie o traktat, okno buntu (100, 80), raport wywiadu, podgląd obcego miasta, rozmowa z władcą.
+  `gameScreen.ts`: wywołanie po ruchu, komunikaty z położeniem (`dialogX`, `dialogY`) i mapą (`mapX`, `mapY`).
+- Testy: 211 (12 pominiętych bez `CIV1_DIR`): `packages/engine/test/unitActions.test.ts` (odległości, karawany człowieka
+  i komputera, każda akcja dyplomaty, sabotaż z r = 15, bunt i przejęcie, przekupienie człowieka i komputera, rakieta, powrót
+  samolotu), `packages/ui/test/unitActions.test.ts` (menu i okna na syntetycznych plikach). Test „komputer rozbudowuje się”
+  przechodzi bez zmian po zmianie odległości.
+- Rozbieżności nowszego wzorca z asemblerem — ARCHITECTURE.v2 → „Wzorzec: dwie wersje OpenCivOne”. Najważniejsze: dyplomata
+  komputera z produkcji to w oryginale martwy kod (komputer nie dostaje dyplomatów, tarcze przepadają); grupa miasta
+  macierzystego karawany czytana jako (x, x); sabotaż z 16-bitową maską; ActiveUnits ±2 przy przekupieniu.
+- **Niesprawdzone na plikach oryginału**: wygląd okien (położenia wg wzorca), animacja wejścia dyplomaty komputera do miasta
+  człowieka i ruchu (AnimateUnitMove, WaitTimer) — pominięte.
+- Odstępstwa: pytania silnika (karawana, przekupienie) przerywają „idź do” człowieka; karawana komputera we własnym mieście
+  wybiera „Keep moving”, bez obcego miasta komputera znika bez przychodu (oryginał: miasto -1); karawana bez miasta macierzystego
+  porusza się zwyczajnie; Investigate City usuwa dyplomatę przed oknem (oryginał — po); pola okolicy przy buncie z zawijaniem X;
+  gałąź InciteCityRevolt z graczem -1 pominięta (oba wywołania podają gracza).
+- Do zrobienia: przejęcie technologii przy zdobyciu miasta (AcquireTechnologyFromAnotherPlayer w CityTakeover), animacje.

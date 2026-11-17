@@ -9,7 +9,7 @@
  * z `showCity: true` odpowiadają Var_b1e8 oryginału: po komunikacie interfejs otwiera okno tego miasta.
  *
  * Pominięte: przechowywanie ufortyfikowanych jednostek poza tablicą (FirstFortifiedCityUnits), statystyki
- * przeciwnika komputerowego (Var_e3c2/Var_db42), budowa statku kosmicznego (etap 7), okna i animacje.
+ * przeciwnika komputerowego (Var_e3c2/Var_db42), okna i animacje.
  */
 import { MovementType } from '../data/enums';
 import { BUILDINGS, WONDERS } from '../data/buildings';
@@ -29,6 +29,7 @@ import { CITY_OFFSETS, cellIndex, distance, isValid, terrainAt, updateVisibleCel
 import { playerHasTech, researchFinished, selectNextResearch, canResearch, TECH_COUNT, FUTURE_TECH } from './techs';
 import { CityStatus, Government, Improvement, NO_UNIT, type GameState } from './types';
 import { createUnit, deleteUnit, occupantPlayer } from './units';
+import { caravanArrives } from './unitActions';
 
 export const Resource = { Food: 0, Shields: 1, Trade: 2 } as const;
 
@@ -691,6 +692,24 @@ export function improvementDef(id: number): { name: string; cost: number; requir
   return id <= 24 ? BUILDINGS[id - 1]! : WONDERS[id - 25]!;
 }
 
+/**
+ * L1773–L180e: karawana komputera od razu zakłada szlak z obcym miastem (nie człowieka) o największym handlu
+ * (Actions.F0_2459_0948). Odstępstwo: bez takiego miasta oryginał woła F0_2459_0948 z miastem -1 (czyta pamięć przed
+ * tablicą miast); tu karawana znika bez przychodu (F0_2459_0948 też ją usuwa).
+ */
+function aiCaravanBuilt(state: GameState, player: number, unitId: number): void {
+  let best = -1;
+  let target = -1;
+  state.cities.forEach((c, i) => {
+    if (c.owner !== player && c.status !== -1 && c.owner !== state.humanPlayer && c.baseTrade > best) {
+      best = c.baseTrade;
+      target = i;
+    }
+  });
+  if (target === -1) deleteUnit(state, player, unitId);
+  else caravanArrives(state, player, unitId, target);
+}
+
 /** Zakończenie budowy jednostki lub budynku. Zwraca false, gdy miasto przestało istnieć. */
 function completeProduction(state: GameState, cityId: number, ratio: number, newShields: number): boolean {
   const city = state.cities[cityId]!;
@@ -721,9 +740,14 @@ function completeProduction(state: GameState, cityId: number, ratio: number, new
         }
         if (unitId !== -1) p.units[unitId]!.homeCity = cityId;
         if (!human && unitId !== -1) {
-          // Karawany i dyplomaci komputera (handel, kradzież technologii) — etap 6
+          if (city.production === 27) aiCaravanBuilt(state, player, unitId);
+          // Dyplomata komputera (L1828–L1a5c: dyplomata przy najbliższej własnej jednostce z celem „idź do” w obcym
+          // mieście albo zwrot tarcz) jest w oryginale martwym kodem: dla produkcji 26 komputer nie tworzy jednostki
+          // (L15c8), a ten blok wymaga utworzonej jednostki (L1757) — tarcze przepadają w L1ab6.
+          if (city.production === 25 && p.activeUnits[25] === 1) state.players[state.humanPlayer]!.contactCountdown = -1;
           changeProduction(state, cityId, aiSelectProduction(state, player, cityId));
-        } else if (human) {
+        } else {
+          // L1ab6: człowiek oraz komputer bez nowej jednostki (dyplomata) — magazyn tarcz pusty
           city.shields = 0;
           if (unitId !== -1 && (city.production === 0 || city.production >= 26)) {
             state.events.push({ kind: 'message', style: 'defense', city: cityId, showCity: true, text: `${cityName(state, cityId)} builds ${UNITS[city.production]!.name}.\n` });

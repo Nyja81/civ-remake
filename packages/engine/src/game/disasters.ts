@@ -6,7 +6,8 @@ import { BUILDINGS } from '../data/buildings';
 import { Tech } from '../data/techs';
 import { Terrain } from '../world/generate';
 import { BuildingId, hasBuilding } from './buildings';
-import { cityName, cityTakeover } from './cities';
+import { cityName } from './cities';
+import { inciteCityRevolt } from './unitActions';
 import { processCity } from './economy';
 import { DIRECTIONS, cellIndex, distance, isValid, terrainAt } from './map';
 import { playerHasTech } from './techs';
@@ -115,8 +116,8 @@ export function cityDisaster(state: GameState, cityId: number): void {
         if (state.map.explored[cellIndex(t.x, t.y)]! & (1 << state.humanPlayer)) {
           state.events.push({ kind: 'message', text: `Residents of ${name} admire\nthe prosperity of ${cityName(state, target)}.\n` });
         }
-        // InciteCityRevolt (DiplomatActions) — miasto przechodzi do sąsiada; uproszczone do przejęcia miasta
-        cityTakeover(state, t.owner, cityId, -1, true);
+        // DiplomatActions.F22_0000_0af5_InciteCityRevolt — miasto (z jednostkami wokół) przechodzi do sąsiada
+        inciteCityRevolt(state, cityId, t.owner);
       }
     }
   }
