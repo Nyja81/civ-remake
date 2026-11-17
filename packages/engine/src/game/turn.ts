@@ -14,7 +14,7 @@ import { UNITS } from '../data/units';
 import { Terrain } from '../world/generate';
 import { foundCity } from './cities';
 import { confirmBreakTreaty, clearPeace } from './combat';
-import { processCities } from './economy';
+import { GOVERNMENT_NAMES, processCities } from './economy';
 import { DIRECTIONS, cellIndex, distance, isValid, terrainAt, updateVisibleCell } from './map';
 import { fullMoves, moveUnit, type MoveOptions, type MoveResult } from './movement';
 import { aiMoveUnit, aiPlayerTurnStart } from './ai';
@@ -22,6 +22,7 @@ import { playerHasTech } from './techs';
 import { barbarianUprising } from './barbarians';
 import { checkGlobalWarming } from './catastrophes';
 import { randomDisasters } from './disasters';
+import { giveWonderToAI, rankPlayers } from './ranking';
 import { availableGovernments } from './government';
 import { playerHasWonder } from './cities';
 import { WonderId } from './buildings';
@@ -510,8 +511,10 @@ export function endHumanTurn(state: GameState): void {
 function endOfTurn(state: GameState): void {
   barbarianUprising(state);
   checkGlobalWarming(state);
+  giveWonderToAI(state);
   randomDisasters(state);
-  // Pominięte do czasu kolejnych etapów: oddanie cudów komputerowi (GiveWonderToAI), ranking graczy, raporty,
+  rankPlayers(state);
+  // Pominięte do czasu kolejnych etapów: raporty,
   // pałac, statek kosmiczny (etapy 7–8).
   state.turn++;
   if (state.year < 1000) {
@@ -524,6 +527,25 @@ function endOfTurn(state: GameState): void {
   if (state.year === 0) {
     for (const p of state.players) p.researchProgress *= 2;
     state.year = 1;
+  }
+  if (state.turn % 50 === 0) {
+    // autozapis robi interfejs (zdarzenie), wyrównanie kosztu badań jak w GameTurn
+    state.events.push({ kind: 'autosave', turn: state.turn });
+    let maxTech = 0;
+    for (let i = 1; i < 8; i++) maxTech = Math.max(maxTech, state.players[i]!.techCount);
+    state.techCatchUp = state.year >= 0 ? Math.min(6, Math.max(0, maxTech - Math.trunc(state.turn / 9))) : 0;
+  }
+  if (state.turn >= state.nextHistoryTurn) {
+    state.nextHistoryTurn = state.rng.next(40) + state.turn + 20;
+    state.events.push({ kind: 'historyReport' });
+  }
+  for (let w = 1; w < 22; w++) {
+    const c = state.wonderCity[w]!;
+    if (c !== -1 && c < 128) state.players[state.cities[c]!.owner]!.score += 25;
+  }
+  if (state.year >= 2080 - 20 * state.difficulty && state.year < 2100 - 20 * state.difficulty) {
+    const h = state.players[state.humanPlayer]!;
+    state.events.push({ kind: 'news', text: `${GOVERNMENT_NAMES[h.government]} ${h.leader}\nplans retirement\nin 20 years.\n` });
   }
   if (state.year >= 2100 - 20 * state.difficulty) {
     state.events.push({ kind: 'gameEnd', reason: 'retirement' });

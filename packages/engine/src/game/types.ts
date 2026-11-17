@@ -212,6 +212,8 @@ export interface GameState {
   /** Poziom skutków zanieczyszczenia (PollutionEffectLevel). */
   pollutionLevel: number;
   pollutedSquares: number;
+  /** Człowiek na ostatnim miejscu rankingu (Var_8078) — komputer szuka kontaktu. */
+  humanLowest: boolean;
   /** 0 = gra trwa. */
   gameOver: number;
   rng: RandomSource;
