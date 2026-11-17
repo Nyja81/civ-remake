@@ -33,8 +33,9 @@ a nie źródłem kodu ani zasobów.
 | 4 | Komendy i zdarzenia — interfejs wydaje rozkazy, silnik odpowiada zdarzeniami i prośbami o decyzję | `packages/engine` | `unitMove`, `unitOrder`, `state.events`, odpowiedzi `confirm` |
 | 5 | Interfejs — ekran 320×200 jak w oryginale, wygładzany 4× | `packages/ui`, `apps/desktop` | ekrany startowe, menu, okna, ekran gry z mapą, rozkazami, oknem miasta, zapisem (scalone do `main`) |
 | 5a | Grafiki oryginału — dekoder `.PIC`, czcionki `FONTS.CV`, reguły rysowania mapy | `packages/gfx` | teren, ulepszenia, mgła, miasta, jednostki, minimapa (`mapView.ts`) |
+| 5b | Dźwięk oryginału — sterowniki `.CVL` z kopii gracza na emulatorze 8086, karta AdLib (Nuked OPL3, LGPL-2.1) albo głośnik PC; PCM bez Web Audio | `packages/sound` | AdLib i głośnik PC zgodne z DOSBoxem (rejestry karty, czasy, wysokości); Roland MT-32 i Tandy — brak |
 | 6 | Pakiet zastępczy grafiki — wektorowy (SVG) i Freeciv „trident” | `packages/art`, `tools/tileset` | próbki |
-| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support/<aplikacja>/saves` | `apps/desktop` | paczka 0.5.1 (arm64, niepodpisana; View → Smoothing) |
+| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support/<aplikacja>/saves` | `apps/desktop` | paczka 0.5.1 (arm64, niepodpisana; View → Smoothing); dźwięk w oknie (Web Audio, View → Sound: AdLib / PC Speaker / No Sound) |
 | 8 | Wzorzec i testy porównawcze — tylko dla dewelopera | `packages/oracle` | odczyt tabel z CIV.EXE |
 
 ### Zasady projektowe silnika
@@ -71,6 +72,9 @@ a nie źródłem kodu ani zasobów.
 - Liczby i reguły gry odtwarzamy jako fakty. Grafika, teksty encyklopedii i dźwięk są własne —
   oryginalne grafiki nie są kopiowane ani przerysowywane: gra czyta je z kopii gracza w chwili uruchomienia,
   a wygładzone wersje powstają i zostają wyłącznie na jego komputerze. Zrzutów z oryginalną grafiką nie umieszczamy w repozytorium.
+- Dźwięk: muzyki ani efektów nie nagrywamy — gra wykonuje sterownik `ASOUND.CVL`/`ISOUND.CVL` z kopii gracza (kod x86 z danymi
+  utworów) na własnym emulatorze 8086. Emulator karty `packages/sound/src/opl3.ts` to przeniesienie Nuked OPL3 (LGPL-2.1-or-later):
+  osobny plik z licencją i autorem, wymienny; przy udostępnieniu trzeba zachować te warunki dla tego pliku.
 - Grafiki Freeciv są na licencji GPL-2.0-or-later: przy jakimkolwiek udostępnieniu gry trzeba zachować licencję i autorów
   oraz udostępnić je na tych samych warunkach. Pakiet grafiki pozostaje wymienny i oddzielony od kodu.
 - Nazwa gry nie może zawierać „Civilization”, jeśli projekt miałby wyjść poza użytek prywatny.
@@ -87,7 +91,7 @@ a nie źródłem kodu ani zasobów.
 | 5 | Walka, barbarzyńcy | walka i powstania barbarzyńców gotowe; brak: atak jądrowy, klęski w miastach, globalne ocieplenie |
 | 6 | Przeciwnik komputerowy | **gotowe w silniku**: strategie kontynentów, cele jednostek, ruchy jednostek i barbarzyńców, wybór produkcji, ustroje komputera, GoTo oryginału z tablicami ścieżek 20×13 (`goto.ts`, człowiek i komputer), karawany i dyplomaci komputera (szlak od razu po zbudowaniu karawany, kradzież/sabotaż, przekupywanie jednostkami ataku), rakieta obok celu, odległość oryginału F0_2dc4_0289 we wszystkich modułach |
 | 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | **gotowe**: punktacja (`score.ts`), koniec gry (podbój, statek, koniec panowania), statek kosmiczny (`spaceship.ts` + okno), dyplomacja komputer–komputer, prośby komputera, Hall of Fame, rozmowy z władcami (`kingMeeting.ts` + `screens/king.ts`, bez animacji twarzy, także po wizycie dyplomaty); karawany i dyplomaci człowieka (`unitActions.ts` + `screens/unitActions.ts`), **powtórka gry** (`replay.ts` w silniku i UI, „hail the CONQUEROR”) |
-| 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry, **okno miasta** (`screens/cityWindow.ts`: zasoby, mapka pól z przydziałem, specjaliści, budynki ze sprzedażą, jednostki, produkcja z CHANGE/AUTO/BUY, zakładki INFO/HAPPY/MAP), **raporty doradców i świata** (ADVISORS, WORLD, F1–F10, historyk, wykres potęgi — `reports.ts` w silniku, `screens/advisors.ts`), **Civilopedia** (`screens/civilopedia.ts`: listy, strony tematów, pomoc z wyboru badań i produkcji; opisy z BLURB0–4.TXT gracza albo własne), **pałac** (`palace.ts` w silniku, `screens/palace.ts`: rozbudowa po progach wyniku, widok, mini-pałac), **panorama miasta** (`cityView.ts` w silniku, `screens/cityView.ts`: VIEW, budowa, zdobycie, niepokoje, święto z animacjami), **historia świata** (STORY.TXT, BIRTH1–8, cykle palety — `screens/intro.ts`) gotowe; dźwięk, animacja założenia miasta — do zrobienia |
+| 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry, **okno miasta** (`screens/cityWindow.ts`: zasoby, mapka pól z przydziałem, specjaliści, budynki ze sprzedażą, jednostki, produkcja z CHANGE/AUTO/BUY, zakładki INFO/HAPPY/MAP), **raporty doradców i świata** (ADVISORS, WORLD, F1–F10, historyk, wykres potęgi — `reports.ts` w silniku, `screens/advisors.ts`), **Civilopedia** (`screens/civilopedia.ts`: listy, strony tematów, pomoc z wyboru badań i produkcji; opisy z BLURB0–4.TXT gracza albo własne), **pałac** (`palace.ts` w silniku, `screens/palace.ts`: rozbudowa po progach wyniku, widok, mini-pałac), **panorama miasta** (`cityView.ts` w silniku, `screens/cityView.ts`: VIEW, budowa, zdobycie, niepokoje, święto z animacjami), **historia świata** (STORY.TXT, BIRTH1–8, cykle palety — `screens/intro.ts`), **dźwięk i muzyka** (`packages/sound`: sterownik .CVL z kopii gry na emulatorze 8086 + Nuked OPL3 / głośnik PC, taktowanie jak w CIV.EXE; `ui/src/sound.ts` + PlayTune w miejscach oryginału; Web Audio w `apps/desktop`, View → Sound) gotowe; animacja założenia miasta, animacje walki i wybuchu — do zrobienia |
 
 ### Odstępstwa od układu oryginału (świadome)
 
@@ -146,7 +150,24 @@ Tablice nowszego wzorca poprawione wg CIV.EXE (szczegóły — historia zmian w 
 „Sulayman”, tytuł „King ” ze spacją (Elżbieta: Empress/Queen), napisy z tablic wskaźników (tytuły władców, ustroje Communist/Democratic,
 raport historyka, poziomy Chief/Lord…, tytuł Civilopedii), czasy wierszy historii świata.
 
+### Dźwięk (`packages/sound`)
+
+- Sterownik `.CVL` to program MZ ładowany przez CIV.EXE jako nakładka; nagłówek obrazu: 0x28/0x2A segmenty kodu i danych,
+  0x2E grupa tablicy skoków (100), 0x30 liczba punktów wejścia (11), 0x32 przesunięcia. Punkty wejścia: 0 inicjalizacja, 1 PlayTune
+  (utwór, parametr), 2 zamknięcie, 3 takt sekwencera, 4 szybki takt (efekty), 5 licznik taktów. Dane utworów są w samym sterowniku.
+- Taktowanie z CIV.EXE 474.01 (segment 1000; dosłowne tłumaczenie 475.05 nie ma kodu przerwania): przerwanie zegara zsynchronizowane
+  z odświeżaniem VGA (70,086 Hz; [0x4e] = 4 przerwania na klatkę przy szybkim zegarze), procedura klatki 1000:0337 pomija co 7. klatkę
+  (sekwencer 60 Hz) i woła punkt 3; jego wynik włącza (> 0) / wyłącza (< 0) szybki zegar, przy którym każde przerwanie woła punkt 4.
+- Porównanie z oryginałem w DOSBoxie 0.74 (VGA, `sbtype=sb2`, nagranie rejestrów `.DRO` i `.WAV`): utwór 3 — 1149 zapisów rejestrów,
+  zgodność sekwencji 98,7% (różnice: zapisy niezmieniające rejestru, które DOSBox pomija), czasy ±13 ms, rozjazd 1,5 ms po 44 s;
+  głośnik PC — te same wysokości i rytm. Przy `sbtype=sb16` sterownik wykrywa mikser Sound Blaster Pro (port 0x224) i pisze do
+  0x220–0x223 — emulowana karta nie ma miksera, więc sterownik używa 0x388 (czysty AdLib).
+- Bit WSE rejestru 0x01 emulowany jak w YM3812 (bez niego tylko sinus) — Nuked OPL3 w trybie OPL2 go nie ma.
+
 ## Otwarte kwestie
+
+- Niepokoje w mieście: nowsza wersja wzorca pokazuje „Civil Disorder in …” (z utworem 36) w każdej turze niepokojów, silnik —
+  tylko przy ich wybuchu; sprawdzić z asemblerem (Segment_1d12 ok. 0x26ef).
 
 - Technologie startowe: wzorzec nie przyznaje żadnych (komunikat *INIT wymienia tylko drogi) — sprawdzić w oryginale (DOSBox).
 - Generator losowy wzorca to MT19937 (nie rand() z MS C) — zgodność ziarna z oryginałem niesprawdzona.
