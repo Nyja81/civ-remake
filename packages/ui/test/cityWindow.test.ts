@@ -175,7 +175,7 @@ describe('okno miasta z ekranu gry', () => {
     screen.redrawAll();
     state.events.push({ kind: 'built', player: state.humanPlayer, city, item: 2, showCity: true, text: 'Rome builds\nBarracks.\n' });
     state.events.push({ kind: 'news', city, showCity: true, text: 'Civil Disorder in\nRome!\n' });
-    // komunikat → komunikat → okno miasta (Esc)
+    // budowa przy włączonych animacjach: panorama (bez plików — wariant uproszczony, klawisz) → komunikat → okno miasta (Esc)
     await drive(ctx.ui, [key('Enter'), key('Enter'), key('Escape')], () => screen.processEvents());
   });
 });

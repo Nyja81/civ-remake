@@ -3,6 +3,7 @@
  * Okna wyboru (poziom, liczba cywilizacji, plemię, imię) pokazuje interfejs — tu przychodzą gotowe wybory.
  */
 import { emptySpaceship } from './spaceship';
+import { newPalace } from './palace';
 import { MAX_CITIES, MAX_PLAYERS, MAX_UNITS_PER_PLAYER } from '../data/enums';
 import { CITY_NAMES } from '../data/cityNames';
 import { NATIONS } from '../data/nations';
@@ -79,7 +80,7 @@ export function newGame(options: NewGameOptions): GameState {
     cities: Array.from({ length: MAX_CITIES }, emptyCity),
     wonderCity: new Array<number>(22).fill(-1), cityNames: [...CITY_NAMES], cityNameTaken: new Array<boolean>(256).fill(false),
     techFirstDiscoveredBy: new Array<number>(72).fill(0), techCatchUp: 0, globalWarming: 0, pollutionLevel: 0, pollutedSquares: 0, gameOver: 0, spaceshipFlags: 0, aiSpaceshipSuccess: 0, humanLowest: false, aiFlags: 0, aiMakeContact: false,
-    rng, events: [],
+    palace: newPalace(), rng, events: [],
   };
 
   const hp = state.players[human]!;

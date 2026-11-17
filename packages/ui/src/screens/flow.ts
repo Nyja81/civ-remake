@@ -12,7 +12,7 @@ import type { GameAssets } from '../assets';
 import type { Ui } from '../ui';
 import { GameScreen } from './gameScreen';
 import { decodeFameDta, type FameStore } from './hallOfFame';
-import { GameType, showMainGameIntro } from './intro';
+import { GameType, showMainGameIntro, showWorldHistory } from './intro';
 import { showLogoAndMainGameMenu, type SavedGameLoader } from './mainMenu';
 import { initNewGameData, showInitText, type NewGameSettings } from './newGame';
 
@@ -113,6 +113,8 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
     if (choice.kind === 'load') {
       state = choice.state;
     } else {
+      // StartGame: historia świata w trakcie budowy mapy (MapInitAndIntro), potem ustawienia nowej gry
+      await showWorldHistory(ui, assets);
       const settings = await initNewGameData(ui, assets, choice);
       const seed = hooks.seed?.() ?? Math.floor(Math.random() * 32768);
       state = newGame(newGameOptions(assets, settings, seed));

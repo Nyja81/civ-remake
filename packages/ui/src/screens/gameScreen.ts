@@ -11,7 +11,7 @@
  * (unitMove, unitOrder, nextUnit, endHumanTurn) i pokazuje zdarzenia jako okna.
  */
 import {
-  advanceToHuman, aiRequestMeeting, envoyMeeting, meetWithKing, type KingKeywords, type KingMeeting, BUILDINGS, civilizationScore, hallOfFameEntry, type HallOfFameEntry, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
+  advanceToHuman, aiRequestMeeting, palaceOf, envoyMeeting, meetWithKing, type KingKeywords, type KingMeeting, BUILDINGS, civilizationScore, hallOfFameEntry, type HallOfFameEntry, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
   MovementType, nextUnit, NO_UNIT, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
   TERRAIN, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameEvent, type GameState, type MoveResult, type Order,
 } from '@civ-remake/engine';
@@ -31,6 +31,8 @@ import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
 import { runKingMeeting } from './king';
 import { ADVISOR_REPORTS, reportForKey, showHistoryReport, showPowerGraph, showReport, WORLD_REPORTS, type AdvisorReport, type WorldReport } from './advisors';
 import { showCityWindow } from './cityWindow';
+import { civilDisorderAnimation, invadersAnimation, loveOurLeaderAnimation, showCityView } from './cityView';
+import { drawMiniPalace, showPalaceUpgrade, showPalaceView } from './palace';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
 
@@ -96,6 +98,8 @@ export class GameScreen {
   private readonly textDrawer: TextDrawer;
   private eventsSeen = 0;
   private blinkHidden = false;
+  /** Var_6b92: animacja niepokojów najwyżej raz na turę. */
+  private disorderShownTurn = -1;
   /** Array_30b8 — słowa kluczowe tekstów KING.TXT, trwałe między rozmowami (początkowo jak po *INIT). */
   private readonly kingKeywords: KingKeywords;
 
@@ -189,6 +193,10 @@ export class GameScreen {
         const { xMap, yMap } = this.miniMapOrigin();
         this.drawVisibleMap(wrapX(x - 7 + xMap), clamp(y - 14 + yMap, 0, 49));
         this.ui.present();
+      } else if (y < 72) {
+        // PlayerTurn (0x1403:0x07af): kliknięcie w mini-pałac pokazuje pałac
+        await showPalaceView(this.ui, this.assets, this.state);
+        await this.redrawMapWithBlankingEffect();
       } else if (y >= 97 && this.activeUnit === -1) {
         await this.endTurn();
       }
@@ -302,6 +310,7 @@ export class GameScreen {
     const events = this.state.events;
     while (this.eventsSeen < events.length) {
       const ev = events[this.eventsSeen++]!;
+      if (await this.panoramaEvent(ev)) continue;
       const fromAi = ev.kind === 'aiRequest' || ev.kind === 'meetLeader' || ev.kind === 'envoy';
       if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message' && !fromAi) continue;
       if (typeof ev.text === 'string' && ev.text) {
@@ -340,11 +349,61 @@ export class GameScreen {
         await spaceshipPartDialog(this.ui, this.assets, this.state, ev.part, ev.placed === true);
         await this.redrawMapWithBlankingEffect();
       } else if (ev.kind === 'historyReport' && ev.report) {
-        await showHistoryReport(this.ui, this.state, ev.report as Parameters<typeof showHistoryReport>[2]);
+        await showHistoryReport(this.ui, this.state, ev.report as Parameters<typeof showHistoryReport>[2], this.assets);
+      } else if (ev.kind === 'palace') {
+        // GameTurn: rozbudowa pałacu (F17_0000_0000_UpgradePalace), potem mapa z wygaszeniem
+        await showPalaceUpgrade(this.ui, this.assets, this.state);
+        await this.redrawMapWithBlankingEffect();
       } else if (ev.kind === 'gameEnd') {
         await this.gameEndDialog(ev.reason === 'conquest', ev.canContinue === true);
       }
     }
+  }
+
+  /**
+   * Panorama miasta zamiast okna komunikatu, gdy włączone są animacje (screens/cityView.ts):
+   * ukończony budynek albo cud człowieka (CityWorker 0x1d12:0x1dbe — bez pałacu, części statku i automatycznej produkcji),
+   * zdobycie miasta przez człowieka albo człowiekowi (Actions, 0x2459:0x035d — z najazdem), niepokoje (raz na turę,
+   * Var_6b92 — z zamieszkami) i „We love the King” (z pochodem). Zwraca true, gdy zdarzenie zostało obsłużone.
+   */
+  private async panoramaEvent(ev: GameEvent): Promise<boolean> {
+    const state = this.state;
+    const text = typeof ev.text === 'string' ? ev.text : null;
+    const cityId = typeof ev.city === 'number' ? ev.city : -1;
+    const city = state.cities[cityId];
+    if (!text || !city || city.status === -1) return false;
+    if (ev.kind === 'cityCaptured') {
+      if (ev.player !== this.human && ev.loser !== this.human) return true;
+      if (!state.settings.animations) return false;
+      await showCityView(this.ui, this.assets, state, cityId, -2, text);
+      await invadersAnimation(this.ui, this.assets, state, ev.player as number);
+      await this.redrawMapWithBlankingEffect();
+      return true;
+    }
+    if (!state.settings.animations || city.owner !== this.human) return false;
+    if (ev.kind === 'built' && ev.player === this.human && typeof ev.item === 'number') {
+      const item = ev.item;
+      if (!((item <= 21 || item > 24) && !(city.status & CityStatus.AutoProduction) && item !== 1)) return false;
+      await showCityView(this.ui, this.assets, state, cityId, item, text, { palette: this.gamePalette });
+      await this.redrawMapWithBlankingEffect();
+      if (ev.showCity === true) await this.cityAfterEvent(cityId);
+      return true;
+    }
+    if (ev.animation === 'disorder' && this.disorderShownTurn !== state.turn) {
+      this.disorderShownTurn = state.turn;
+      await showCityView(this.ui, this.assets, state, cityId, -2, text);
+      await civilDisorderAnimation(this.ui, this.assets, state);
+      await this.redrawMapWithBlankingEffect();
+      if (ev.showCity === true) await this.cityAfterEvent(cityId);
+      return true;
+    }
+    if (ev.animation === 'celebration') {
+      await showCityView(this.ui, this.assets, state, cityId, -2, text);
+      await loveOurLeaderAnimation(this.ui, this.assets, state);
+      await this.redrawMapWithBlankingEffect();
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -356,7 +415,7 @@ export class GameScreen {
     if (next && next.showCity === true && next.city === cityId) return;
     const city = this.state.cities[cityId];
     if (!city || city.status === -1 || city.owner !== this.human) return;
-    await showCityWindow({ ui: this.ui, assets: this.assets, state: this.state, sprites: this.sprites, text: this.textDrawer }, cityId);
+    await showCityWindow({ ui: this.ui, assets: this.assets, state: this.state, sprites: this.sprites, text: this.textDrawer, palette: this.gamePalette }, cityId);
     await this.redrawMapWithBlankingEffect();
   }
 
@@ -468,7 +527,7 @@ export class GameScreen {
   async cityDialog(cityId: number): Promise<void> {
     const ui = this.ui;
     ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
-    const r = await showCityWindow({ ui, assets: this.assets, state: this.state, sprites: this.sprites, text: this.textDrawer }, cityId);
+    const r = await showCityWindow({ ui, assets: this.assets, state: this.state, sprites: this.sprites, text: this.textDrawer, palette: this.gamePalette }, cityId);
     if (r.redraw) await this.redrawMapWithBlankingEffect();
     else ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
     this.reportTaxAndPopulation();
@@ -567,8 +626,7 @@ export class GameScreen {
     gfx.fillRectangleWithShadow(0, 58, 80, 39);
     gfx.fillRect(3, 60, 74, 11, 11);
     if (this.state.peaceTurns > 1) gfx.fillRect(3, 60, clamp(this.state.peaceTurns * 2, 0, 60), 2, 15);
-    // Mini-pałac (F0_1238_14a3_DrawMiniPalace): na razie tylko linia podstawy; części pałacu — razem z widokiem pałacu.
-    gfx.drawLine(8 - 5, 58 + 13, 8 + 68, 58 + 13, 2);
+    drawMiniPalace(gfx, this.assets, this.state, this.human, palaceOf(this.state).buildCount, 8, 58);
     // Liczba mieszkańców (PopulationValueToString) — gdy silnik będzie ją liczył.
     gfx.drawString(yearToString(this.state.year), 2, 81, 0);
     // postęp badań 0–3: żarówka z ekranu 2 (SP299.PIC); wzór postępu zależy od zmiennej, której silnik jeszcze nie ma

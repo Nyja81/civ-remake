@@ -38,3 +38,5 @@ export * from './game/spaceship';
 export * from './game/goto';
 export * from './game/reports';
 export * from './game/cityManagement';
+export * from './game/palace';
+export * from './game/cityView';

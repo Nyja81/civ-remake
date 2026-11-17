@@ -523,7 +523,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     if (balance < 0) {
       if (!(city.status & CityStatus.CivilDisorder)) {
         if (human) {
-          state.events.push({ kind: 'news', style: 'domestic', city: cityId, showCity: true, text: `Civil Disorder in\n${cityName(state, cityId)}! Mayor\nflees in panic.\n` });
+          state.events.push({ kind: 'news', style: 'domestic', city: cityId, showCity: true, animation: 'disorder', text: `Civil Disorder in\n${cityName(state, cityId)}! Mayor\nflees in panic.\n` });
           if (state.settings.instantAdvice) state.events.push({ kind: 'advice', key: '*DISORDER' });
         }
       }
@@ -549,7 +549,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     if (h.unhappy === 0 && city.size > 2 && (city.size + 1) >> 1 <= h.happy && gov !== Government.Anarchy) {
       if (!(city.status & CityStatus.Celebrating)) {
         if (human) {
-          state.events.push({ kind: 'news', city: cityId, text: `'We love the ${GOVERNMENT_NAMES[gov]}'\nday celebrated in\n${cityName(state, cityId)}!\n` });
+          state.events.push({ kind: 'news', city: cityId, animation: 'celebration', text: `'We love the ${GOVERNMENT_NAMES[gov]}'\nday celebrated in\n${cityName(state, cityId)}!\n` });
         }
         city.status |= CityStatus.Celebrating;
       } else if (gov >= Government.Republic) {

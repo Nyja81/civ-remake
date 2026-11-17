@@ -32,6 +32,7 @@ import { Government, Improvement, NO_UNIT, UnitStatus, type GameState } from './
 import { cityAt, deleteUnit, exploreCell, nearestCity, unitsAt, updateUnitVisibility } from './units';
 import { PIXEL_TO_TERRAIN } from '../world/earth';
 import { civilizationScore } from './score';
+import { checkPalaceUpgrade } from './palace';
 import { diplomacyTurn } from './diplomacy';
 
 export type Order =
@@ -581,8 +582,6 @@ function endOfTurn(state: GameState): void {
   giveWonderToAI(state);
   randomDisasters(state);
   rankPlayers(state);
-  // Pominięte do czasu kolejnych etapów: raporty,
-  // pałac, statek kosmiczny (etapy 7–8).
   state.turn++;
   if (state.year < 1000) {
     state.year += 20;
@@ -611,6 +610,8 @@ function endOfTurn(state: GameState): void {
     const c = state.wonderCity[w]!;
     if (c !== -1 && c < 128) state.players[state.cities[c]!.owner]!.score += 25;
   }
+  // rozbudowa pałacu po przekroczeniu progu wyniku (zdarzenie `palace`, okno rysuje interfejs)
+  checkPalaceUpgrade(state);
   checkGameEnd(state);
 }
 

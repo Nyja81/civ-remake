@@ -10,7 +10,7 @@
  */
 import {
   attitudeReport, BUILDINGS, cityStatusReport, Diplomacy, continentStatistics, demographicsReport, HISTORIANS, HISTORY_GRADES, HISTORY_TYPES,
-  improvementDef, intelligenceDetail, intelligenceReport, militaryLossesReport, militaryReport, playerHasTech, powerGraph, scienceReport,
+  improvementDef, intelligenceDetail, intelligenceReport, militaryLossesReport, militaryReport, palaceLevelFromScore, playerHasTech, powerGraph, scienceReport,
   Tech, techName, topFiveCities, tradeReport, turnToYear, UNITS, wonderName, wondersOfTheWorld, worldMapReport,
   type DemographicsKey, type GameState, type HistoryReport, type ReportCity,
 } from '@civ-remake/engine';
@@ -22,6 +22,7 @@ import { isKey, type UiEvent } from '../input';
 import { yearToString } from '../text';
 import type { Ui } from '../ui';
 import { drawReportScreen, LEADER_TITLES, showScoreScreen } from './reports';
+import { drawMiniPalace } from './palace';
 
 /** Array_1966_GovernmentNames */
 export const GOVERNMENT_NAMES_1966 = ['Anarchy', 'Despotism', 'Monarchy', 'Communist', 'Republic', 'Democratic'] as const;
@@ -530,9 +531,10 @@ export async function showDemographics(ui: Ui, assets: GameAssets, state: GameSt
 
 /**
  * Reports.F12_0000_09e2_PlayerHistoryRankingReport — okno raportu historyka (losowanie i ranking robi silnik w turze).
- * Mini-pałac władcy przy każdym wierszu (DrawMiniPalace) — pominięty, dopóki nie ma widoku pałacu.
+ * Przy każdym wierszu mini-pałac władcy (F0_1238_14a3_DrawMiniPalace w (128, y − 13), liczba rozbudów
+ * z F0_1238_1c98_GetPalaceLevelFromScore) — gdy podano `assets` (arkusz SP257.PIC).
  */
-export async function showHistoryReport(ui: Ui, state: GameState, report: HistoryReport): Promise<void> {
+export async function showHistoryReport(ui: Ui, state: GameState, report: HistoryReport, assets?: GameAssets): Promise<void> {
   const g = ui.gfx;
   saveScreen(g);
   g.fillRect(0, 0, 320, 200, 3);
@@ -544,6 +546,7 @@ export async function showHistoryReport(ui: Ui, state: GameState, report: Histor
     ui.present();
     await ui.waitTimer(60);
     const p = state.players[e.player]!;
+    if (assets) drawMiniPalace(g, assets, state, e.player, palaceLevelFromScore(p.score), 128, y - 13);
     g.drawRectangle(8, y, 303, 15, PLAYER_COLORS[e.player]!);
     g.drawString(`${e.rank + 1}. The ${HISTORY_GRADES[e.rank]} ${p.leader} of the ${p.nationPlural}.`, 40, y + 5, 15);
     y += 24;

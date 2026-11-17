@@ -217,6 +217,17 @@ export interface GameSettings {
   palace: boolean;
 }
 
+/**
+ * Pałac (tylko człowiek, jak w oryginale): poziom części −1 (brak) albo 0–4 (ogrody i dziedziniec 0–3),
+ * rodzaj (styl 0–2) i liczba dotychczasowych rozbudów (PalaceBuildCount).
+ */
+export interface PalaceState {
+  /** 12 części: 0–8 budynek (0 i 8 zawsze −1), 9 lewy ogród, 10 dziedziniec, 11 prawy ogród. */
+  levels: number[];
+  types: number[];
+  buildCount: number;
+}
+
 /** Zdarzenie dla interfejsu (komunikat, dźwięk, porada). Silnik ich nie wyświetla. */
 export interface GameEvent {
   kind: string;
@@ -273,6 +284,8 @@ export interface GameState {
   scoreGraph?: number[];
   /** HistoryRankingScore graczy z raportów historyka; [0] — liczba raportów. Brak w starszych zapisach. */
   historyScores?: number[];
+  /** Pałac człowieka (DS:0xd91e, DS:0xb222, Var_1c20 — palace.ts); brak w starszych zapisach (wtedy wartości początkowe). */
+  palace?: PalaceState;
   rng: RandomSource;
   events: GameEvent[];
 }
