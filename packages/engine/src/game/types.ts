@@ -227,6 +227,18 @@ export interface GameEvent {
   [key: string]: unknown;
 }
 
+/**
+ * Wzorzec do ponownego zapisu .SVE/.MAP (sve.ts): pliki w chwili odczytu. Przy zapisie pola, których silnik nie ma
+ * (np. tabela jednostek, pałac, MapCellCount, TechnologyAcquiredFrom, nieużywane warstwy mapy), oraz bajty, których
+ * silnik nie odróżnia (np. śmieci za końcem napisów, wolne miejsca w tablicach), pochodzą z tego wzorca.
+ */
+export interface SveExtra {
+  /** Plik .SVE (37 856 bajtów), base64. */
+  sve: string;
+  /** Piksele obrazu .MAP 320×200 po dekompresji, base64. */
+  map: string;
+}
+
 export interface GameState {
   turn: number;
   year: number;
@@ -273,6 +285,12 @@ export interface GameState {
   scoreGraph?: number[];
   /** HistoryRankingScore graczy z raportów historyka; [0] — liczba raportów. Brak w starszych zapisach. */
   historyScores?: number[];
+  /** PeaceGraphData: maska graczy, z którymi gracz ma kontakt bez pokoju, co 4 tury (jak scoreGraph); brak w starszych zapisach. */
+  peaceGraph?: number[];
+  /** ReplayData: zajęta część bufora powtórki (najwyżej 4096 bajtów, replay.ts); brak w starszych zapisach. */
+  replay?: number[];
+  /** Zapis .SVE/.MAP, z którego wczytano grę (base64) — pola oryginału, których silnik nie ma (sve.ts). */
+  sveExtra?: SveExtra;
   rng: RandomSource;
   events: GameEvent[];
 }

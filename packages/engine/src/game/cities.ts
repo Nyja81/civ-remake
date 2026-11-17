@@ -17,6 +17,7 @@ import { UNITS } from '../data/units';
 import { MovementType } from '../data/enums';
 import { playerHasTech } from './techs';
 import { initPlayer } from './players';
+import { addReplayData, ReplayKind } from './replay';
 
 export function emptyCity(): City {
   return {
@@ -70,6 +71,7 @@ export function foundCity(state: GameState, player: number, x: number, y: number
   city.nameId = nameId;
   state.cityNameTaken[nameId] = true;
   if (name !== undefined) state.cityNames[nameId] = name.slice(0, 12);
+  addReplayData(state, ReplayKind.CityFounded, player, nameId, x, y);
 
   const i = cellIndex(x, y);
   state.map.improvements[i]! &= ~(Improvement.Fortress | Improvement.Mine);
@@ -127,6 +129,7 @@ export function deleteCity(state: GameState, cityId: number): void {
   const city = state.cities[cityId]!;
   const player = city.owner;
   const { x, y } = city;
+  addReplayData(state, ReplayKind.CityFounded, 0xff, city.nameId, x, y); // F0_1ade_018e: zniszczenie = gracz 0xff
   state.events.push({ kind: 'cityDeleted', player, city: cityId, x, y });
   if (city.production >= 0) state.players[player]!.unitsInProduction[city.production]!--;
   state.players[player]!.cityCount--;
@@ -202,6 +205,7 @@ export function cityTakeover(state: GameState, player: number, cityId: number, u
   state.players[loser]!.gold -= treasury;
   if (player !== 0) state.players[player]!.gold += treasury;
   if (city.size !== 0) {
+    addReplayData(state, ReplayKind.CityCaptured, player, city.nameId, x, y);
     city.status &= ~(CityStatus.StoredUnitsRestored | CityStatus.TechStolen | CityStatus.Celebrating);
     for (let d = 0; d < 20; d++) {
       const [dx, dy] = DIRECTIONS[d]!;
@@ -235,6 +239,8 @@ export function testIfPlayerDestroyed(state: GameState, player: number, destroye
   const p = state.players[player]!;
   state.events.push({ kind: 'civDestroyed', player, destroyer,
     text: destroyer >= 0 ? `${p.nationAdjective}\ncivilization\ndestroyed\nby ${state.players[destroyer]!.nationPlural}!\n` : `${p.nationAdjective}\ncivilization\nhas died out!\n` });
+  // Overlay_5: zwycięzca zapisany bajtem (brak zwycięzcy = -1 → 0xff, jak w asemblerze)
+  addReplayData(state, ReplayKind.CivDestroyed, player, destroyer);
   p.units.forEach((u, uid) => { if (u.type !== NO_UNIT) deleteUnit(state, player, uid); });
   const mask = ~(1 << player);
   for (let i = 0; i < state.map.explored.length; i++) state.map.explored[i]! &= mask;

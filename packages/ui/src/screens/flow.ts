@@ -4,7 +4,8 @@
  * po Retire / QUIT / końcu gry powrót do menu głównego.
  */
 import {
-  emptyHallOfFame, loadGame, newGame, saveGame, TECHS, worldFromMapPixels, type GameState, type HallOfFameEntry, type NewGameOptions,
+  emptyHallOfFame, loadGame, loadSve, newGame, resumeLoadedGame, saveGame, sveInfo, TECHS, worldFromMapPixels, type GameState,
+  type HallOfFameEntry, type NewGameOptions,
 } from '@civ-remake/engine';
 import { showMenuBox } from '../menuBox';
 import { yearToString } from '../text';
@@ -14,7 +15,7 @@ import { GameScreen } from './gameScreen';
 import { decodeFameDta, type FameStore } from './hallOfFame';
 import { GameType, showMainGameIntro } from './intro';
 import { showLogoAndMainGameMenu, type SavedGameLoader } from './mainMenu';
-import { initNewGameData, showInitText, type NewGameSettings } from './newGame';
+import { DIFFICULTY_NAMES, initNewGameData, showInitText, type NewGameSettings } from './newGame';
 
 /** Magazyn zapisów gry (w aplikacji: folder danych aplikacji). */
 export interface SaveStore {
@@ -23,9 +24,18 @@ export interface SaveStore {
   write(name: string, json: string): Promise<void>;
 }
 
+/** Zapisy oryginału CIVIL0–9.SVE (+ .MAP) z folderu gry — tylko do odczytu. */
+export interface OriginalSaveStore {
+  /** Numery zapisów, dla których są oba pliki. */
+  list(): Promise<number[]>;
+  read(index: number): Promise<{ sve: Uint8Array; map: Uint8Array }>;
+}
+
 export interface GameFlowHooks {
   /** Zapisy gry; bez nich „Load a Saved Game”, Save Game i autozapis są niedostępne. */
   readonly saves?: SaveStore;
+  /** Zapisy oryginału z folderu gry (wczytywanie z „Load a Saved Game”). */
+  readonly originalSaves?: OriginalSaveStore;
   /** Wywoływane po utworzeniu nowej gry (np. dla diagnostyki albo zapisu). */
   readonly onNewGame?: (state: GameState, settings: NewGameSettings) => void;
   /** Ziarno nowej gry; domyślnie losowe 0–32767. */
@@ -55,20 +65,43 @@ export function knownTechnologies(state: GameState): string[] {
   return TECHS.filter((t) => p.techs[t.id]).map((t) => t.name);
 }
 
-/** Okno wyboru zapisu: lista nazw w oknie menu (oryginał pyta o dysk i numer zapisu .SVE). */
-export function savedGameLoader(saves: SaveStore): SavedGameLoader {
+/** Wiersz listy jak w ReadGameInfoFromFile: „poziom imię, naród/rok”. */
+function originalSaveLabel(index: number, sve: Uint8Array): string {
+  const info = sveInfo(sve);
+  return `CIVIL${index}.SVE ${DIFFICULTY_NAMES[info.difficulty] ?? '?'} ${info.leader}, ${info.nation}/${yearToString(info.year)}`;
+}
+
+type SaveChoice = { label: string; load: () => Promise<GameState> };
+
+/**
+ * Okno wyboru zapisu: zapisy silnika (JSON, folder danych aplikacji), a gdy aplikacja ma dostęp do folderu gry —
+ * także zapisy oryginału CIVIL0–9.SVE (oryginał: okno „Select Load File...” z dziesięcioma miejscami).
+ */
+export function savedGameLoader(saves: SaveStore | undefined, originals?: OriginalSaveStore): SavedGameLoader {
   return async (ui) => {
-    const names = (await saves.list()).slice(-18);
-    if (names.length === 0) {
+    const choices: SaveChoice[] = [];
+    if (originals) {
+      for (const index of await originals.list().catch(() => [] as number[])) {
+        try {
+          const files = await originals.read(index);
+          choices.push({ label: originalSaveLabel(index, files.sve), load: async () => resumeLoadedGame(loadSve(files.sve, files.map)) });
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    }
+    const names = saves ? (await saves.list()).slice(-Math.max(18 - choices.length, 0)) : [];
+    choices.unshift(...names.map((name) => ({ label: name.replace(/\.json$/, ''), load: async () => loadGame(await saves!.read(name)) })));
+    if (choices.length === 0) {
       await showMenuBox(ui, 'No saved games.\n', 100, 80, { clearInput: true });
       return null;
     }
-    const r = await showMenuBox(ui, `Select saved game...\n${names.map((n) => ` ${n.replace(/\.json$/, '')}`).join('\n')}\n`, 60, 20, { clearInput: true });
+    const r = await showMenuBox(ui, `Select saved game...\n${choices.map((c) => ` ${c.label}`).join('\n')}\n`, 40, 20, { clearInput: true });
     if (r.index < 0) return null;
     try {
-      return loadGame(await saves.read(names[r.index]!));
+      return await choices[r.index]!.load();
     } catch (error) {
-      await showMenuBox(ui, `Could not load\n${names[r.index]}.\n`, 80, 80, { clearInput: true });
+      await showMenuBox(ui, `Could not load\n${choices[r.index]!.label}.\n`, 80, 80, { clearInput: true });
       console.error(error);
       return null;
     }
@@ -104,7 +137,7 @@ async function readFame(fame: FameStore | undefined, assets: GameAssets): Promis
 export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHooks = {}): Promise<never> {
   let preselected = await showMainGameIntro(ui, assets);
   const saves = hooks.saves;
-  const loader = saves ? savedGameLoader(saves) : undefined;
+  const loader = saves || hooks.originalSaves ? savedGameLoader(saves, hooks.originalSaves) : undefined;
   const fame = saves ? fameStore(saves) : undefined;
   for (;;) {
     const choice = await showLogoAndMainGameMenu(ui, assets, preselected, loader, () => readFame(fame, assets));
@@ -124,6 +157,7 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
       save: saves ? (s) => saves.write(saveName(s), saveGame(s)) : undefined,
       fame,
       fameInitial: () => readFame(undefined, assets),
+      writeReplay: saves ? (text) => saves.write('REPLAY.TXT', text) : undefined,
     }).run();
     // powrót do ekranu tytułowego
     ui.gfx.patternAvailable = false;

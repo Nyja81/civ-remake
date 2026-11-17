@@ -13,6 +13,9 @@ export interface CivApi {
   listSaves(): Promise<string[]>;
   readSave(name: string): Promise<string>;
   writeSave(name: string, json: string): Promise<void>;
+  /** Zapisy oryginału CIVIL0–9.SVE z plikiem .MAP w folderze gry (tylko odczyt; zapis gry zostaje w folderze aplikacji). */
+  listGameSaves(): Promise<number[]>;
+  readGameSave(index: number): Promise<{ sve: Uint8Array; map: Uint8Array }>;
 }
 
 import { UI_OPTIONAL_FILES, UI_REQUIRED_FILES } from '@civ-remake/ui/files';

@@ -31,4 +31,6 @@ export const UI_OPTIONAL_FILES = [
   ...Array.from({ length: 14 }, (_, i) => `KING${String(i).padStart(2, '0')}.PAL`),
   'STORY.TXT', 'BIRTH2.PIC', 'BIRTH3.PIC', 'BIRTH4.PIC', 'BIRTH5.PIC', 'BIRTH6.PIC', 'BIRTH7.PIC', 'BIRTH8.PIC',
   'BIRTH1.PAL', 'BIRTH2.PAL', 'BIRTH3.PAL', 'BIRTH4.PAL', 'BIRTH5.PAL', 'BIRTH6.PAL', 'BIRTH7.PAL', 'BIRTH8.PAL',
+  // powtórka po podboju świata (DisplayHailTheConquerorMessage): tło i galeria pokonanych władców
+  'SLAM1.PIC', 'SLAM2.PIC', 'SLAM1.PAL',
 ] as const;

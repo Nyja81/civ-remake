@@ -7,6 +7,7 @@ import { NATIONS } from '../data/nations';
 import { Tech, TECHS } from '../data/techs';
 import { UNITS } from '../data/units';
 import { BuildingId } from './buildings';
+import { addReplayData, ReplayKind } from './replay';
 import { Diplomacy, type GameState } from './types';
 import { playerHasWonder } from './cities';
 
@@ -76,6 +77,7 @@ export function researchFinished(state: GameState, player: number, source: numbe
   }
   if ((state.techFirstDiscoveredBy[tech]! & 7) === 0) {
     state.techFirstDiscoveredBy[tech] = player;
+    addReplayData(state, ReplayKind.TechDiscovered, player, tech);
     state.events.push({ kind: 'firstDiscovery', player, tech });
   }
   // Wielka Biblioteka (warunek przepisany dosłownie ze wzorca — do sprawdzenia w oryginale)

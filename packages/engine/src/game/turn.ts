@@ -31,7 +31,8 @@ import { WonderId } from './buildings';
 import { Government, Improvement, NO_UNIT, UnitStatus, type GameState } from './types';
 import { cityAt, deleteUnit, exploreCell, nearestCity, unitsAt, updateUnitVisibility } from './units';
 import { PIXEL_TO_TERRAIN } from '../world/earth';
-import { civilizationScore } from './score';
+import { civilizationScore, playerPopulation } from './score';
+import { addReplayData, ReplayKind } from './replay';
 import { diplomacyTurn } from './diplomacy';
 
 export type Order =
@@ -601,6 +602,17 @@ function endOfTurn(state: GameState): void {
     let maxTech = 0;
     for (let i = 1; i < 8; i++) maxTech = Math.max(maxTech, state.players[i]!.techCount);
     state.techCatchUp = state.year >= 0 ? Math.min(6, Math.max(0, maxTech - Math.trunc(state.turn / 9))) : 0;
+    // Powtórka: liczba miast i ludność człowieka, ranking (po dwóch graczy w bajcie: miejsce parzyste — młodsze 4 bity)
+    const h = state.players[state.humanPlayer]!;
+    const population = playerPopulation(state, state.humanPlayer);
+    addReplayData(state, ReplayKind.HumanStatus, h.cityCount, population >> 8, population & 0xff);
+    const rankings = [0, 0, 0, 0];
+    for (let i = 1; i < 8; i++) {
+      if (!(state.activeCivs & (1 << i))) continue;
+      const r = state.players[i]!.ranking;
+      rankings[r >> 1]! |= r & 1 ? i << 4 : i;
+    }
+    addReplayData(state, ReplayKind.Ranking, rankings[3]!, rankings[2]!, rankings[1]!, rankings[0]!);
   }
   if (state.turn >= state.nextHistoryTurn) {
     state.nextHistoryTurn = state.rng.next(40) + state.turn + 20;

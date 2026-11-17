@@ -45,7 +45,7 @@ export async function showLogoAndMainGameMenu(
         choice = { kind: 'random', options: { landMass: 1, temperature: 1, climate: 1, age: 1 } };
         break;
       case GameType.LoadGame: {
-        // Zapisy w formacie silnika (JSON), nie .SVE oryginału; okno wyboru zapisu dostarcza aplikacja.
+        // Zapisy silnika (JSON) i — z folderu gry — CIVIL?.SVE oryginału; okno wyboru zapisu dostarcza aplikacja (flow.ts).
         const state = loadSaved ? await loadSaved(ui) : null;
         if (!loadSaved) await showMenuBox(ui, 'Loading saved games\nis not available.\n', 80, 80, { frame: true, clearInput: true });
         if (state) {

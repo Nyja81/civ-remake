@@ -75,8 +75,8 @@ describe('koniec gry', () => {
     const { ui, state, screen } = setup();
     state.gameOver = 2;
     state.events.push({ kind: 'gameEnd', reason: 'conquest', canContinue: false, score: 0 });
-    // okno wyniku → wykres potęgi → postaci sławne (premia za podbój) → Hall of Fame
-    await drive(ui, [key('Enter'), key('Enter'), key('Enter'), key('Enter')], () => screen.processEvents());
+    // „hail the CONQUEROR” → okno wyniku → wykres potęgi → „See Replay?” (No replay) → postaci sławne (premia za podbój) → Hall of Fame
+    await drive(ui, [key('Enter'), key('Enter'), key('Enter'), key('Enter'), key('Enter'), key('Enter')], () => screen.processEvents());
     expect(state.gameOver).toBe(2);
   });
 
@@ -89,7 +89,7 @@ describe('koniec gry', () => {
     stored = old;
     state.gameOver = 2;
     state.events.push({ kind: 'gameEnd', reason: 'conquest', canContinue: false, score: 0 });
-    await drive(ui, [key('Enter'), key('Enter'), key('Enter'), key('c'), key('Enter')], () => screen.processEvents());
+    await drive(ui, [key('Enter'), key('Enter'), key('Enter'), key('Enter'), key('Enter'), key('c'), key('Enter')], () => screen.processEvents());
     expect(stored![0]!.leader).toBe(state.players[state.humanPlayer]!.leader);
     expect(stored!.filter((e) => e.totalScore > 0).length).toBe(1);
   });
