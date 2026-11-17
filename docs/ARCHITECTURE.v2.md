@@ -34,8 +34,9 @@ a nie źródłem kodu ani zasobów.
 | 5 | Interfejs — ekran 320×200 jak w oryginale, wygładzany 4× | `packages/ui`, `apps/desktop` | ekrany startowe, menu, okna, ekran gry z mapą, rozkazami, oknem miasta, zapisem (scalone do `main`) |
 | 5a | Grafiki oryginału — dekoder `.PIC`, czcionki `FONTS.CV`, reguły rysowania mapy | `packages/gfx` | teren, ulepszenia, mgła, miasta, jednostki, minimapa (`mapView.ts`) |
 | 6 | Pakiet zastępczy grafiki — wektorowy (SVG) i Freeciv „trident” | `packages/art`, `tools/tileset` | próbki |
-| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support/<aplikacja>/saves` | `apps/desktop` | paczka 0.5.1 (arm64, niepodpisana; View → Smoothing) |
-| 8 | Wzorzec i testy porównawcze — tylko dla dewelopera | `packages/oracle` | odczyt tabel z CIV.EXE |
+| 7 | Aplikacja na Maca — Electron, zapisy JSON w `~/Library/Application Support/<aplikacja>/saves`, zapisy oryginału CIVIL0–9.SVE/.MAP w folderze gry (odczyt i zapis, IPC `gamesaves:*`) | `apps/desktop` | paczka 0.5.2 (arm64, podpis ad hoc; View → Smoothing) |
+| 8 | Wzorzec i testy porównawcze — tylko dla dewelopera | `packages/oracle` | odczyt tabel z CIV.EXE (rozpakowanie EXEPACK w `packages/gfx`, wspólne z interfejsem) |
+| 8a | Dane grafiki z CIV.EXE gracza w czasie działania (nie w repozytorium) | `packages/ui/src/exeData.ts` | animacja twarzy władców i doradców (sekwencje DS:0x3a94…, punkty zaczepienia w segmencie 0x36fa) |
 
 ### Zasady projektowe silnika
 
@@ -77,15 +78,15 @@ a nie źródłem kodu ani zasobów.
 
 | Etap | Zakres | Stan (2026-11-17) |
 |---|---|---|
-| 0 | Repozytorium, tabele danych, generator losowy, uruchomienie wzorca, odczyt i zapis `.SVE` | w toku: zapis JSON i **odczyt/zapis `.SVE` + `.MAP`** (`sve.ts`, `picCodec.ts`, wczytanie z folderu gry w „Load a Saved Game”) gotowe; uruchomienie wzorca — do zrobienia |
+| 0 | Repozytorium, tabele danych, generator losowy, uruchomienie wzorca, odczyt i zapis `.SVE` | w toku: zapis JSON i **odczyt/zapis `.SVE` + `.MAP`** (`sve.ts`, `picCodec.ts`, wczytanie z folderu gry w „Load a Saved Game”, **zapis z GAME → Save Game i autozapis oknami oryginału** — `screens/saveGame.ts`; oryginał 474.01 wczytuje zapis silnika) gotowe; uruchomienie wzorca — do zrobienia |
 | 1 | Generator świata, mapa z grafiką oryginału, aplikacja na Maca | etapy 1–8 generatora (6–8 dodane), Ziemia, paczka 0.1.0 |
 | 2 | Jednostki, ruch, mgła wojny | **gotowe w silniku**: ruch z ZOC i kosztem terenu, statki z ładunkiem, widoczność, chaty, rozkazy osadników; widok mapy w `gfx` |
 | 3 | Miasta i ekonomia | **gotowe w silniku**: zakładanie/zdobywanie, praca mieszkańców, wzrost, produkcja, handel, korupcja, podatki, zadowolenie, utrzymanie, zakup |
 | 4 | Technologie, ustroje, zadowolenie, cuda | w dużej części: odkrycia i wybór badań, ustroje i rewolucja, efekty cudów w gospodarce; encyklopedia — Civilopedia (etap 8); brak: część cudów (statek, Manhattan) |
 | 5 | Walka, barbarzyńcy | walka i powstania barbarzyńców gotowe; brak: atak jądrowy, klęski w miastach, globalne ocieplenie |
 | 6 | Przeciwnik komputerowy | **gotowe w silniku**: strategie kontynentów, cele jednostek, ruchy jednostek i barbarzyńców, wybór produkcji, ustroje komputera, GoTo oryginału z tablicami ścieżek 20×13 (`goto.ts`, człowiek i komputer), karawany i dyplomaci komputera (szlak od razu po zbudowaniu karawany, kradzież/sabotaż, przekupywanie jednostkami ataku), rakieta obok celu, odległość oryginału F0_2dc4_0289 we wszystkich modułach |
-| 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | **gotowe**: punktacja (`score.ts`), koniec gry (podbój, statek, koniec panowania), statek kosmiczny (`spaceship.ts` + okno), dyplomacja komputer–komputer, prośby komputera, Hall of Fame, rozmowy z władcami (`kingMeeting.ts` + `screens/king.ts`, bez animacji twarzy, także po wizycie dyplomaty); karawany i dyplomaci człowieka (`unitActions.ts` + `screens/unitActions.ts`), **powtórka gry** (`replay.ts` w silniku i UI, „hail the CONQUEROR”) |
-| 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry, **okno miasta** (`screens/cityWindow.ts`: zasoby, mapka pól z przydziałem, specjaliści, budynki ze sprzedażą, jednostki, produkcja z CHANGE/AUTO/BUY, zakładki INFO/HAPPY/MAP), **raporty doradców i świata** (ADVISORS, WORLD, F1–F10, historyk, wykres potęgi — `reports.ts` w silniku, `screens/advisors.ts`), **Civilopedia** (`screens/civilopedia.ts`: listy, strony tematów, pomoc z wyboru badań i produkcji; opisy z BLURB0–4.TXT gracza albo własne), **pałac** (`palace.ts` w silniku, `screens/palace.ts`: rozbudowa po progach wyniku, widok, mini-pałac), **panorama miasta** (`cityView.ts` w silniku, `screens/cityView.ts`: VIEW, budowa, zdobycie, niepokoje, święto z animacjami), **historia świata** (STORY.TXT, BIRTH1–8, cykle palety — `screens/intro.ts`) gotowe; dźwięk, animacja założenia miasta — do zrobienia |
+| 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | **gotowe**: punktacja (`score.ts`), koniec gry (podbój, statek, koniec panowania), statek kosmiczny (`spaceship.ts` + okno), dyplomacja komputer–komputer, prośby komputera, Hall of Fame, rozmowy z władcami (`kingMeeting.ts` + `screens/king.ts`, z animacją twarzy i doradców — dane z CIV.EXE gracza, losowania wspólnym generatorem gry; także po wizycie dyplomaty); karawany i dyplomaci człowieka (`unitActions.ts` + `screens/unitActions.ts`), **powtórka gry** (`replay.ts` w silniku i UI, „hail the CONQUEROR”) |
+| 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry, **okno miasta** (`screens/cityWindow.ts`: zasoby, mapka pól z przydziałem, specjaliści, budynki ze sprzedażą, jednostki, produkcja z CHANGE/AUTO/BUY, zakładki INFO/HAPPY/MAP), **raporty doradców i świata** (ADVISORS, WORLD, F1–F10, historyk, wykres potęgi — `reports.ts` w silniku, `screens/advisors.ts`), **Civilopedia** (`screens/civilopedia.ts`: listy, strony tematów, pomoc z wyboru badań i produkcji; opisy z BLURB0–4.TXT gracza albo własne), **pałac** (`palace.ts` w silniku, `screens/palace.ts`: rozbudowa po progach wyniku, widok, mini-pałac), **panorama miasta** (`cityView.ts` w silniku, `screens/cityView.ts`: VIEW, budowa, zdobycie, niepokoje, święto z animacjami), **historia świata** (STORY.TXT, BIRTH1–8, cykle palety — `screens/intro.ts`), **animacja założenia miasta** (`foundNewCityAnimation`) gotowe; dźwięk — do zrobienia |
 
 ### Odstępstwa od układu oryginału (świadome)
 
@@ -131,9 +132,21 @@ Karawany i dyplomaci (`unitActions.ts`, asembler `Overlay_22.cs`, `Segment_2459.
 - AIEngine.MoveUnit: rakieta przenosi się na wolne pole obok celu i zwraca kierunek XOR 4 (4 → 0, 8 → 12) — jak w oryginale.
   (Poprawka naszego portu, nie wzorca: dodatek `atak × 4` do oceny pola tylko powyżej progu — L2b9d.)
 
+### Okna menu (MenuBoxDialog)
+
+- F0_2d05_0475 rysuje ramkę i tło okna tylko przy **parzystym Y** (`TEST y, 1`); przy nieparzystym menu leży na obrazie
+  (np. (36, 139) w rozmowie z władcą, (48, 33) lista zapisu, (64, 127) wynik zapisu, (160, 35) na DIFFS.PIC). `showMenuBox` przyjmuje
+  `frame` jawnie — przy nowych oknach ustawiać wg tej reguły.
+- Pętla okna woła F6_0000_1b33 (klatka twarzy władcy), gdy Var_3936 ≠ −1 — opcja `idle` w `showMenuBox`.
+
 ## Otwarte kwestie
 
-- Technologie startowe: wzorzec nie przyznaje żadnych (komunikat *INIT wymienia tylko drogi) — sprawdzić w oryginale (DOSBox).
+- Technologie startowe: wzorzec nie przyznaje żadnych (komunikat *INIT wymienia tylko drogi). W oryginale 474.01 (DOSBox,
+  Chieftain, Rzymianie) *INIT brzmi „…have knowledge of Irrigation, Mining, Ceremonial Burial, Pottery, and Roads” — oryginał
+  przyznaje technologie startowe (tu Ceremonial Burial i Pottery); do odtworzenia w `players.ts`. W tej samej grze przed animacją
+  założenia pierwszego miasta pokazuje się porada „CIVILIZATION NOTE” (Instant Advice) — u nas jej nie ma.
+- Zapis `.SVE` silnika wczytany i od razu zapisany w oryginale: różnice tylko w MapCellCount[człowiek] (0 → 1) i Score[człowiek]
+  (3 → 0); w `.MAP` oryginał zapisuje zawartość pamięci w nieużywanych obszarach (x 160–319, y 50–199), u nas 0.
 - Tabele przepisane ze wzorca (przekształcenia terenu, nazwy miast, plan i części statku kosmicznego) — dodać do `npm run extract`.
 - Generator losowy wzorca to MT19937 (nie rand() z MS C) — zgodność ziarna z oryginałem niesprawdzona.
 - Znaczenie pola `unknown1` w tabeli terenu (`terrainChangeId` to wartość piksela terenu na mapie oryginału).

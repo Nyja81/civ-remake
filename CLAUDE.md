@@ -528,3 +528,49 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   `rcodesign verify` zgłasza brak CMS — normalne przy podpisie ad hoc). Na Macu Damiana aplikacja rozpakowana bezpośrednio do
   Pobranych (bez atrybutu kwarantanny) skryptem Pythona z zachowaniem dowiązań — `unzip` w folderze bez prawa usuwania psuje
   dowiązania frameworków (pliki zastępcze).
+
+### 2026-11-17 — twarze władców w rozmowach, animacja założenia miasta, zapis .SVE z menu (gałąź faces-svesave)
+- Dane z CIV.EXE w czasie działania: `unpackExepack` przeniesione do `packages/gfx` (oracle je re-eksportuje), CIV.EXE i SETTLERS.PIC
+  na liście plików opcjonalnych. `packages/ui/src/exeData.ts` odnajduje w obrazie programu (nic nie trafia do repozytorium): tablice
+  sekwencji twarzy DS:0x3a94/0x3aa6/0x3ab8 i X doradców DS:0x3afe (kotwica: napisy DS:0x3ad8 „govt0a.pic\0king00.pic\0king\0govt0a.pic”),
+  segment punktów zaczepienia (wzorzec 0x36fa; adres w słowie DS:0x640a, zapasowo — przegląd segmentów po kształcie danych):
+  czcionki władców wg nacji, punkty twarzy (0x10/0x48), punkty głów doradców (0x80/0xF0). W wersji 474.01 Damiana układ DS w tym
+  miejscu jest ten sam co w 475.05 wzorca (inne miejsca DS — np. napisy F22 — są przesunięte).
+- Twarze (`screens/king.ts`, asembler `Overlay_6.cs` z ec23ac3): F6_0000_1d2b/21ac — sala z ciałami doradców z GOVT??.PIC
+  (dla i < (ranking + 1) / 2), klatki oczu/ust z KING??.PIC (14 par, siatka 60×50 z przeskokami), głowy doradców (4 × 3 miny);
+  F6_0000_1b33 — klatka w każdym obiegu pętli okna (`showMenuBox` z nową opcją `idle`, obieg do 10 jednostek zegara), mówienie
+  (Var_d76c), sekwencje min, losowe mrugnięcia, zmiany kopii tablic (DS:0x3a9a, 0x3ab4, 0x3ab7) jak w oryginale; losowania
+  F0_2dc4_005d wspólnym generatorem gry (`state.rng`) — liczba losowań zależy od czasu otwarcia okna, jak w oryginale;
+  F6_0000_2362 — rysowanie głów i twarzy; F6_0000_233c — koniec; czcionka władcy = bajt z 0x36fa + 8 (10 → 3).
+  Silnik (`kingMeeting.ts`): kroki `speech`/`dialog` niosą `mood` (Var_3936), `talk` (zapis Var_d76c) i `stern` (zapis Var_6b8e)
+  dokładnie w miejscach zapisów F6_0000_0000/16cd/1a3f, Diplomacy (*HELPME/*CRUSADE) i ResearchFinished (*GAPE); podczas wymiany
+  technologii mina −1. Interfejs przenosi zapisy do zmiennych animacji trwających między rozmowami (jak segment danych).
+- Animacja założenia miasta (`screens/cityView.ts` → `foundNewCityAnimation`, asembler `Overlay_22.cs` F22_0000_0eaf): osadnicy
+  z SETTLERS.PIC na HILL.PIC, napis „<miasto> founded: <rok>.” (tekst z CIV.EXE; nowszy wzorzec ma „founded in / the year”),
+  wygaszenie, panorama (−3) albo — po klawiszu — czarny ekran z paletą gry. Podpięte w `gameScreen.ts` po nadaniu nazwy miastu
+  człowieka przy włączonych animacjach.
+- Zapis w formacie oryginału z menu (`screens/saveGame.ts`, asembler `Overlay_11.cs` F11_0000_036a/05f8/0103/04ef/08f6): okno dysku
+  „Which drive contains your Save Game disk?” (białe tło z ramką z ikon — jedno losowanie generatora gry, A–F, Enter, Esc; w aplikacji
+  jedynym dyskiem jest folder gry jako C:, inny dysk → „No Disk in Drive X.”), lista „Select Save File...” CIVIL0–3 (nazwy poziomów
+  z Array_33a2: Chief, Lord, Prince, King, Emperor; domyślnie ostatnie miejsce — Var_e168, także po wczytaniu zapisu oryginału),
+  „ c:CIVILn.SVE … ... save in progress.”, wynik „Game has been saved.” / czerwone pole i „Game NOT saved.” z „Write access denied.” /
+  „Disk Full.” Autozapis co 50 tur — to samo okno z miejscem 4 + ((tura / 50 − 1) % 6). `GameScreenOptions.originalSaves` z `write`;
+  bez niego GAME → Save Game zapisuje JSON jak dotąd. Decyzja: autozapis zapisuje oba formaty — CIVIL4–9.SVE (oryginał) i cichy
+  JSON silnika w folderze aplikacji (JSON ma pełny stan, m.in. generator i pamięć GoTo, których .SVE nie przenosi).
+  `apps/desktop`: IPC `gamesaves:write` (najpierw .MAP, potem .SVE; zachowuje wielkość liter istniejących plików; kody błędów
+  EACCES/EPERM/EROFS → „Write access denied.”, ENOSPC → „Disk Full.”).
+- Ustalenie (MenuBoxDialog F0_2d05_0475): ramka okna menu rysuje się tylko przy PARZYSTYM Y (`TEST y, 1`) — stąd okna bez ramki
+  w (36, 139), (48, 33), (64, 127), (160, 35). `showMenuBox` nadal przyjmuje `frame` jawnie; reguła zastosowana w oknach zapisu.
+- Sprawdzone w DOSBoxie z oryginałem 474.01 (zrzuty tylko lokalnie): okno dysku (wczytanie i zapis), lista, „save in progress”,
+  wynik, animacja założenia miasta i panorama po niej — układ zgodny. Oryginał wczytuje CIVIL3.SVE zapisany przez `saveSve`;
+  ponowny zapis w oryginale różni się tylko MapCellCount[człowiek] (0 → 1), Score[człowiek] (3 → 0) i „śmieciami” w nieużywanych
+  obszarach obrazu .MAP (x 160–319, y 50–199 — u nas 0). Wygląd twarzy porównany tylko na zrzutach z naszego UI (klatki pasują
+  bez szwów); rozmowy z władcą w oryginale nie wywołano.
+- Testy: 311 + 9 nowych (bez `CIV1_DIR`: `packages/ui/test/kingFaces.test.ts`, `saveGame.test.ts`, animacja w `palace.test.ts`,
+  zapisy animacji w `packages/engine/test/kingMeeting.test.ts`; z `CIV1_DIR`: dane z CIV.EXE i klatki na plikach gry).
+- Odstępstwa: obieg okna z animacją kończy się wcześniej, gdy przyjdzie zdarzenie (oryginał zawsze czeka 10 jednostek);
+  klawisz przerywający marsz osadników jest zużyty (oryginał zostawia go w buforze — kbhit — skutek ten sam: bez panoramy);
+  po „File Error” przy otwarciu .SVE oryginał nie ustawia Var_681c i melduje „Game has been saved.” — u nas „Game NOT saved.”;
+  wybór dysku tylko klawiaturą (jak F0_2d05_0ac9); bez CIV.EXE twarz jest nieruchoma i animacja nie losuje.
+- Do zrobienia: twarz władcy w „hail the CONQUEROR” (Replay — te same punkty 0x36fa:0x10/0x12), okno wczytywania oryginału
+  (F11_0000_0000 z wyborem dysku i dziesięcioma miejscami), dźwięk.
