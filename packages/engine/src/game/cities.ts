@@ -6,6 +6,7 @@
 import { spaceshipLost } from './spaceship';
 import { MAP_HEIGHT } from '../data/enums';
 import { WONDERS } from '../data/buildings';
+import { NATIONS } from '../data/nations';
 import { TERRAIN_MODIFICATIONS } from '../data/terrainModifications';
 import { Tech } from '../data/techs';
 import { Terrain } from '../world/generate';
@@ -217,7 +218,10 @@ export function cityTakeover(state: GameState, player: number, cityId: number, u
     exploreCell(state, state.humanPlayer, x, y);
     city.visibleSize = player === state.humanPlayer ? 0 : city.size;
   }
+  // Actions.F0_2459_0000: przy udziale człowieka krótki hymn zdobywcy przed panoramą/komunikatem, PlayTune(1) po nim
+  const humanInvolved = player === state.humanPlayer || loser === state.humanPlayer;
   state.events.push({ kind: 'cityCaptured', player, loser, city: cityId, x, y, treasury, destroyed: city.size === 0,
+    ...(humanInvolved ? { tune: NATIONS[state.players[player]!.nation]?.shortTune, tuneAfter: 1 } : {}),
     text: `${state.players[player]!.nationPlural} capture\n${cityName(state, cityId)}. ${treasury} gold\npieces plundered.\n` });
   setCellOwner(state, x, y, player);
   state.players[loser]!.units.forEach((u, uid) => {

@@ -26,6 +26,7 @@ import { Palette, readPaletteRange } from '../palette';
 import { PaletteCycles } from '../paletteCycle';
 import { Surface } from '../surface';
 import { yearToString } from '../text';
+import { TUNE } from '../sound';
 import { TIMER_TICK_MS, type Ui } from '../ui';
 import { FIGURE_OFFSETS_X, FIGURE_OFFSETS_Y, WONDER_RECTS } from '../data/screenTables';
 
@@ -247,6 +248,8 @@ export async function showCityView(ui: Ui, assets: GameAssets, state: GameState,
       drawTitle(ui, state, cityId, message, gfx.screens[1]);
     }
     if (init) {
+      // F19_0000_0000 (0x0000:0x0e2c): nowy budynek wchodzi do panoramy z utworem 44
+      ui.playTune(TUNE.newBuilding);
       await ui.dissolve(1);
     } else {
       gfx.fillRect(0, 0, 320, 200, 0);

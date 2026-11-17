@@ -37,7 +37,7 @@ export function nuclearAttack(state: GameState, player: number, x: number, y: nu
     }
   }
   nuclearEffects(state, x, y);
-  state.events.push({ kind: 'nuclear', player, x, y });
+  state.events.push({ kind: 'nuclear', player, x, y, tune: 42 }); // NukeAnimation: PlayTune(42)
 }
 
 /** Skutki wybuchu albo awarii elektrowni: miasta tracą połowę mieszkańców, ląd zostaje skażony (2/3 pól). */

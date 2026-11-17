@@ -25,6 +25,7 @@ import { Palette, readPaletteRange } from '../palette';
 import { Surface } from '../surface';
 import { replaceKeywords, textSection, yearToString } from '../text';
 import type { Ui } from '../ui';
+import { combatTune, longTune, TUNE } from '../sound';
 import { showScoreScreen } from './reports';
 import { endGameHallOfFame, type FameStore } from './hallOfFame';
 import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
@@ -121,6 +122,8 @@ export class GameScreen {
     this.sprites = prepareSprites({ ter: assets.pic('TER257.PIC'), sp: assets.pic('SP257.PIC'), sp299: assets.pic('SP299.PIC') });
     this.gamePalette = buildGamePalette(assets);
     const me = state.players[state.humanPlayer]!;
+    // Sound (GameSettingFlags 0x10) — ustawienie gry; Preferences i Alt+V zmieniają je w miejscu
+    ui.soundSettings = state.settings;
     this.kingKeywords = { US: me.nationPlural, RPLC1: me.leader };
     this.textDrawer = (dst, text, x, y, color, shadow) => {
       const s = dst instanceof Surface ? dst : (Object.assign(Object.create(Surface.prototype), dst) as Surface);
@@ -139,6 +142,8 @@ export class GameScreen {
     this.eventsSeen = 0;
     this.selectNextUnit(-1, true);
     await this.redrawMapWithBlankingEffect();
+    // GameTurn (0x1238:0x013f): w pierwszej turze milknie hymn z ekranu *INIT
+    if (this.state.turn === 0) this.ui.playTune(TUNE.stop);
     await this.processEvents();
     for (;;) {
       if (this.state.gameOver === 1) {
@@ -181,6 +186,12 @@ export class GameScreen {
   async handle(e: UiEvent): Promise<GameScreenResult | null> {
     if (e.type === 'mousedown') return this.handleClick(e.x, e.y, e.button);
     if (!isKey(e)) return null;
+    if (e.alt && e.key.toLowerCase() === 'v') {
+      // PlayerTurn (Alt+V, 0x1403:0x384e): przełączenie dźwięku z komunikatem „Sounds ON/OFF”
+      this.state.settings.sound = !this.state.settings.sound;
+      await showDialog(this.ui, `Sounds ${this.state.settings.sound ? 'ON' : 'OFF'}\n`, 100, 80);
+      return null;
+    }
     if (e.alt) {
       const index = { g: 0, o: 1, a: 2, w: 3, c: 4 }[e.key.toLowerCase()];
       return index === undefined ? null : this.showTopMenu(index);
@@ -320,14 +331,47 @@ export class GameScreen {
     this.ui.present();
   }
 
-  /** Nowe zdarzenia silnika jako okna: komunikaty, porady (Instant Advice), nazwa nowego miasta. */
+  /** Nowe zdarzenia silnika jako okna: komunikaty, porady (Instant Advice), nazwa nowego miasta — z dźwiękiem oryginału. */
   async processEvents(): Promise<void> {
     const events = this.state.events;
     while (this.eventsSeen < events.length) {
       const ev = events[this.eventsSeen++]!;
-      if (await this.panoramaEvent(ev)) continue;
+      await this.eventSound(ev);
+      await this.showEvent(ev);
+      if (typeof ev.tuneAfter === 'number') this.ui.playTune(ev.tuneAfter);
+    }
+  }
+
+  /**
+   * PlayTune przed zdarzeniem: `tune` z silnika (miejsca wywołań oryginału), dźwięk walki widocznej dla człowieka
+   * (AttackUnit) i wybuch jądrowy (NukeAnimation, także przy katastrofie elektrowni — przed utworem 36).
+   * Animacji walki i wybuchu jeszcze nie ma: przy włączonym dźwięku odczekujemy tyle, ile trwałyby
+   * (walka ok. 58 jednostek zegara, wybuch 35 × 5), żeby efekt nie został przerwany następnym utworem.
+   */
+  private async eventSound(ev: GameEvent): Promise<void> {
+    const pause = async (ticks: number) => {
+      if (this.ui.soundSettings.sound) await this.ui.waitTimer(ticks);
+    };
+    if (ev.nuclearCatastrophe === true) {
+      this.ui.playTune(TUNE.nuclearExplosion);
+      await pause(NUKE_ANIMATION_TICKS);
+    }
+    if (ev.kind === 'combat') {
+      if (ev.seen !== true) return;
+      this.ui.playTune(combatTune(this.state, ev));
+      await pause(COMBAT_ANIMATION_TICKS);
+      return;
+    }
+    if (typeof ev.tune !== 'number') return;
+    this.ui.playTune(ev.tune, typeof ev.tuneArg === 'number' ? ev.tuneArg : 0);
+    if (ev.kind === 'nuclear') await pause(NUKE_ANIMATION_TICKS);
+  }
+
+  private async showEvent(ev: GameEvent): Promise<void> {
+    {
+      if (await this.panoramaEvent(ev)) return;
       const fromAi = ev.kind === 'aiRequest' || ev.kind === 'meetLeader' || ev.kind === 'envoy';
-      if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message' && !fromAi) continue;
+      if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message' && !fromAi) return;
       if (typeof ev.text === 'string' && ev.text) {
         // okna z położeniem oryginału (dialogX, dialogY); mapX/mapY — DrawVisibleMap przed oknem
         if (typeof ev.mapX === 'number' && typeof ev.mapY === 'number') {
@@ -960,5 +1004,9 @@ export function buildGamePalette(assets: GameAssets): Palette {
   }
   return palette;
 }
+
+/** Czas animacji walki w AttackUnit (11×2 + 4×1 + 8×4 jednostek zegara) i wybuchu (NukeAnimation: 35 × 5). */
+const COMBAT_ANIMATION_TICKS = 58;
+const NUKE_ANIMATION_TICKS = 175;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));

@@ -4,6 +4,7 @@ export * from './palette';
 export * from './gfx';
 export * from './input';
 export * from './ui';
+export * from './sound';
 export * from './menuBox';
 export * from './editBox';
 export * from './text';

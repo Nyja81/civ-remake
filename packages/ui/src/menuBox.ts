@@ -236,6 +236,11 @@ export async function showMenuBox(ui: Ui, text: string, x: number, y: number, op
       } else if ((e.alt && key.toLowerCase() === 'h') || key === 'F1') {
         helpRequested = true;
         exit = true;
+      } else if (e.alt && key.toLowerCase() === 'v') {
+        // F0_2d05_0031 (0x2d05:0x039a): Alt+V przełącza Sound; PlayTune(1) po wyłączeniu sprawdza już wyłączone
+        // ustawienie, więc nic nie robi — muzyka gra do końca, jak w oryginale
+        ui.soundSettings.sound = !ui.soundSettings.sound;
+        if (!ui.soundSettings.sound) ui.playTune(1);
       } else if (key === 'ArrowUp') {
         if (selected === -1 && optionLines.length > 0) selected = 0;
         else if (selected > 0) selected--;

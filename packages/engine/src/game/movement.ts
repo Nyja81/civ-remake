@@ -93,7 +93,7 @@ export function moveUnit(state: GameState, player: number, unitId: number, direc
     // Strefa kontroli
     if (otherId === -1 && isEnemyUnitAdjacent(state, player, unit.x, unit.y) && isEnemyUnitAdjacent(state, player, nx, ny) &&
       unit.type !== 26 && unit.type !== 27 && curTerrain !== Terrain.Water) {
-      if (human) state.events.push({ kind: 'advice', key: '*ZOC', sound: 37 });
+      if (human) state.events.push({ kind: 'advice', key: '*ZOC', tune: 37 }); // PlayTune(37) przed poradą
       clearGoto(unit);
       return blocked('zoc');
     }

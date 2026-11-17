@@ -26,6 +26,7 @@
  */
 import { playerHasTech, Tech, type GameState, type KingKeywords, type KingMeeting, type MeetingStep } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
+import { ANTHEM, longTune, shortTune, THREAT_KEYS, TUNE } from '../sound';
 import { showMenuBox } from '../menuBox';
 import { readPaletteRange } from '../palette';
 import { Surface } from '../surface';
@@ -388,19 +389,29 @@ export async function runKingMeeting(
     ui.present();
     return r.index;
   };
+  // F6_0000_0000: PlayTune(33) przed groźbą albo żądaniem władcy w sali tronowej (*CANCEL tylko jako żądanie — nastrój 2;
+  // bez przyjęcia posła tekst idzie zwykłym oknem i bez dźwięku)
+  const threat = (step: Extract<MeetingStep, { kind: 'speech' | 'dialog' }>) => {
+    if (step.key !== null && THREAT_KEYS.has(step.key) && step.mood === 2) ui.playTune(TUNE.threat);
+  };
   for (let step = meeting.step; step; ) {
     let answer = 0;
     switch (step.kind) {
       case 'emissary':
         if (step.x !== -1) hooks.centerMap?.(step.x - 8, step.y - 2);
+        // F6_0000_16cd (0x0000:0x1771): krótki hymn władcy z parametrem 3 przy pytaniu o posła
+        ui.playTune(shortTune(state, step.player), ANTHEM);
         answer = await dialog(step.text, 100, 80);
         break;
       case 'portrait':
+        // F6_0000_16cd po F6_0000_1d2b: długi hymn władcy z parametrem 3 w sali tronowej
+        ui.playTune(longTune(state, step.player), ANTHEM);
         drawThroneRoom(ui, assets, state, step.player);
         ui.gfx.fontId = leaderFontId(state.players[step.player]!.nation);
         break;
       case 'speech':
       case 'dialog':
+        if (step.kind === 'speech') threat(step);
         // zapisy Var_3936 / Var_d76c / Var_6b8e sprzed okna
         anim.globals.mood = step.mood;
         if (step.talk !== null) anim.globals.talk = step.talk;
@@ -414,9 +425,10 @@ export async function runKingMeeting(
         await hooks.advice?.(step.key, keywords);
         break;
       case 'close':
-        // F6_0000_16ac: F6_0000_233c, Var_3936 = −1
+        // F6_0000_16ac: F6_0000_233c (koniec animacji i muzyki), Var_3936 = −1
         endFaceAnimation(ui);
         anim.globals.mood = -1;
+        ui.playTune(TUNE.stop);
         ui.gfx.fontId = 1;
         await hooks.close?.();
         break;

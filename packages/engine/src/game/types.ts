@@ -233,13 +233,20 @@ export interface PalaceState {
   buildCount: number;
 }
 
-/** Zdarzenie dla interfejsu (komunikat, dźwięk, porada). Silnik ich nie wyświetla. */
+/**
+ * Zdarzenie dla interfejsu (komunikat, dźwięk, porada). Silnik ich nie wyświetla.
+ * Dźwięk tam, gdzie oryginał woła PlayTune: `tune` (z parametrem `tuneArg`) przed pokazaniem zdarzenia,
+ * `tuneAfter` po nim (zwykle 1 — koniec utworu); zdarzenie `{ kind: 'tune' }` — sam dźwięk.
+ */
 export interface GameEvent {
   kind: string;
   player?: number;
   text?: string;
   x?: number;
   y?: number;
+  tune?: number;
+  tuneArg?: number;
+  tuneAfter?: number;
   [key: string]: unknown;
 }
 

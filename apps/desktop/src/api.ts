@@ -10,6 +10,9 @@ export type SaveWriteResult = { ok: true } | { ok: false; file: 'map' | 'sve'; c
 /** Wygładzanie obrazu: brak (piksele oryginału), lekkie (xBR bez mieszania kolorów), mocne (xBR z mieszaniem + zmiękczenie). */
 export type Smoothing = 'none' | 'light' | 'strong';
 
+/** Karta dźwiękowa: sterownik ASOUND.CVL (AdLib), ISOUND.CVL (głośnik PC) albo bez dźwięku. */
+export type SoundCardChoice = 'adlib' | 'speaker' | 'none';
+
 export interface CivApi {
   /** Wczytuje pliki grafik i mapy z zapamiętanego folderu z oryginalną grą. */
   load(): Promise<LoadResult>;
@@ -27,6 +30,10 @@ export interface CivApi {
   getSmoothing(): Promise<Smoothing>;
   /** Wywoływane po zmianie wygładzania w menu. */
   onSmoothing(callback: (mode: Smoothing) => void): void;
+  /** Zapamiętana karta dźwiękowa (menu View → Sound). */
+  getSoundCard(): Promise<SoundCardChoice>;
+  /** Wywoływane po zmianie karty dźwiękowej w menu. */
+  onSoundCard(callback: (card: SoundCardChoice) => void): void;
 }
 
 import { UI_OPTIONAL_FILES, UI_REQUIRED_FILES } from '@civ-remake/ui/files';

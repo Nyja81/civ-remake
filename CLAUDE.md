@@ -611,3 +611,36 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   wybór dysku tylko klawiaturą (jak F0_2d05_0ac9); bez BACK??/KING??.PIC logika animacji i jej losowania działają, klatki nie są rysowane.
 - Do zrobienia: twarz władcy w „hail the CONQUEROR” (Replay — te same punkty 0x36fa:0x10/0x12), okno wczytywania oryginału
   (F11_0000_0000 z wyborem dysku i dziesięcioma miejscami), dźwięk.
+### 2026-11-17 — etap 8: dźwięk i muzyka jak w oryginale
+- Decyzja: zamiast odtwarzać format utworów — **wykonujemy sterowniki oryginału** (`ASOUND.CVL` AdLib, `ISOUND.CVL` głośnik PC)
+  z kopii gracza na własnym emulatorze 8086. Dane utworów są w sterownikach; nic z oryginału nie trafia do repozytorium.
+- Nowy pakiet `packages/sound` (czysty TS, bez Web Audio): `cpu8086.ts` (interpreter 8086/80186, porty i przerwania przez gospodarza),
+  `cvlDriver.ts` (ładowanie MZ z relokacjami, 11 punktów wejścia, INT 21h/1Ah bez skutku), `opl3.ts` (przeniesienie Nuked OPL3 1.8,
+  **LGPL-2.1** — jedyny plik na tej licencji), `devices.ts` (AdLib: rejestry, zegary T1/T2 do wykrycia karty, bit WSE YM3812;
+  głośnik PC: kanał 2 zegara 8253 + port 0x61), `player.ts` (`SoundPlayer`: taktowanie jak w CIV.EXE 474.01 — przerwanie zegara
+  z odświeżaniem VGA 70,086 Hz, co 7. klatka bez taktu sekwencera (60 Hz), szybki zegar 4 przerwania na klatkę dla punktu 4).
+- Ustalenia (asembler CIV.EXE 474.01 i dosłowne tłumaczenie 475.05): PlayTune = F0_11a8_046c → punkt wejścia 1 tylko przy bicie 0x10
+  ustawień; tablica skoków sterownika pod 1000:0A1D (474.01) / 1000:0A2B (475.05); ASOUND ma 45 procedur utworów (0–44);
+  inicjalizacja szuka miksera Sound Blaster Pro (0x224) i AdLib Gold — bez nich pisze do 0x388.
+- Interfejs: `UiHost.playTune` / `tuneCounter`, `Ui.playTune` (sprawdza Sound), `Ui.soundSettings` (przed grą własne, w grze
+  `state.settings`), `Ui.waitTunePhrase`; `packages/ui/src/sound.ts` — numery utworów, hymny z tabeli nacji, `combatTune`.
+  Wywołania jak w oryginale: napisy (3), menu główne (koniec frazy 5269 + k·288, potem 1), historia świata (1, 4, … 1), *INIT
+  (długi hymn, 3; cisza w turze 0), rozmowy z władcą (poseł — krótki hymn, sala tronowa — długi, groźby 33, koniec 1), pałac,
+  postacie sławne (34), „hail the CONQUEROR” i ekran pokonanego władcy, nowy budynek w panoramie (44), Alt+V w grze („Sounds ON/OFF”)
+  i w oknach menu. Silnik: pola zdarzeń `tune`/`tuneArg`/`tuneAfter` i zdarzenie `tune` tam, gdzie oryginał woła PlayTune (głód,
+  test jądrowy, niepokoje, upadek demokracji, święto i jego koniec, katastrofa elektrowni, odkrycie człowieka, cud komputera,
+  zdobycie miasta, koniec panowania, przylot statku, ZOC 37, wybuch 42); zdarzenie `combat` ma `seen` (walka widoczna dla człowieka).
+- Aplikacja: `apps/desktop/src/renderer/audio.ts` — `SoundPlayer` w `ScriptProcessorNode`, menu View → Sound (AdLib / PC Speaker /
+  No Sound, `config.json`), `autoplayPolicy: 'no-user-gesture-required'`; pliki `ASOUND.CVL`, `ISOUND.CVL` na liście opcjonalnych.
+- Weryfikacja: oryginał w DOSBoxie 0.74 (VGA, `sbtype=sb2`) — nagranie rejestrów karty (.DRO) utworu 3 zgodne w 98,7% (różnice to
+  zapisy bez zmiany wartości), czasy ±13 ms, rozjazd 1,5 ms po 44 s; głośnik PC (.WAV) — te same wysokości i rytm. Aplikacja
+  uruchomiona w Xvfb: intro gra (licznik taktów i zapisy rosną), po wyborze z menu muzyka historii świata.
+- Testy: 311 (26 pominiętych bez `CIV1_DIR`), 334 z plikami gry: interpreter 8086, syntetyczny sterownik .CVL, OPL (częstotliwość,
+  WSE, wykrywanie karty), taktowanie, głośnik PC; na plikach gry — nuty i czasy utworu 3 jak w DOSBoxie, wszystkie 45 utworów
+  obu sterowników bez błędu emulacji; UI — `packages/ui/test/sound.test.ts`.
+- **Niesprawdzone**: odsłuch na Macu (brak urządzenia dźwięku w kontenerze), poziom głośności (przyjęty jak w DOSBoxie), obciążenie
+  procesora na Macu, Roland MT-32 (`RSOUND.CVL`) i Tandy (`TSOUND.CVL`) — nieobsługiwane.
+- Odstępstwa: brak animacji walki i wybuchu — przy włączonym dźwięku krótkie czekanie zamiast nich (58 i 175 jednostek zegara);
+  przylot statku bez animacji lotu — utwór 3 (34 przy zwycięstwie człowieka) przy komunikacie; przegrana (ARCH.PIC, 35) — ekranu
+  jeszcze nie ma; tempo intro i historii świata liczone zegarem komputera (60/s), nie licznikiem sterownika; PlayTune(0) przy wyjściu
+  z programu pominięte.

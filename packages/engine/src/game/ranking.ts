@@ -2,6 +2,7 @@
  * Ranking cywilizacji i „cuda komputera”. Źródło: GameEngine.RankPlayers i GiveWonderToAI z OpenCivOne (MIT).
  */
 import { BUILDINGS, WONDERS } from '../data/buildings';
+import { NATIONS } from '../data/nations';
 import { Tech } from '../data/techs';
 import { UNITS } from '../data/units';
 import { cityName } from './cities';
@@ -69,7 +70,8 @@ export function giveWonderToAI(state: GameState): void {
       city.shields = 0;
       addReplayData(state, ReplayKind.Wonder, player, wonder);
       p.gold -= Math.min(Math.max(Math.trunc(p.gold / 3), 0), 10 * def.cost - city.shields);
-      state.events.push({ kind: 'message', style: 'travelers', wonder,
+      // F0_1238_1767 (GiveWonderToAI): krótki hymn budowniczego przed komunikatem, PlayTune(1) po nim
+      state.events.push({ kind: 'message', style: 'travelers', wonder, tune: NATIONS[p.nation]?.shortTune, tuneAfter: 1,
         text: `${cityName(state, cityId)} (${p.nationAdjective})\nbuilds ${def.name}.\n` });
       if (wonder === 14) {
         selectNextResearch(state, player, 0);
