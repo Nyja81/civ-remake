@@ -55,3 +55,11 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Fragment mapy: zaokrąglone wybrzeża, płycizny, rzeka łącząca się z sąsiednimi kaflami i morzem.
 - Styl do akceptacji przez Damiana przed rysowaniem reszty.
 
+### 2026-11-17 — zmiana kierunku grafiki: zestaw Freeciv „trident”
+- Decyzja Damiana: grafika ma wyglądać jak w oryginale; bierzemy zestaw „trident” z Freeciv (GPL-2.0+) i wygładzamy.
+- `tools/tileset/` (prototyp w Pythonie + Pillow): odczyt plików `.spec`, składanie mapy z dopasowaniem kafli
+  do sąsiadów (wybrzeża, rzeki z ujściami, lasy, góry, arktyka), wygładzanie hq4x + lekkie zmiękczenie.
+  Uruchomienie: `FREECIV_DATA=/sciezka/freeciv/data python3 tools/tileset/preview.py` (wymaga `pip install pillow hqx numpy`).
+- Próbka: `docs/samples/freeciv-trident-preview.png`. Pliki Freeciv nie są jeszcze w repozytorium.
+- Do zrobienia: przeniesienie składania kafli do TypeScriptu (warstwa interfejsu), atlas wygładzonych kafli.
+

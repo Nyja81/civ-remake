@@ -16,7 +16,7 @@ a nie źródłem kodu ani zasobów.
 | Sterowanie | mysz + klawiatura; bez dotyku |
 | Tryb gry | jeden gracz; bez gry wieloosobowej |
 | Zasady | 1:1 z oryginałem; ewentualne poprawki tylko jako przełączane opcje |
-| Grafika | nowa, wektorowa, widok z góry na siatce kwadratów, układ i czytelność jak w oryginale, wysoka rozdzielczość |
+| Grafika | zmiana 2026-11-17: zestaw „trident” z projektu Freeciv (GPL-2.0+), widok z góry jak w oryginale, wygładzany 4× (hq4x + lekkie zmiękczenie); własny pakiet wektorowy `packages/art` zostaje jako alternatywa |
 | Język gry | angielski |
 | Język kodu i dokumentacji | identyfikatory po angielsku, komentarze i dokumentacja po polsku |
 | Repozytorium | prywatne `Nyja81/civ-remake` |
@@ -65,6 +65,8 @@ a nie źródłem kodu ani zasobów.
   (`.gitignore`); narzędzia czytają je z folderu wskazanego zmienną `CIV1_DIR`.
 - Liczby i reguły gry odtwarzamy jako fakty. Grafika, teksty encyklopedii i dźwięk są własne —
   grafika zachowuje układ i czytelność oryginału, ale nie jest kopią jego rysunków.
+- Grafiki Freeciv są na licencji GPL-2.0-or-later: przy jakimkolwiek udostępnieniu gry trzeba zachować licencję i autorów
+  oraz udostępnić je na tych samych warunkach. Pakiet grafiki pozostaje wymienny i oddzielony od kodu.
 - Nazwa gry nie może zawierać „Civilization”, jeśli projekt miałby wyjść poza użytek prywatny.
 
 ## Etapy
