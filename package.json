@@ -3,11 +3,14 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "extract": "tsx packages/oracle/src/extract.ts"
+    "extract": "tsx packages/oracle/src/extract.ts",
+    "art:preview": "tsx packages/art/src/preview.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

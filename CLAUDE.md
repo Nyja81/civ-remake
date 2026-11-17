@@ -31,6 +31,7 @@ npm install
 npm test                          # testy silnika
 CIV1_DIR=/sciezka/do/gry npm test # dodatkowo porównanie z oryginalnym CIV.EXE
 npm run typecheck
+npm run art:preview                # próbki grafiki -> docs/samples/
 CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 ```
 
@@ -45,3 +46,12 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - `docs/ARCHITECTURE.md`: architektura, decyzje, etapy.
 - Do zrobienia w etapie 0: pozostałe tabele (budynki, cuda, nacje), odczyt i zapis `.SVE`,
   uruchomienie wykonywalnego wzorca bez okna.
+
+### 2026-11-17 — pierwsze próbki grafiki
+- Nowy pakiet `packages/art`: kafle terenu (12 typów), żetony jednostek (Settlers, Phalanx, Legion, Trireme),
+  kafel miasta; wszystko jako SVG generowane kodem z deterministycznym ziarnem.
+- `npm run art:preview` zapisuje próbki do `docs/samples/` (pojedyncze SVG, `map-sample.svg`, `sheet.svg`);
+  `preview.png` to zrzut arkusza.
+- Fragment mapy: zaokrąglone wybrzeża, płycizny, rzeka łącząca się z sąsiednimi kaflami i morzem.
+- Styl do akceptacji przez Damiana przed rysowaniem reszty.
+

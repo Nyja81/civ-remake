@@ -30,7 +30,7 @@ a nie źródłem kodu ani zasobów.
 | 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine` | — |
 | 4 | Komendy i zdarzenia — interfejs wysyła komendy, silnik odpowiada zdarzeniami i prośbami o decyzję | `packages/engine` | — |
 | 5 | Interfejs — mapa w PixiJS (WebGL), panele i okna w React | `apps/desktop` | — |
-| 6 | Pakiet grafiki — źródła SVG składane w atlas tekstur | `assets/` | — |
+| 6 | Pakiet grafiki — rysunek wektorowy generowany kodem (SVG), składany w atlas tekstur | `packages/art` | próbki: 12 kafli terenu, 4 żetony jednostek, miasto, fragment mapy |
 | 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support` | `apps/desktop` | — |
 | 8 | Wzorzec i testy porównawcze — tylko dla dewelopera | `packages/oracle` | odczyt tabel z CIV.EXE |
 
@@ -86,3 +86,4 @@ a nie źródłem kodu ani zasobów.
 - Znaczenie pól `unknown1` i `terrainChangeId` w tabeli terenu.
 - Sposób, w jaki gra wyprowadza zakresy z `rand()`.
 - Pozostałe tabele w CIV.EXE: budynki, cuda, nacje, charaktery przywódców.
+- Grafika: przejścia między różnymi typami terenu (na razie ostre krawędzie kafli), warianty kafli, pozostałe jednostki.
