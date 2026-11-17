@@ -27,7 +27,7 @@ a nie źródłem kodu ani zasobów.
 
 | # | Warstwa | Pakiet | Stan |
 |---|---|---|---|
-| 1 | Silnik zasad — stan gry i reguły, bez grafiki | `packages/engine` (`src/game/*`) | stan gry, ruch, walka, miasta, gospodarka, badania, ustroje, barbarzyńcy, zapis JSON |
+| 1 | Silnik zasad — stan gry i reguły, bez grafiki | `packages/engine` (`src/game/*`) | stan gry, ruch, walka, miasta, gospodarka, badania, ustroje, barbarzyńcy, zapis JSON i `.SVE`/`.MAP` oryginału |
 | 2 | Tabele danych — generowane z CIV.EXE właściciela licencji | `packages/engine/src/data` | technologie, jednostki, teren, budynki, cuda, nacje; ręcznie ze wzorca (do weryfikacji): przekształcenia terenu, nazwy miast |
 | 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine/src/game/ai.ts` | port AIEngine i oceny produkcji (SelectCityProduction); „idź do” — GoTo oryginału (`goto.ts`) |
 | 4 | Komendy i zdarzenia — interfejs wydaje rozkazy, silnik odpowiada zdarzeniami i prośbami o decyzję | `packages/engine` | `unitMove`, `unitOrder`, `state.events`, odpowiedzi `confirm` |
@@ -77,14 +77,14 @@ a nie źródłem kodu ani zasobów.
 
 | Etap | Zakres | Stan (2026-11-17) |
 |---|---|---|
-| 0 | Repozytorium, tabele danych, generator losowy, uruchomienie wzorca, odczyt i zapis `.SVE` | w toku (zapis własny JSON gotowy; `.SVE` — do zrobienia) |
+| 0 | Repozytorium, tabele danych, generator losowy, uruchomienie wzorca, odczyt i zapis `.SVE` | w toku: zapis JSON i **odczyt/zapis `.SVE` + `.MAP`** (`sve.ts`, `picCodec.ts`, wczytanie z folderu gry w „Load a Saved Game”) gotowe; uruchomienie wzorca — do zrobienia |
 | 1 | Generator świata, mapa z grafiką oryginału, aplikacja na Maca | etapy 1–8 generatora (6–8 dodane), Ziemia, paczka 0.1.0 |
 | 2 | Jednostki, ruch, mgła wojny | **gotowe w silniku**: ruch z ZOC i kosztem terenu, statki z ładunkiem, widoczność, chaty, rozkazy osadników; widok mapy w `gfx` |
 | 3 | Miasta i ekonomia | **gotowe w silniku**: zakładanie/zdobywanie, praca mieszkańców, wzrost, produkcja, handel, korupcja, podatki, zadowolenie, utrzymanie, zakup |
 | 4 | Technologie, ustroje, zadowolenie, cuda | w dużej części: odkrycia i wybór badań, ustroje i rewolucja, efekty cudów w gospodarce; encyklopedia — Civilopedia (etap 8); brak: część cudów (statek, Manhattan) |
 | 5 | Walka, barbarzyńcy | walka i powstania barbarzyńców gotowe; brak: atak jądrowy, klęski w miastach, globalne ocieplenie |
 | 6 | Przeciwnik komputerowy | **gotowe w silniku**: strategie kontynentów, cele jednostek, ruchy jednostek i barbarzyńców, wybór produkcji, ustroje komputera, GoTo oryginału z tablicami ścieżek 20×13 (`goto.ts`, człowiek i komputer), karawany i dyplomaci komputera (szlak od razu po zbudowaniu karawany, kradzież/sabotaż, przekupywanie jednostkami ataku), rakieta obok celu, odległość oryginału F0_2dc4_0289 we wszystkich modułach |
-| 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | **gotowe**: punktacja (`score.ts`), koniec gry (podbój, statek, koniec panowania), statek kosmiczny (`spaceship.ts` + okno), dyplomacja komputer–komputer, prośby komputera, Hall of Fame, rozmowy z władcami (`kingMeeting.ts` + `screens/king.ts`, bez animacji twarzy, także po wizycie dyplomaty); karawany i dyplomaci człowieka (`unitActions.ts` + `screens/unitActions.ts`) |
+| 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | **gotowe**: punktacja (`score.ts`), koniec gry (podbój, statek, koniec panowania), statek kosmiczny (`spaceship.ts` + okno), dyplomacja komputer–komputer, prośby komputera, Hall of Fame, rozmowy z władcami (`kingMeeting.ts` + `screens/king.ts`, bez animacji twarzy, także po wizycie dyplomaty); karawany i dyplomaci człowieka (`unitActions.ts` + `screens/unitActions.ts`), **powtórka gry** (`replay.ts` w silniku i UI, „hail the CONQUEROR”) |
 | 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry, **okno miasta** (`screens/cityWindow.ts`: zasoby, mapka pól z przydziałem, specjaliści, budynki ze sprzedażą, jednostki, produkcja z CHANGE/AUTO/BUY, zakładki INFO/HAPPY/MAP), **raporty doradców i świata** (ADVISORS, WORLD, F1–F10, historyk, wykres potęgi — `reports.ts` w silniku, `screens/advisors.ts`), **Civilopedia** (`screens/civilopedia.ts`: listy, strony tematów, pomoc z wyboru badań i produkcji; opisy z BLURB0–4.TXT gracza albo własne) gotowe; panorama miasta (VIEW, CityView), pałac, intro, dźwięk — do zrobienia |
 
 ### Odstępstwa od układu oryginału (świadome)
@@ -145,3 +145,8 @@ Karawany i dyplomaci (`unitActions.ts`, asembler `Overlay_22.cs`, `Segment_2459.
   przy odczycie zapisu, u nas obie tablice i pamięć FindShortestPath są w zapisie.
 - Pozostałe dane w CIV.EXE: nazwy miast, teksty, tablice strategii przeciwnika komputerowego.
 - Grafika: przejścia między różnymi typami terenu (na razie ostre krawędzie kafli), warianty kafli, pozostałe jednostki.
+- Zapis `.SVE`: zgodność bajtów z zapisami oryginału niesprawdzona (test `originalSve.test.ts` przy `CIV1_DIR`); `.MAP` —
+  koder LZW/RLE oryginału nieznany (porównujemy piksele); po wczytaniu oryginał zaczyna GameTurn z Var_df60, u nas ruch człowieka
+  trwa od stanu z zapisu; stan `rand()` nie jest zapisywany (ziarno = RandomSeed).
+- Powtórka: „View Replay” w menu GAME wymaga SpaceshipFlags & 0x100 (bit statku barbarzyńców) — w zwykłej grze nigdy
+  nieaktywne; sprawdzić w oryginale, czy coś ustawia ten bit.

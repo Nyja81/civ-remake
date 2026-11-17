@@ -94,6 +94,22 @@ ipcMain.handle('saves:write', (_e, name: string, json: string) => {
   writeFileSync(join(savesDir(), safeName(name)), json);
 });
 
+// Zapisy oryginału (CIVIL0–9.SVE + .MAP) z folderu gry — tylko odczyt, nazwy bez względu na wielkość liter.
+function gameSaveFiles(index: number): { sve: string; map: string } | null {
+  const folder = readConfig().gameDir;
+  if (!folder || !existsSync(folder) || !Number.isInteger(index) || index < 0 || index > 9) return null;
+  const present = new Map(readdirSync(folder).map((name) => [name.toUpperCase(), name]));
+  const sve = present.get(`CIVIL${index}.SVE`);
+  const map = present.get(`CIVIL${index}.MAP`);
+  return sve && map ? { sve: join(folder, sve), map: join(folder, map) } : null;
+}
+ipcMain.handle('gamesaves:list', () => Array.from({ length: 10 }, (_, i) => i).filter((i) => gameSaveFiles(i) !== null));
+ipcMain.handle('gamesaves:read', (_e, index: number) => {
+  const files = gameSaveFiles(index);
+  if (!files) throw new Error(`CIVIL${index}.SVE not found`);
+  return { sve: new Uint8Array(readFileSync(files.sve)), map: new Uint8Array(readFileSync(files.map)) };
+});
+
 void app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => {

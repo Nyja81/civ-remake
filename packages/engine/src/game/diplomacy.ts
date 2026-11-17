@@ -4,18 +4,21 @@
  * UpdatePlayerGovernmentAndDiplomacy (wygasanie traktatów, kontakt formalny, prośby komputera o pomoc i krucjatę).
  * Rozmowy z władcami (MeetWithKing) — kingMeeting.ts; silnik zgłasza zdarzenia `meetLeader` i `aiRequest`,
  * a interfejs prowadzi rozmowę (meetWithKing, aiRequestMeeting).
- * Pominięte: zapis do powtórki (Replay), flagi debugowania reguł (przyjęte wartości domyślne — wszystkie bity ustawione).
+ * Wpisy do powtórki (Replay): pokój i wojna w Set/ClearDiplomacyFlags.
+ * Pominięte: flagi debugowania reguł (przyjęte wartości domyślne — wszystkie bity ustawione).
  */
 import { NATIONS } from '../data/nations';
 import { playerHasWonder } from './cities';
 import { WonderId } from './buildings';
 import { playerHasTech, researchFinished } from './techs';
+import { addReplayData, ReplayKind } from './replay';
 import { Diplomacy, Government, type GameState } from './types';
 
 /** SetDiplomacyFlags: obustronnie; pokój kasuje zapis o walkach. */
 export function setDiplomacyFlags(state: GameState, p1: number, p2: number, flags: number): void {
   const a = state.players[p1]!.diplomacy;
   const b = state.players[p2]!.diplomacy;
+  if (flags === Diplomacy.Peace && !(a[p2]! & flags)) addReplayData(state, ReplayKind.Peace, (p1 << 4) | p2);
   a[p2]! |= flags;
   b[p1]! |= flags;
   if (flags === Diplomacy.Peace) {
@@ -28,6 +31,7 @@ export function setDiplomacyFlags(state: GameState, p1: number, p2: number, flag
 export function clearDiplomacyFlags(state: GameState, p1: number, p2: number, flags: number): void {
   const a = state.players[p1]!.diplomacy;
   const b = state.players[p2]!.diplomacy;
+  if (flags === Diplomacy.Peace && a[p2]! & flags) addReplayData(state, ReplayKind.WarDeclared, (p1 << 4) | p2);
   a[p2]! &= ~flags;
   b[p1]! &= ~flags;
   if (flags & Diplomacy.Peace) {

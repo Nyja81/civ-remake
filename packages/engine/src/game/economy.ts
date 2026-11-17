@@ -27,6 +27,7 @@ import { BuildingId, WonderId, addBuilding, hasBuilding, removeBuilding } from '
 import { cityName, deleteCity, playerHasWonder, testIfPlayerDestroyed } from './cities';
 import { CITY_OFFSETS, cellIndex, distance, isValid, terrainAt, updateVisibleCell, wrapX } from './map';
 import { playerHasTech, researchFinished, selectNextResearch, canResearch, TECH_COUNT, FUTURE_TECH } from './techs';
+import { addReplayData, ReplayKind } from './replay';
 import { CityStatus, Government, Improvement, NO_UNIT, type GameState } from './types';
 import { createUnit, deleteUnit, occupantPlayer } from './units';
 import { caravanArrives } from './unitActions';
@@ -536,6 +537,8 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
           state.events.push({ kind: 'news', city: cityId, text: `Discontented citizens of\n${cityName(state, cityId)} revolt:\nGovernment Collapses!\n` });
           p.diplomacy[0]! |= 4;
         }
+        // ChangeCurrentGovernment(Anarchy): wpis do powtórki, gdy ustrój się zmienia
+        if (p.government !== Government.Anarchy) addReplayData(state, ReplayKind.Government, player, Government.Anarchy);
         p.government = Government.Anarchy;
         state.events.push({ kind: 'governmentChanged', player, government: Government.Anarchy });
       }
@@ -726,7 +729,10 @@ function completeProduction(state: GameState, cityId: number, ratio: number, new
         city.shields -= cost;
         let unitId = -1;
         if (human || city.production !== 26) unitId = createUnit(state, player, city.production, city.x, city.y);
-        if (!(state.techFirstDiscoveredBy[city.production]! & 8)) state.techFirstDiscoveredBy[city.production]! |= 8;
+        if (!(state.techFirstDiscoveredBy[city.production]! & 8)) {
+          addReplayData(state, ReplayKind.FirstUnit, player, city.production);
+          state.techFirstDiscoveredBy[city.production]! |= 8;
+        }
         if (hasBuilding(city, BuildingId.Barracks) && unitId !== -1) p.units[unitId]!.status |= 0x20;
         if (unitId !== -1 && city.production === 0 && (city.size > 1 || p.cityCount > 1)) {
           city.size--;
@@ -761,8 +767,10 @@ function completeProduction(state: GameState, cityId: number, ratio: number, new
     if (cost <= city.shields) {
       let built = item;
       if (built > 24) {
-        if (state.wonderCity[built - 24] === -1) state.wonderCity[built - 24] = cityId;
-        else built = -1;
+        if (state.wonderCity[built - 24] === -1) {
+          state.wonderCity[built - 24] = cityId;
+          addReplayData(state, ReplayKind.Wonder, player, built - 24);
+        } else built = -1;
       } else if (hasBuilding(city, built)) built = -1;
       if (built !== -1) {
         if (built === 41) state.events.push({ kind: 'news', text: `Sensors report a\nNUCLEAR WEAPONS test\nnear ${cityName(state, cityId)}!\n` });

@@ -39,3 +39,6 @@ export * from './game/goto';
 export * from './game/reports';
 export * from './game/cityManagement';
 export * from './game/unitActions';
+export * from './game/replay';
+export * from './game/picCodec';
+export * from './game/sve';

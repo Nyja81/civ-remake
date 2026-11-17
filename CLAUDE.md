@@ -410,3 +410,45 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   porusza się zwyczajnie; Investigate City usuwa dyplomatę przed oknem (oryginał — po); pola okolicy przy buncie z zawijaniem X;
   gałąź InciteCityRevolt z graczem -1 pominięta (oba wywołania podają gracza).
 - Do zrobienia: przejęcie technologii przy zdobyciu miasta (AcquireTechnologyFromAnotherPlayer w CityTakeover), animacje.
+
+### 2026-11-17 — etap 0: zapis .SVE; powtórka gry
+- Silnik `packages/engine/src/game/sve.ts`: `loadSve(sve, map)` / `saveSve(state)` — zapisy oryginału CIVIL0–9.SVE (37 856 B,
+  układ pól `SVE_LAYOUT` jak w LoadGameData/SaveGameData) i CIVIL0–9.MAP (warstwy mapy jako obraz .PIC 320×200: teren = piksel
+  `terrainChangeId`, właściciel ziemi (80+x), właściciel pola/jednostki (160+x), minimapa (240+x), grupy i atrakcyjność (y+50),
+  ulepszenia rzeczywiste (x, y+100/150) i widziane przez człowieka (80+x, y+100/150) po 4 bity), `sveInfo` (ReadGameInfoFromFile),
+  `resumeLoadedGame` (LoadGame: SpaceshipFlags bez bitu 0 — asembler AND 0xFE, nowszy wzorzec 0x7ffe).
+  Mapowanie 1:1 na gracze/miasta/jednostki/mapę/statek/wykresy; pola oryginału, których silnik nie ma, zostają we wzorcu
+  `state.sveExtra` (pliki z chwili odczytu, base64): MapCellCount, druga część tablic kontynentów/oceanów, tabela jednostek,
+  TechnologyAcquiredFrom, MaximumTechnologyCount, RuleDebugFlags, pałac, minimapa, nieużywane obszary obrazu mapy, śmieci za
+  zerem w napisach, bity 72–79 technologii, wyższe bity ustawień. Przy zapisie bajty wzorca zostają, gdy wartość silnika jest
+  ta sama co odczytana — zapis → odczyt → zapis daje te same bajty. Pochodne: NextUnitID (lista cykliczna jednostek na polu;
+  wzorzec zostaje, jeśli jest poprawny), CityPositions (zajęte nazwy miast ↔ `cityNameTaken`), minimapa (pola odkryte od odczytu).
+  Przy odczycie: tablica ścieżek lądu z zapisu, wody przeliczana (F7_0000_1440), `gotoCache` pusta; `currentPlayer` = człowiek.
+- `packages/engine/src/game/picCodec.ts`: własny dekoder i koder .PIC (RLE jak RLE.Compress, LZW zgodne z dekoderem gfx);
+  silnik nie importuje gfx.
+- Powtórka: `replay.ts` — `addReplayData` (F0_1866_250e, bufor 4096 B jako `state.replay`, opcjonalny w JSON), `replayEntries`.
+  Wpisy we wszystkich 13 miejscach oryginału: założenie (1) / zniszczenie miasta (1, gracz 0xff), wojna (2) i pokój (3)
+  w Set/ClearDiplomacyFlags, pierwsze odkrycie (5), pierwsza jednostka typu (6), ustrój (8: człowiek po wyborze, komputer,
+  upadek demokracji), zdobycie miasta (9), cud (10: budowa i GiveWonderToAI), co 50 tur stan człowieka (11) i ranking (12),
+  zniszczenie cywilizacji (13). Nowe pole `state.peaceGraph` (PeaceGraphData z RankPlayers).
+- UI `packages/ui/src/screens/replay.ts`: `displayGameReplay` (F9_0000_0000: „See Replay?”, szybka / pełna / zapis REPLAY.TXT
+  do folderu danych aplikacji, mapa 4×4, pola wokół miast w kolorach graczy, napisy człowieka wielkimi literami),
+  `displayHailTheConqueror` (F9_0000_0dde z ekranem pokonanego władcy F9_0000_0f79 i galerią z SLAM2.PIC). `gameScreen.ts`:
+  EndGame — powtórka po wykresie potęgi (nie po Retire), podbój — „hail” przed oknem wyniku, GAME → View Replay przy
+  SpaceshipFlags & 0x100 (jak w Menus). SLAM1.PIC/SLAM2.PIC/SLAM1.PAL na liście plików opcjonalnych.
+- „Load a Saved Game”: lista zapisów silnika i — z folderu gry — CIVIL?.SVE (wiersz jak w ReadGameInfoFromFile); aplikacja:
+  IPC `gamesaves:list` / `gamesaves:read` (tylko odczyt z folderu gry; zapisy nadal w folderze aplikacji, w formacie JSON).
+- Testy: 193 (13 pominiętych bez `CIV1_DIR`): układ pól, koder .PIC (silnik i dekoder gfx), zapis → odczyt → zapis tych samych
+  bajtów po 60 turach, zachowanie pól spoza silnika, dalsza gra po odczycie, JSON z wzorcem, wpisy powtórki i limit bufora;
+  UI — szybka/pełna powtórka, zapis REPLAY.TXT, „hail”, View Replay. `packages/engine/test/originalSve.test.ts` — przy `CIV1_DIR`
+  każdy CIVIL?.SVE z kopii gry: te same bajty po ponownym zapisie, te same piksele .MAP.
+- **Niesprawdzone na plikach oryginału** (brak zapisów w tej sesji): zgodność bajtów .SVE po ponownym zapisie (zwłaszcza
+  NextUnitID niespójnych stosów, ostatni bajt napisów), bajty .MAP (koder LZW/RLE oryginału nieznany — porównujemy piksele),
+  wygląd powtórki i ekranu pokonanego władcy, napisy powtórki (adresy łańcuchów w asemblerze zgadzają się długością
+  z tekstami nowszego wzorca).
+- Odstępstwa: po wczytaniu .SVE ruch człowieka trwa od stanu z zapisu (oryginał: GameTurn z Var_df60 — gracze przed człowiekiem
+  pominięci, człowiek bez przeliczenia miast); stan `rand()` nie jest w zapisie — ziarno = RandomSeed; `techCatchUp` = 0
+  (Var_d2de po uruchomieniu); badania i przyszłe technologie komputera nie są zapisywane (jak w oryginale); autozapis JSON
+  powstaje po wpisach 11/12 tej samej tury (oryginał zapisuje przed nimi); brak twarzy władcy i dźwięku w „hail”;
+  powtórka w trybie debugowania (F8) pominięta.
+- Do zrobienia: zapis do .SVE z menu (dziś zapis w JSON), porównanie z oryginałem w DOSBoxie.

@@ -5,6 +5,7 @@ import { Tech } from '../data/techs';
 import { playerHasWonder } from './cities';
 import { WonderId } from './buildings';
 import { playerHasTech } from './techs';
+import { addReplayData, ReplayKind } from './replay';
 import { Government, type GameState } from './types';
 
 /** Ustroje do wyboru po anarchii (Piramidy dają wszystkie). */
@@ -26,7 +27,9 @@ export function revolution(state: GameState, player: number): void {
   state.events.push({ kind: 'news', text: `The ${state.players[player]!.nationPlural} are\nrevolting! Citizens\ndemand new government.\n` });
 }
 
+/** ChangeCurrentGovernment (człowiek, po wyborze z listy): wpis do powtórki, gdy ustrój się zmienia. */
 export function setGovernment(state: GameState, player: number, government: number): void {
+  if (state.players[player]!.government !== government) addReplayData(state, ReplayKind.Government, player, government);
   state.players[player]!.government = government;
   state.events.push({ kind: 'governmentChanged', player, government });
 }

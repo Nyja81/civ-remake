@@ -24,6 +24,7 @@ import { DIRECTIONS, cellIndex, distance, distanceOf, isValid, terrainAt, wrapX 
 import { bribeUnit } from './unitActions';
 import { getNextMove } from './goto';
 import { playerHasTech } from './techs';
+import { addReplayData, ReplayKind } from './replay';
 import { CityStatus, Diplomacy, Government, Improvement, NO_UNIT, UnitStatus, type GameState, type Player } from './types';
 import { activeUnitAt, cellHasHut, cellOwner, deleteUnit, isEnemyUnitAdjacent, nearestCity, occupantPlayer, placeUnit, unitsAt } from './units';
 
@@ -187,6 +188,7 @@ export function aiChangeGovernment(state: GameState, p: number, government: numb
   }
   pl.government = government;
   pl.taxRate = 4 - (government >> 1);
+  if (before !== pl.government) addReplayData(state, ReplayKind.Government, p, government);
   if (before !== pl.government) for (let i = 0; i < 8; i++) pl.diplomacy[i]! &= ~Diplomacy.Vendetta;
 }
 

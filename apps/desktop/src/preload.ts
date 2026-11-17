@@ -7,5 +7,7 @@ const api: CivApi = {
   listSaves: () => ipcRenderer.invoke('saves:list'),
   readSave: (name: string) => ipcRenderer.invoke('saves:read', name),
   writeSave: (name: string, json: string) => ipcRenderer.invoke('saves:write', name, json),
+  listGameSaves: () => ipcRenderer.invoke('gamesaves:list'),
+  readGameSave: (index: number) => ipcRenderer.invoke('gamesaves:read', index),
 };
 contextBridge.exposeInMainWorld('civ', api);

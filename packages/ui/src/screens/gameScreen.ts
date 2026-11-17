@@ -33,6 +33,7 @@ import { ADVISOR_REPORTS, reportForKey, showHistoryReport, showIntelligenceDetai
 import { resolveUnitAction, type UnitActionHooks } from './unitActions';
 import { showCityWindow } from './cityWindow';
 import { showCivilopedia, showCivilopediaTopic, Topic } from './civilopedia';
+import { displayGameReplay, displayHailTheConqueror } from './replay';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
 
@@ -83,6 +84,8 @@ export interface GameScreenOptions {
   /** Tabela Hall of Fame (koniec gry); `fameInitial` — tabela startowa, gdy magazyn jest pusty (FAME.DTA z gry). */
   readonly fame?: FameStore;
   readonly fameInitial?: () => Promise<HallOfFameEntry[]>;
+  /** Zapis REPLAY.TXT („Write Replay to Disk” w powtórce gry). */
+  readonly writeReplay?: (text: string) => Promise<void>;
 }
 
 /** Nazwy ustrojów jak w oryginale (Array_1966_GovernmentNames). */
@@ -140,7 +143,7 @@ export class GameScreen {
       const result = await this.handle(e);
       if (result === 'retire') {
         // Retire (GAME): koniec gry z oknem wyniku i Hall of Fame (EndGame)
-        await this.endGame(await showScoreScreen(this.ui, this.assets, this.state));
+        await this.endGame(await showScoreScreen(this.ui, this.assets, this.state), false, true);
       }
       if (result) return result;
     }
@@ -418,6 +421,12 @@ export class GameScreen {
    * (GameEndType = 1 − wybór: opcja 1 = gramy dalej).
    */
   async gameEndDialog(conquest: boolean, canContinue: boolean): Promise<void> {
+    if (conquest) {
+      // GameTurn: po „*** GAME OVER ***” — DisplayHailTheConquerorMessage, potem mapa od nowa
+      await displayHailTheConqueror(this.ui, this.assets, this.state);
+      this.ui.gfx.setPalette(this.gamePalette);
+      await this.redrawMapWithBlankingEffect();
+    }
     this.ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
     const score = await showScoreScreen(this.ui, this.assets, this.state, conquest);
     this.ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
@@ -434,15 +443,23 @@ export class GameScreen {
     else await this.endGame(score, conquest);
   }
 
-  /** EndGame: wykres potęgi (F12_0000_0573), postaci sławne i Hall of Fame; powtórka (Replay) — silnik nie zbiera jej danych. */
-  async endGame(total: number, conquest = false): Promise<void> {
+  /** F0_1238_08a0_EndGame: wykres potęgi (F12_0000_0573), powtórka (nie po Retire — GameEndType 2), postaci sławne i Hall of Fame. */
+  async endGame(total: number, conquest = false, retired = false): Promise<void> {
     await showPowerGraph(this.ui, this.state);
+    if (!retired) await this.replay();
     const score = civilizationScore(this.state, this.human, conquest);
     const entry = hallOfFameEntry(this.state, { ...score, total });
     const initial = this.options.fameInitial ? await this.options.fameInitial() : null;
     this.ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
     await endGameHallOfFame(this.ui, this.options.fame, initial, entry, () => this.state.rng.next(2));
     this.ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+    this.ui.present();
+  }
+
+  /** DisplayGameReplay na ekranie gry (paleta gry przywracana po powtórce). */
+  async replay(): Promise<void> {
+    await displayGameReplay(this.ui, this.assets, this.state, { writeReplay: this.options.writeReplay });
+    this.ui.gfx.setPalette(this.gamePalette);
     this.ui.present();
   }
 
@@ -682,9 +699,11 @@ export class GameScreen {
     let civilopedia: number | null = null;
     switch (index) {
       case 0: {
-        // View Replay dostępne dopiero po końcu gry (SpaceshipFlags & 0x100)
-        const r = await showMenuBox(ui, GAME_MENU, MENU_X[0], 8, { disabled: 1 << 7 });
+        // View Replay tylko przy SpaceshipFlags & 0x100 (Menus.F0_2c84_0000_ShowTopMenu)
+        const replayAvailable = (this.state.spaceshipFlags & 0x100) !== 0;
+        const r = await showMenuBox(ui, GAME_MENU, MENU_X[0], 8, { disabled: replayAvailable ? 0 : 1 << 7 });
         if (r.index === 3) await this.preferences();
+        else if (r.index === 7 && replayAvailable) shortcut = 'replay';
         else if (r.index === 4 && this.options.save) shortcut = 'save';
         else if (r.index === 5) shortcut = 'revolution';
         else if (r.index === 8) result = 'retire';
@@ -728,6 +747,10 @@ export class GameScreen {
       await spaceshipNationDialog(ui, this.assets, this.state);
       await this.redrawMapWithBlankingEffect();
     } else if (shortcut === 'revolution') await this.revolutionDialog();
+    else if (shortcut === 'replay') {
+      await this.replay();
+      await this.redrawMapWithBlankingEffect();
+    }
     else if (shortcut === 'save') {
       await this.options.save!(this.state);
       await showDialog(ui, 'Game saved.\n', 100, 80);

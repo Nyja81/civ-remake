@@ -37,4 +37,6 @@ export const UI_OPTIONAL_FILES = [
   ...Array.from({ length: 8 }, (_, i) => `ICONPG${i + 1}.PIC`), 'ICONPG1.PAL',
   'ICONPGA.PIC', 'ICONPGB.PIC', 'ICONPGC.PIC', 'ICONPGD.PIC', 'ICONPGE.PIC', 'ICONPGA.PAL',
   'ICONPGT1.PIC', 'ICONPGT2.PIC', 'CITYPIX2.PIC', 'HILL.PAL',
+  // powtórka po podboju świata (DisplayHailTheConquerorMessage): tło i galeria pokonanych władców
+  'SLAM1.PIC', 'SLAM2.PIC', 'SLAM1.PAL',
 ] as const;

@@ -7,6 +7,7 @@ import { UNITS } from '../data/units';
 import { cityName } from './cities';
 import { recordScoreGraph } from './reports';
 import { selectNextResearch, playerHasTech } from './techs';
+import { addReplayData, ReplayKind } from './replay';
 import { Diplomacy, type GameState } from './types';
 
 /** RankPlayers: ranking 1 (najlepszy) … 7 wg złota, wielkości miast, technologii i wartości jednostek. */
@@ -18,6 +19,12 @@ export function rankPlayers(state: GameState): void {
     UNITS.forEach((u, j) => { scores[i]! += u.cost * p.activeUnits[j]!; });
     if (!(state.activeCivs & (1 << i))) scores[i] = 0;
     recordScoreGraph(state, i, scores[i]!);
+    // PeaceGraphData: gracze, z którymi jest kontakt bez pokoju
+    if (state.turn < 600) {
+      let peace = 0;
+      for (let j = 0; j < 8; j++) if ((p.diplomacy[j]! & (Diplomacy.Contact | Diplomacy.Peace)) === Diplomacy.Contact) peace |= 1 << j;
+      (state.peaceGraph ??= new Array<number>(1200).fill(0))[(Math.trunc(state.turn / 4) % 150) * 8 + i] = peace;
+    }
   }
   for (let i = 1; i < 8; i++) {
     let best = -1;
@@ -60,6 +67,7 @@ export function giveWonderToAI(state: GameState): void {
       state.wonderCity[wonder] === -1 && city.size > Math.trunc(def.cost / 10) && playerHasTech(state, player, def.requiredTech)) {
       state.wonderCity[wonder] = cityId;
       city.shields = 0;
+      addReplayData(state, ReplayKind.Wonder, player, wonder);
       p.gold -= Math.min(Math.max(Math.trunc(p.gold / 3), 0), 10 * def.cost - city.shields);
       state.events.push({ kind: 'message', style: 'travelers', wonder,
         text: `${cityName(state, cityId)} (${p.nationAdjective})\nbuilds ${def.name}.\n` });

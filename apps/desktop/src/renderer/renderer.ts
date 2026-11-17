@@ -74,7 +74,8 @@ function start(result: LoadResult): void {
   applyCursor(presenter, assets);
   (window as unknown as { civUi: unknown }).civUi = { ui, presenter, assets }; // diagnostyka (konsola)
   const saves = { list: () => window.civ.listSaves(), read: (n: string) => window.civ.readSave(n), write: (n: string, j: string) => window.civ.writeSave(n, j) };
-  runGameFlow(ui, assets, { saves }).catch((error: unknown) => {
+  const originalSaves = { list: () => window.civ.listGameSaves(), read: (i: number) => window.civ.readGameSave(i) };
+  runGameFlow(ui, assets, { saves, originalSaves }).catch((error: unknown) => {
     console.error(error);
     showOverlay('Something went wrong', String(error), true);
   });
