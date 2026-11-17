@@ -98,3 +98,33 @@ export const STORY_EVENT_TICKS: readonly number[] = [
   2880, 3168, 3456, 3648, 3744, 3840, 3936, 4032, 4224, 4416, 4608, 4800, 4992, 5184, 5376, 5568,
   5760, 6000, 6192, 6336, 6528, 6720, 7008, 7296, 7584, 7872, 8064, 8512,
 ];
+
+/**
+ * Animacja twarzy władcy w rozmowie (F6_0000_1b33): numer klatki oczu i ust dla kroku sekwencji (DS:0x3a94, DS:0x3aa6)
+ * i sterowanie (DS:0x3ab8: 0 = koniec, > 0 = dalej, −1/−2/−3 = skok do kroku 0/6/14).
+ */
+export const KING_EYE_SEQUENCE = [8, 0, 1, 2, 2, 4, 4, 4, 2, 2, 12, 13, 9, 10, 10, 10, 9, 11] as const;
+export const KING_MOUTH_SEQUENCE = [0, 0, 0, 2, 3, 4, 5, 4, 3, 2, 5, 5, 7, 10, 11, 10, 7, 11] as const;
+export const KING_SEQUENCE_CONTROL = [0, 1, -1, 1, 1, 1, 0, 1, 1, -1, 1, -2, 1, 1, 0, 1, -1, -3] as const;
+/** X ciał doradców w sali tronowej (DS:0x3afe). */
+export const ADVISOR_X = [41, 199, 1, 239] as const;
+/** Czcionka władcy wg nacji (segment 0x36fa; F6_0000_16cd: + 8, wynik 10 → 3). */
+export const LEADER_FONTS = [0, 0, 1, 2, 1, 2, 0, 1, 0, 2, 0, 2, 1, 0, 2, 1] as const;
+/** Punkty zaczepienia klatek twarzy wg numeru portretu (segment 0x36fa:0x10/0x48): [x, x w klatce, y, y w klatce]. */
+export const KING_FACE_POINTS: readonly (readonly [number, number, number, number])[] = [
+  [250, 27, 101, 6], [242, 13, 96, 1], [253, 30, 114, 15], [244, 23, 109, 14], [241, 23, 102, 16], [245, 25, 123, 11], [232, 15, 107, 9],
+  [231, 13, 114, 11], [234, 14, 102, 10], [230, 16, 115, 14], [240, 20, 102, 14], [241, 27, 120, 12], [226, 8, 99, 11], [242, 21, 101, 16],
+];
+/**
+ * Punkty zaczepienia głów doradców (segment 0x36fa:0x80/0xF0): [wariant sali][doradca] = [x w ciele, x w GOVT??.PIC,
+ * y w ciele, y w GOVT??.PIC]; wariant = ustrój / 2 % 3 (komunizm 6, z Invention + 3).
+ */
+export const ADVISOR_HEAD_POINTS: readonly (readonly (readonly [number, number, number, number])[])[] = [
+  [[41, 169, 125, 8], [104, 167, 121, 34], [189, 174, 124, 61], [277, 167, 117, 85]],
+  [[44, 175, 115, 9], [121, 178, 121, 36], [203, 177, 116, 63], [283, 176, 118, 84]],
+  [[36, 170, 126, 11], [119, 170, 116, 33], [195, 171, 115, 61], [275, 170, 117, 86]],
+  [[37, 172, 122, 8], [114, 172, 119, 36], [196, 166, 119, 63], [275, 168, 112, 85]],
+  [[29, 166, 118, 10], [119, 167, 115, 35], [195, 174, 123, 60], [275, 173, 120, 87]],
+  [[36, 170, 115, 9], [113, 174, 117, 37], [202, 169, 118, 62], [272, 170, 115, 84]],
+  [[35, 176, 117, 10], [111, 168, 118, 33], [193, 168, 118, 61], [282, 174, 121, 84]],
+];

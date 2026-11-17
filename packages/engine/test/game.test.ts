@@ -18,15 +18,16 @@ function landDirection(state: GameState, x: number, y: number): number {
 }
 
 describe('nowa gra', () => {
-  it('rozstawia osadników każdej cywilizacji (drugi przy słabym starcie — F5_0000_0fe6) na lądzie', () => {
+  it('rozstawia po jednym osadniku każdej cywilizacji, daleko od siebie', () => {
     for (const seed of [1, 2, 3, 4, 5]) {
       const s = game(seed);
       const starts: [number, number][] = [];
       for (let p = 1; p < 8; p++) {
         if (!(s.activeCivs & (1 << p))) continue;
         const units = s.players[p]!.units.filter((u) => u.type !== NO_UNIT);
-        expect([1, 2], `ziarno ${seed}, gracz ${p}`).toContain(units.length);
-        for (const u of units) expect([u.type, u.x, u.y]).toEqual([0, units[0]!.x, units[0]!.y]);
+        // F5_0000_0fe6: słabszy start dostaje drugiego osadnika na tym samym polu
+        expect(units.length, `ziarno ${seed}, gracz ${p}`).toBeLessThanOrEqual(2);
+        expect(units.every((u) => u.type === 0 && u.x === units[0]!.x && u.y === units[0]!.y)).toBe(true);
         expect(terrainAt(s.map, units[0]!.x, units[0]!.y)).not.toBe(Terrain.Water);
         starts.push([units[0]!.x, units[0]!.y]);
       }
@@ -81,7 +82,8 @@ describe('ruch i rozkazy', () => {
     if (r.kind === 'moved') {
       expect(distance(before[0]!, before[1]!, u.x, u.y)).toBe(1);
       expect(s.map.occupant[cellIndex(u.x, u.y)]).toBe(h | 8);
-      expect(s.map.occupant[cellIndex(before[0]!, before[1]!)]).toBe(h);
+      const left = s.players[h]!.units.some((o) => o.type !== NO_UNIT && o.x === before[0] && o.y === before[1]);
+      expect(s.map.occupant[cellIndex(before[0]!, before[1]!)]).toBe(left ? h | 8 : h);
     } else {
       expect(r.kind).toBe('blocked');
       expect(u.movesLeft).toBe(0);
@@ -156,11 +158,7 @@ describe('ruch i rozkazy', () => {
     unitOrder(s, h, id, 'fortify');
     expect(s.players[h]!.units[id]!.status & UnitStatus.Fortifying).not.toBe(0);
     endHumanTurn(s);
-    // pozostałe jednostki (także drugi osadnik z wyrównania startu) czekają; ufortyfikowana nie wraca do kolejki
-    for (let n = 0, next = nextUnit(s, h); next !== -1 && n < 10; n++, next = nextUnit(s, h)) {
-      expect(next).not.toBe(id);
-      unitOrder(s, h, next, 'skip');
-    }
+    s.players[h]!.units.forEach((o, i) => { if (o.type === 0) unitOrder(s, h, i, 'skip'); });
     expect(nextUnit(s, h)).toBe(-1);
     expect(s.players[h]!.units[id]!.status & UnitStatus.Fortified).not.toBe(0);
   });
@@ -203,7 +201,7 @@ describe('tura i kalendarz', () => {
     const s = game(21);
     advanceToHuman(s);
     const h = s.humanPlayer;
-    unitOrder(s, h, 0, 'skip');
+    s.players[h]!.units.forEach((o, i) => { if (o.type !== NO_UNIT) unitOrder(s, h, i, 'skip'); });
     expect(nextUnit(s, h)).toBe(-1);
     endHumanTurn(s);
     expect(s.turn).toBe(1);

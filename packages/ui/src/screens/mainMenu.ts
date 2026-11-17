@@ -8,6 +8,7 @@ import { showHallOfFame } from './hallOfFame';
 import type { GameState, WorldOptions } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
 import { showMenuBox } from '../menuBox';
+import { TUNE } from '../sound';
 import type { Ui } from '../ui';
 import { GameType } from './intro';
 
@@ -39,6 +40,10 @@ export async function showLogoAndMainGameMenu(
   while (choice === null) {
     if (selected === GameType.None) {
       selected = (await showMenuBox(ui, MAIN_MENU_TEXT, 100, 140, { clearInput: true })).index;
+      // F0_11a8_0486 (0x11a8:0x04c2–0x04dc): muzyka intro milknie na granicy frazy — licznik taktów ≤ 5269 albo
+      // (licznik − 5269) podzielny przez 288 — potem PlayTune(1)
+      await ui.waitTunePhrase(5269, 288);
+      ui.playTune(TUNE.stop);
     }
     switch (selected) {
       case GameType.NewGame:

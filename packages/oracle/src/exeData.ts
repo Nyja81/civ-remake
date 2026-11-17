@@ -317,6 +317,19 @@ export function parseFigureOffsets(img: ExeImage): { x: number[]; y: number[] } 
   return { x: [0, 1, 2, 3].map((k) => i16(img, start + k * 2)), y: [0, 1, 2, 3].map((k) => i16(img, start + 8 + k * 2)) };
 }
 
+/**
+ * Rozmowy z władcami (Overlay 6, F6_0000_1b33/2362): sekwencje animacji twarzy — oczy DS:0x3a94, usta DS:0x3aa6, sterowanie
+ * DS:0x3ab8 (po 18 bajtów ze znakiem) tuż za „*TREATY”; X ciał doradców DS:0x3afe (4 słowa) tuż za nazwami plików
+ * „govt0a.pic”, „king00.pic”, „king”, „govt0a.pic” (DS:0x3ad8).
+ */
+export function parseKingAnimation(img: ExeImage): { eyes: number[]; mouth: number[]; control: number[]; advisorX: number[] } {
+  const start = afterAnchor(img, '*TREATY\0');
+  const bytes = (at: number) => Array.from({ length: 18 }, (_, k) => i8(img, start + at + k));
+  const x = afterAnchor(img, 'govt0a.pic\0king00.pic\0king\0govt0a.pic\0');
+  if (x - start !== 0x6a) throw new Error('CIV.EXE: tablice animacji twarzy nie leżą tuż przed nazwami plików GOVT/KING');
+  return { eyes: bytes(0), mouth: bytes(0x12), control: bytes(0x24), advisorX: [0, 1, 2, 3].map((k) => i16(img, x + k * 2)) };
+}
+
 /** Przesunięcia pól mapki świata w oknie miasta (DS:0x280c x, DS:0x2810 y — po 4 bajty) za „can't maintain\n”, „.\n”. */
 export function parseCityMapOffsets(img: ExeImage): [number, number][] {
   const start = afterAnchor(img, "can't maintain\n\0.\n\0");
@@ -346,6 +359,8 @@ const CITY_NAME_COUNT = 256;
 const FAMOUS_SIZE = 25;
 /** Segment 0x371e (numery rysunków, plan statku, prostokąty cudów) leży 0x11a0 B za segmentem nazw miast 0x3604. */
 const PICTURE_SEGMENT = 0x11a0;
+/** Segment 0x36fa (czcionki i punkty twarzy władców, wskaźnik w DS:0x640a) — 0xf60 B za segmentem nazw miast 0x3604. */
+const FACE_SEGMENT = 0xf60;
 /** Segment 0x3710 (dane historii świata, DS:0x6416) — 0xe0 B przed segmentem 0x371e. */
 const STORY_SEGMENT = PICTURE_SEGMENT - 0xe0;
 
@@ -418,3 +433,24 @@ export function parseStoryTables(img: ExeImage): { paletteCycles: [number, numbe
   }
   return { paletteCycles, eventTicks };
 }
+
+/**
+ * Segment 0x36fa (Overlay 6): czcionka władcy wg nacji (0x00, 16 bajtów; F6_0000_16cd dodaje 8, wynik 10 zamienia na 3),
+ * punkty zaczepienia klatek twarzy 14 władców (0x10 + 4i: x w KING??.PIC, x w klatce; 0x48 + 4i: y, y w klatce) i głów doradców
+ * (0x80 + 16·wariant + 4·doradca: x w ciele, x w GOVT??.PIC; 0xF0 + …: y; 7 wariantów sali × 4 doradców) — F6_0000_2362.
+ */
+export function parseFaceSegment(img: ExeImage): {
+  leaderFonts: number[]; facePoints: [number, number, number, number][]; headPoints: [number, number, number, number][][];
+} {
+  const seg = cityNameSegment(img) + FACE_SEGMENT;
+  const b = img.bytes;
+  const s8 = (at: number) => (b[seg + at]! << 24) >> 24;
+  const s16 = (at: number) => ((b[seg + at]! | (b[seg + at + 1]! << 8)) << 16) >> 16;
+  const point = (x: number, y: number): [number, number, number, number] => [s16(x), s16(x + 2), s16(y), s16(y + 2)];
+  const leaderFonts = Array.from({ length: 16 }, (_, k) => s8(k));
+  if (leaderFonts.some((f) => f < 0 || f > 2)) throw new Error('CIV.EXE: nieoczekiwane czcionki władców w segmencie 0x36fa');
+  const facePoints = Array.from({ length: 14 }, (_, k) => point(0x10 + 4 * k, 0x48 + 4 * k));
+  const headPoints = Array.from({ length: 7 }, (_, v) => Array.from({ length: 4 }, (_, c) => point(0x80 + 16 * v + 4 * c, 0xf0 + 16 * v + 4 * c)));
+  return { leaderFonts, facePoints, headPoints };
+}
+

@@ -193,7 +193,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     city.status &= 0x7f;
     if (city.food < 0) {
       const settler = p.units.findIndex((u) => u.type === 0 && u.homeCity === cityId);
-      if (human) state.events.push({ kind: 'news', city: cityId, text: `Food storage exhausted\nin ${cityName(state, cityId)}!\n${settler !== -1 ? 'Settlers lost.' : 'Famine feared.'}\n` });
+      if (human) state.events.push({ kind: 'news', city: cityId, tune: 36, tuneAfter: 1, text: `Food storage exhausted\nin ${cityName(state, cityId)}!\n${settler !== -1 ? 'Settlers lost.' : 'Famine feared.'}\n` });
       if (settler !== -1) deleteUnit(state, player, settler);
       else {
         city.size--;
@@ -526,7 +526,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     if (balance < 0) {
       if (!(city.status & CityStatus.CivilDisorder)) {
         if (human) {
-          state.events.push({ kind: 'news', style: 'domestic', city: cityId, showCity: true, animation: 'disorder', text: `Civil Disorder in\n${cityName(state, cityId)}! Mayor\nflees in panic.\n` });
+          state.events.push({ kind: 'news', style: 'domestic', city: cityId, showCity: true, animation: 'disorder', tune: 36, tuneAfter: 1, text: `Civil Disorder in\n${cityName(state, cityId)}! Mayor\nflees in panic.\n` });
           if (state.settings.instantAdvice) state.events.push({ kind: 'advice', key: '*DISORDER' });
         }
       }
@@ -535,7 +535,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
         if (!human) changeProduction(state, cityId, aiSelectProduction(state, player, cityId));
       } else if (gov === Government.Democracy) {
         if (human) {
-          state.events.push({ kind: 'news', city: cityId, text: `Discontented citizens of\n${cityName(state, cityId)} revolt:\nGovernment Collapses!\n` });
+          state.events.push({ kind: 'news', city: cityId, tune: 36, tuneAfter: 1, text: `Discontented citizens of\n${cityName(state, cityId)} revolt:\nGovernment Collapses!\n` });
           p.diplomacy[0]! |= 4;
         }
         // ChangeCurrentGovernment(Anarchy): wpis do powtórki, gdy ustrój się zmienia
@@ -554,7 +554,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     if (h.unhappy === 0 && city.size > 2 && (city.size + 1) >> 1 <= h.happy && gov !== Government.Anarchy) {
       if (!(city.status & CityStatus.Celebrating)) {
         if (human) {
-          state.events.push({ kind: 'news', city: cityId, animation: 'celebration', text: `'We love the ${LEADER_TITLES[gov]}'\nday celebrated in\n${cityName(state, cityId)}!\n` });
+          state.events.push({ kind: 'news', city: cityId, animation: 'celebration', tune: 34, tuneAfter: 1, text: `'We love the ${LEADER_TITLES[gov]}'\nday celebrated in\n${cityName(state, cityId)}!\n` });
         }
         city.status |= CityStatus.Celebrating;
       } else if (gov >= Government.Republic) {
@@ -562,7 +562,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
       }
     } else if (balance >= 0 && city.status & CityStatus.Celebrating) {
       if (human && gov !== Government.Anarchy) {
-        state.events.push({ kind: 'news', city: cityId, text: `'We love the ${LEADER_TITLES[gov]}'\ncelebration canceled\nin ${cityName(state, cityId)}.\n` });
+        state.events.push({ kind: 'news', city: cityId, tune: 35, tuneAfter: 1, text: `'We love the ${LEADER_TITLES[gov]}'\ncelebration canceled\nin ${cityName(state, cityId)}.\n` });
       }
       city.status &= ~CityStatus.Celebrating;
     }
@@ -606,7 +606,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
       }
       if (city.status & CityStatus.CivilDisorder && hasBuilding(city, BuildingId.NuclearPlant) && !playerHasTech(state, player, Tech.FusionPower) && state.rng.next(3) === 0) {
         removeBuilding(city, BuildingId.NuclearPlant);
-        state.events.push({ kind: 'news', city: cityId, nuclearCatastrophe: true, text: `Nuclear Catastrophe\nin ${cityName(state, cityId)}!\nContamination feared!\n` });
+        state.events.push({ kind: 'news', city: cityId, nuclearCatastrophe: true, tune: 36, tuneAfter: 1, text: `Nuclear Catastrophe\nin ${cityName(state, cityId)}!\nContamination feared!\n` });
         nuclearEffects(state, city.x, city.y);
       }
       // utrzymanie budynków (bez pałacu); dopłata za koszary zależna od poziomu i technologii
@@ -773,7 +773,7 @@ function completeProduction(state: GameState, cityId: number, ratio: number, new
         } else built = -1;
       } else if (hasBuilding(city, built)) built = -1;
       if (built !== -1) {
-        if (built === 41) state.events.push({ kind: 'news', text: `Sensors report a\nNUCLEAR WEAPONS test\nnear ${cityName(state, cityId)}!\n` });
+        if (built === 41) state.events.push({ kind: 'news', tune: 36, tuneAfter: 1, text: `Sensors report a\nNUCLEAR WEAPONS test\nnear ${cityName(state, cityId)}!\n` });
         if (built < 22) addBuilding(city, built);
         city.shields -= cost;
         if (human || built > 24) {
@@ -853,9 +853,10 @@ function completeHumanResearch(state: GameState): void {
   const p = state.players[state.humanPlayer]!;
   if (p.researching !== -1) {
     const name = p.researching === FUTURE_TECH ? `Future Technology ${p.futureTechs + 1}` : TECHS_NAME(p.researching);
-    state.events.push({ kind: 'news', style: 'science',
+    state.events.push({ kind: 'news', style: 'science', tune: NATIONS[p.nation]?.shortTune,
       text: `${p.nationAdjective} ${playerHasTech(state, state.humanPlayer, Tech.Invention) ? 'scientists' : 'wise men'}\ndiscover the secret\nof ${name}!\n` });
     researchFinished(state, state.humanPlayer, 0, p.researching);
+    state.events.push({ kind: 'tune', tune: 1 });
     p.researching = -1;
   }
   if (p.techCount <= 1) state.events.push({ kind: 'advice', key: '*FIRSTCIV' });

@@ -13,7 +13,7 @@ import {
 import * as UI from '../../ui/src/data/screenTables';
 import {
   locateDataSegment, parseCityMapOffsets, parseCityNames, parseCityOffsets, parseCivilopediaStrings, parseDifficultyTitles, parseEarthStart,
-  parseFamousPersons, parseFigureOffsets, parseGameConcepts, parseHistorianTables, parseNationLeaderIds, parsePalaceTables,
+  parseFaceSegment, parseFamousPersons, parseFigureOffsets, parseKingAnimation, parseGameConcepts, parseHistorianTables, parseNationLeaderIds, parsePalaceTables,
   parsePictureSegment, parsePixelToTerrain, parseStoryTables, parsePlayerTables, parseSpaceshipParts, parseTechGrades, parseTerrainModifications,
   type ExeImage,
 } from '../src/exeData';
@@ -110,6 +110,13 @@ describe.skipIf(!exePath || !existsSync(exePath))('tablice dotąd przepisane ze 
     const story = parseStoryTables(i);
     expect(story.paletteCycles).toEqual(UI.STORY_PALETTE_CYCLES);
     expect(story.eventTicks).toEqual(UI.STORY_EVENT_TICKS);
+    const king = parseKingAnimation(i);
+    expect([king.eyes, king.mouth, king.control, king.advisorX])
+      .toEqual([UI.KING_EYE_SEQUENCE, UI.KING_MOUTH_SEQUENCE, UI.KING_SEQUENCE_CONTROL, UI.ADVISOR_X]);
+    const faces = parseFaceSegment(i);
+    expect(faces.leaderFonts).toEqual(UI.LEADER_FONTS);
+    expect(faces.facePoints).toEqual(UI.KING_FACE_POINTS);
+    expect(faces.headPoints).toEqual(UI.ADVISOR_HEAD_POINTS);
   });
 });
 
@@ -130,6 +137,7 @@ describe.skipIf(!exePath || !existsSync(exePath) || !refImage || !existsSync(ref
       civilopedia: parseCivilopediaStrings(i), historians: parseHistorianTables(i), palace: parsePalaceTables(i),
       figures: parseFigureOffsets(i), cityMap: parseCityMapOffsets(i), parts: parseSpaceshipParts(i), names: parseCityNames(i),
       famous: parseFamousPersons(i), pictures: parsePictureSegment(i), difficulty: parseDifficultyTitles(i), story: parseStoryTables(i),
+      king: parseKingAnimation(i), faces: parseFaceSegment(i),
     });
     expect(all(a)).toEqual(all(b));
   });

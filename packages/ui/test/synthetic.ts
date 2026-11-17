@@ -181,11 +181,21 @@ export function syntheticFiles(withOptional = true): Record<string, Uint8Array> 
   return files;
 }
 
-/** Gospodarz testowy: nic nie wyświetla; liczy klatki. */
+/** Gospodarz testowy: nic nie wyświetla; liczy klatki i zapisuje wywołania PlayTune. */
 export class TestHost implements UiHost {
   frames = 0;
+  /** Wywołania PlayTune (utwór, parametr) w kolejności. */
+  readonly tunes: Array<[number, number]> = [];
+  /** Licznik taktów sterownika zwracany przez tuneCounter (undefined = bez dźwięku). */
+  counter: number | undefined = undefined;
   present(): void {
     this.frames++;
+  }
+  playTune(tune: number, arg: number): void {
+    this.tunes.push([tune, arg]);
+  }
+  tuneCounter(): number | undefined {
+    return this.counter;
   }
   /** Bez czekania, ale z oddaniem sterowania pętli zdarzeń (żeby scenariusz testu mógł podać kolejne zdarzenie). */
   sleep(): Promise<void> {
@@ -208,11 +218,11 @@ export function plainUi(): Ui {
  * Przebieg scenariusza: kolejne zdarzenia podaje dopiero wtedy, gdy ekran czeka na wejście
  * (ekrany czyszczą kolejkę przed pokazaniem menu, jak oryginał).
  */
-export async function drive<T>(ui: Ui, events: readonly import('../src/input').UiEvent[], run: () => Promise<T>): Promise<T> {
+export async function drive<T>(ui: Ui, events: readonly import('../src/input').UiEvent[], run: () => Promise<T>, maxIdle = 50): Promise<T> {
   let done = false;
   const pending = run().finally(() => (done = true));
   const queue = [...events];
-  for (let idle = 0; !done && idle < 50; ) {
+  for (let idle = 0; !done && idle < maxIdle; ) {
     await new Promise((r) => setTimeout(r, 0));
     if (done) break;
     if (ui.input.size === 0 && ui.input.waiting && queue.length > 0) {

@@ -4,8 +4,14 @@ export type LoadResult =
   | { ok: false; reason: 'no-folder' }
   | { ok: false; reason: 'missing'; folder: string; missing: string[] };
 
+/** Wynik zapisu CIVILn.SVE/.MAP (kod błędu systemu: EACCES, EPERM, EROFS, ENOSPC…). */
+export type SaveWriteResult = { ok: true } | { ok: false; file: 'map' | 'sve'; code: string };
+
 /** Wygładzanie obrazu: brak (piksele oryginału), lekkie (xBR bez mieszania kolorów), mocne (xBR z mieszaniem + zmiękczenie). */
 export type Smoothing = 'none' | 'light' | 'strong';
+
+/** Karta dźwiękowa: sterownik ASOUND.CVL (AdLib), ISOUND.CVL (głośnik PC) albo bez dźwięku. */
+export type SoundCardChoice = 'adlib' | 'speaker' | 'none';
 
 export interface CivApi {
   /** Wczytuje pliki grafik i mapy z zapamiętanego folderu z oryginalną grą. */
@@ -16,13 +22,18 @@ export interface CivApi {
   listSaves(): Promise<string[]>;
   readSave(name: string): Promise<string>;
   writeSave(name: string, json: string): Promise<void>;
-  /** Zapisy oryginału CIVIL0–9.SVE z plikiem .MAP w folderze gry (tylko odczyt; zapis gry zostaje w folderze aplikacji). */
+  /** Zapisy oryginału CIVIL0–9.SVE z plikiem .MAP w folderze gry (odczyt, zapis z GAME → Save Game i autozapisu). */
   listGameSaves(): Promise<number[]>;
   readGameSave(index: number): Promise<{ sve: Uint8Array; map: Uint8Array }>;
+  writeGameSave(index: number, sve: Uint8Array, map: Uint8Array): Promise<SaveWriteResult>;
   /** Zapamiętane wygładzanie (menu View → Smoothing). */
   getSmoothing(): Promise<Smoothing>;
   /** Wywoływane po zmianie wygładzania w menu. */
   onSmoothing(callback: (mode: Smoothing) => void): void;
+  /** Zapamiętana karta dźwiękowa (menu View → Sound). */
+  getSoundCard(): Promise<SoundCardChoice>;
+  /** Wywoływane po zmianie karty dźwiękowej w menu. */
+  onSoundCard(callback: (card: SoundCardChoice) => void): void;
 }
 
 import { UI_OPTIONAL_FILES, UI_REQUIRED_FILES } from '@civ-remake/ui/files';

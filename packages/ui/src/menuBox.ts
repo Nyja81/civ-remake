@@ -30,6 +30,11 @@ export interface MenuBoxOptions {
   readonly lineHeight?: number;
   /** Var_db38 = 1: okno jest tylko rysowane (bez oczekiwania i bez pokazania klatki); wynik −1. */
   readonly noWait?: boolean;
+  /**
+   * Wołane w każdym obiegu pętli okna przed czekaniem (w rozmowie z władcą: F6_0000_1b33, gdy Var_3936 ≠ −1); obieg trwa
+   * wtedy do 10 jednostek zegara albo do zdarzenia.
+   */
+  readonly idle?: () => void;
 }
 
 export interface MenuBoxResult {
@@ -192,7 +197,17 @@ export async function showMenuBox(ui: Ui, text: string, x: number, y: number, op
   ui.present();
 
   for (;;) {
-    const e: UiEvent = await ui.input.next();
+    let e: UiEvent | undefined;
+    if (options.idle) {
+      options.idle();
+      e = ui.input.take() ?? undefined;
+      if (!e) {
+        await ui.input.waitFor(ui.waitTimer(10));
+        continue;
+      }
+    } else {
+      e = await ui.input.next();
+    }
     let exit = false;
     if (e.type === 'mousemove') {
       // Odstępstwo: wzorzec reaguje dopiero, gdy zmienią się OBIE współrzędne myszy; tu wystarczy jedna.
@@ -228,6 +243,11 @@ export async function showMenuBox(ui: Ui, text: string, x: number, y: number, op
       } else if ((e.alt && key.toLowerCase() === 'h') || key === 'F1') {
         helpRequested = true;
         exit = true;
+      } else if (e.alt && key.toLowerCase() === 'v') {
+        // F0_2d05_0031 (0x2d05:0x039a): Alt+V przełącza Sound; PlayTune(1) po wyłączeniu sprawdza już wyłączone
+        // ustawienie, więc nic nie robi — muzyka gra do końca, jak w oryginale
+        ui.soundSettings.sound = !ui.soundSettings.sound;
+        if (!ui.soundSettings.sound) ui.playTune(1);
       } else if (key === 'ArrowUp') {
         if (selected === -1 && optionLines.length > 0) selected = 0;
         else if (selected > 0) selected--;

@@ -8,10 +8,10 @@ import { MAX_CITIES, MAX_PLAYERS, MAX_UNITS_PER_PLAYER } from '../data/enums';
 import { CITY_NAMES } from '../data/cityNames';
 import { NATIONS } from '../data/nations';
 import { UNITS } from '../data/units';
-import { generateWorld, MOVE_DIRECTIONS, Terrain, DEFAULT_WORLD, type World, type WorldOptions } from '../world/generate';
+import { generateWorld, Terrain, DEFAULT_WORLD, type World, type WorldOptions } from '../world/generate';
 import { mscRandom, type RandomSource } from '../world/random';
 import { emptyCity } from './cities';
-import { cellIndex, createGameMap, distance, terrainAt } from './map';
+import { cellIndex, createGameMap, distance, DIRECTIONS, terrainAt } from './map';
 import { researchFinished, selectNextResearch, TECH_COUNT } from './techs';
 import { EARTH_START } from '../data/ruleTables';
 import { Government, NO_UNIT, type GameState, type Player } from './types';
@@ -92,7 +92,7 @@ export function newGame(options: NewGameOptions): GameState {
     hp.nationPlural = pluralOf(options.nation);
   }
   for (let i = 0; i < MAX_PLAYERS; i++) initPlayer(state, i);
-  equalizeStartPositions(state);
+  balanceStartPositions(state);
   hp.taxRate = 5;
   hp.scienceRate = 5;
   if (options.difficulty === 0) hp.gold = 50;
@@ -102,69 +102,62 @@ export function newGame(options: NewGameOptions): GameState {
 }
 
 /**
- * F5_0000_0fe6 — wyrównanie startu (asembler ec23ac3, Overlay_5; w nowszym wzorcu wywołanie jest zakomentowane).
- * Wywoływane w InitNewGameData zaraz po InitPlayerData wszystkich graczy. Każda cywilizacja dostaje punkty za położenie
- * pierwszego osadnika (jednostka 0):
- * - odległość od najbliższego osadnika innej cywilizacji na tym samym kontynencie: < 10 — 0, < 20 — 1, dalej — 2,
- *   sama na kontynencie — 4;
- * - pole i 8 sąsiednich: więcej niż jedna rzeka — 2, inaczej co najmniej 3 łąki — 1;
- * - wielkość kontynentu / 50: 2 albo 3 — 1, 4 i więcej — 2.
- * Kto ma o więcej niż 3 punkty mniej od najlepszego, dostaje drugiego osadnika (+3 punkty); potem tyle technologii
- * (SelectNextResearchField — w turze 0 przyznaje od razu), ile brakuje mu do najlepszego. Napisy, które funkcja składa
- * w buforze tekstu (opis startu do trybu debugowania), nie są nigdzie pokazywane — pominięte.
- * Zwraca gracza z najlepszym startem (pierwszego albo ostatniego oddalonego od innych o co najmniej 10); wynik nie jest używany.
+ * StartGameMenu F5_0000_0fe6 (wywołanie zaraz po InitPlayerData wszystkich graczy; nowsza wersja wzorca ma je wykomentowane):
+ * ocena miejsc startu i wyrównanie szans. Ocena cywilizacji (pierwsza jednostka gracza 1–7):
+ * - odległość do najbliższego obcego osadnika na tym samym kontynencie (F0_2dc4_0289): < 10 → 0, < 20 → +1, dalej → +2,
+ *   sama na kontynencie → +4;
+ * - 9 pól (środek i sąsiedzi): ponad 1 rzeka → +2, w przeciwnym razie co najmniej 3 łąki → +1;
+ * - wielkość kontynentu / 50 (F0_2aea_195d): 0–1 → 0, 2–3 → +1, ≥ 4 → +2.
+ * Cywilizacja, której do najlepszej oceny brakuje więcej niż 3, dostaje drugiego osadnika (+3 do oceny), a za każdy
+ * pozostały punkt różnicy — technologię wybraną jak w turze 0 (F0_1ade_1584 = `selectNextResearch`). Funkcja buduje też
+ * tekst diagnostyczny (bufor DS:0xba06) i zwraca gracza z najlepszą oceną — oryginał nie używa ani jednego, ani drugiego.
  */
-export function equalizeStartPositions(state: GameState): number {
-  const map = state.map;
+export function balanceStartPositions(state: GameState): void {
   const first = (p: number) => state.players[p]!.units[0]!;
-  const alive = (p: number) => first(p).type !== NO_UNIT;
-  const groupOf = (x: number, y: number) => map.group[cellIndex(x, y)]!;
-  const score = new Array<number>(8).fill(0);
+  const groupOf = (x: number, y: number) => state.map.group[cellIndex(x, y)]!;
+  const groupSize = (x: number, y: number) => {
+    const g = groupOf(x, y);
+    const list = terrainAt(state.map, x, y) === Terrain.Water ? state.map.oceans : state.map.continents;
+    return list[g]?.size ?? 0;
+  };
+  const scores: number[] = new Array(MAX_PLAYERS).fill(0);
   let best = 0;
-  let farMask = 0;
-  for (let p = 1; p < 8; p++) {
-    if (!alive(p)) continue;
+  for (let p = 1; p < MAX_PLAYERS; p++) {
     const u = first(p);
-    let s = 0;
-    let minDistance = 999;
-    for (let q = 1; q < 8; q++) {
-      if (q === p || !alive(q)) continue;
+    if (u.type === NO_UNIT) continue;
+    let score = 0;
+    let nearest = 999;
+    for (let q = 1; q < MAX_PLAYERS; q++) {
       const o = first(q);
-      if (groupOf(o.x, o.y) !== groupOf(u.x, u.y)) continue;
-      minDistance = Math.min(minDistance, distance(u.x, u.y, o.x, o.y));
+      if (q === p || o.type === NO_UNIT || groupOf(o.x, o.y) !== groupOf(u.x, u.y)) continue;
+      nearest = Math.min(nearest, distance(u.x, u.y, o.x, o.y));
     }
-    if (minDistance >= 10 && minDistance !== 999) farMask |= 1 << p;
-    if (minDistance >= 10) s += minDistance < 20 ? 1 : minDistance !== 999 ? 2 : 4;
-    let grassland = 0;
+    if (nearest >= 10) score += nearest < 20 ? 1 : nearest !== 999 ? 2 : 4;
     let rivers = 0;
-    for (let i = 0; i <= 8; i++) {
-      const [dx, dy] = MOVE_DIRECTIONS[i]!;
-      const y = u.y + dy;
-      if (y < 0 || y >= 50) continue;
-      const t = terrainAt(map, (u.x + dx + 80) % 80, y);
-      if (t === Terrain.Grassland) grassland++;
+    let grassland = 0;
+    for (let k = 0; k <= 8; k++) {
+      const [dx, dy] = DIRECTIONS[k]!;
+      const t = terrainAt(state.map, u.x + dx, u.y + dy);
       if (t === Terrain.River) rivers++;
+      if (t === Terrain.Grassland) grassland++;
     }
-    if (rivers > 1) s += 2;
-    else if (grassland >= 3) s += 1;
-    const size = Math.trunc((map.continents[groupOf(u.x, u.y)]?.size ?? 0) / 50);
-    if (size === 2 || size === 3) s += 1;
-    else if (size >= 4) s += 2;
-    best = Math.max(best, s);
-    score[p] = s;
+    if (rivers > 1) score += 2;
+    else if (grassland >= 3) score += 1;
+    const size = Math.trunc(groupSize(u.x, u.y) / 50);
+    if (size === 2 || size === 3) score += 1;
+    else if (size >= 4) score += 2;
+    best = Math.max(best, score);
+    scores[p] = score;
   }
-  let bestPlayer = -1;
-  for (let p = 1; p < 8; p++) {
-    if (!alive(p)) continue;
+  for (let p = 1; p < MAX_PLAYERS; p++) {
     const u = first(p);
-    if (best - score[p]! > 3) {
-      score[p]! += 3;
+    if (u.type === NO_UNIT) continue;
+    if (best - scores[p]! > 3) {
+      scores[p]! += 3;
       createUnit(state, p, 0, u.x, u.y);
     }
-    for (let n = 0; best - score[p]! > n; n++) selectNextResearch(state, p, 0);
-    if (score[p] === best && (bestPlayer === -1 || farMask & (1 << p))) bestPlayer = p;
+    for (let k = 0; best - scores[p]! > k; k++) selectNextResearch(state, p, 0);
   }
-  return bestPlayer;
 }
 
 /**

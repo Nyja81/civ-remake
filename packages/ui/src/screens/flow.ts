@@ -4,7 +4,7 @@
  * po Retire / QUIT / końcu gry powrót do menu głównego.
  */
 import {
-  emptyHallOfFame, loadGame, loadSve, newGame, resumeLoadedGame, saveGame, sveInfo, TECHS, worldFromMapPixels, type GameState,
+  emptyHallOfFame, loadGame, loadSve, NATIONS, newGame, resumeLoadedGame, saveGame, sveInfo, TECHS, worldFromMapPixels, type GameState,
   DIFFICULTY_TITLES, type HallOfFameEntry, type NewGameOptions,
 } from '@civ-remake/engine';
 import { showMenuBox } from '../menuBox';
@@ -16,6 +16,7 @@ import { decodeFameDta, type FameStore } from './hallOfFame';
 import { GameType, showMainGameIntro, showWorldHistory } from './intro';
 import { loadGameSheets, showLogoAndMainGameMenu, type SavedGameLoader } from './mainMenu';
 import { initNewGameData, showInitText, type NewGameSettings } from './newGame';
+import { setLastSaveSlot, type OriginalSaveStore } from './saveGame';
 
 /** Magazyn zapisów gry (w aplikacji: folder danych aplikacji). */
 export interface SaveStore {
@@ -24,17 +25,12 @@ export interface SaveStore {
   write(name: string, json: string): Promise<void>;
 }
 
-/** Zapisy oryginału CIVIL0–9.SVE (+ .MAP) z folderu gry — tylko do odczytu. */
-export interface OriginalSaveStore {
-  /** Numery zapisów, dla których są oba pliki. */
-  list(): Promise<number[]>;
-  read(index: number): Promise<{ sve: Uint8Array; map: Uint8Array }>;
-}
+export type { OriginalSaveStore, SaveWriteResult } from './saveGame';
 
 export interface GameFlowHooks {
   /** Zapisy gry; bez nich „Load a Saved Game”, Save Game i autozapis są niedostępne. */
   readonly saves?: SaveStore;
-  /** Zapisy oryginału z folderu gry (wczytywanie z „Load a Saved Game”). */
+  /** Zapisy oryginału z folderu gry (wczytywanie z „Load a Saved Game”; z `write` — także GAME → Save Game i autozapis). */
   readonly originalSaves?: OriginalSaveStore;
   /** Wywoływane po utworzeniu nowej gry (np. dla diagnostyki albo zapisu). */
   readonly onNewGame?: (state: GameState, settings: NewGameSettings) => void;
@@ -84,7 +80,14 @@ export function savedGameLoader(saves: SaveStore | undefined, originals?: Origin
       for (const index of await originals.list().catch(() => [] as number[])) {
         try {
           const files = await originals.read(index);
-          choices.push({ label: originalSaveLabel(index, files.sve), load: async () => resumeLoadedGame(loadSve(files.sve, files.map)) });
+          choices.push({
+            label: originalSaveLabel(index, files.sve),
+            load: async () => {
+              const state = resumeLoadedGame(loadSve(files.sve, files.map));
+              setLastSaveSlot(ui, index);
+              return state;
+            },
+          });
         } catch (error) {
           console.error(error);
         }
@@ -154,11 +157,12 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
       const seed = hooks.seed?.() ?? Math.floor(Math.random() * 32768);
       state = newGame(newGameOptions(assets, settings, seed));
       hooks.onNewGame?.(state, settings);
-      await showInitText(ui, assets, settings, knownTechnologies(state));
+      await showInitText(ui, assets, settings, knownTechnologies(state), NATIONS[settings.nationalityId]?.longTune);
     }
     await new GameScreen(ui, assets, state, {
       autosave: saves ? (s) => saves.write(saveName(s, 'Autosave '), saveGame(s)) : undefined,
       save: saves ? (s) => saves.write(saveName(s), saveGame(s)) : undefined,
+      originalSaves: hooks.originalSaves,
       fame,
       fameInitial: () => readFame(undefined, assets),
       writeReplay: saves ? (text) => saves.write('REPLAY.TXT', text) : undefined,

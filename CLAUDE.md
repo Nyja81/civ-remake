@@ -563,3 +563,99 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Niezrobione (dane są w CIV.EXE, funkcje jeszcze nie istnieją): tablice animacji twarzy/doradców (DS:0x3a94…0x3afe), czcionka władcy
   (segment 0x36fa), położenia twarzy w „hail”. Trwała utrata spacji w „King ” po rozmowie z Elżbietą nieodtworzona.
 
+### 2026-11-17 — twarze władców w rozmowach, animacja założenia miasta, zapis .SVE z menu (gałąź faces-svesave)
+- Dane animacji z CIV.EXE przez `npm run extract` (mechanizm z gałęzi extract-tables): `packages/oracle/src/exeData.ts` —
+  `parseKingAnimation` (sekwencje oczu/ust/sterowania DS:0x3a94/0x3aa6/0x3ab8 tuż za „*TREATY”, X ciał doradców DS:0x3afe za nazwami
+  „govt0a.pic\0king00.pic\0king\0govt0a.pic”) i `parseFaceSegment` (segment 0x36fa = segment nazw miast + 0xf60: czcionki władców,
+  punkty zaczepienia twarzy 0x10/0x48 i głów doradców 0x80/0xF0). Wygenerowane do `packages/ui/src/data/screenTables.ts`:
+  KING_EYE_SEQUENCE, KING_MOUTH_SEQUENCE, KING_SEQUENCE_CONTROL, ADVISOR_X, LEADER_FONTS, KING_FACE_POINTS, ADVISOR_HEAD_POINTS;
+  `packages/oracle/test/original.test.ts` porównuje je z CIV.EXE oraz 474.01 z 475.05 (`OPENCIV1_DIR`) — identyczne.
+  (Pierwsza wersja czytała te tablice z CIV.EXE w czasie działania — zastąpiona ekstrakcją po scaleniu main.)
+- Twarze (`screens/king.ts`, asembler `Overlay_6.cs` z ec23ac3): F6_0000_1d2b/21ac — sala z ciałami doradców z GOVT??.PIC
+  (dla i < (ranking + 1) / 2), klatki oczu/ust z KING??.PIC (14 par, siatka 60×50 z przeskokami), głowy doradców (4 × 3 miny);
+  F6_0000_1b33 — klatka w każdym obiegu pętli okna (`showMenuBox` z nową opcją `idle`, obieg do 10 jednostek zegara), mówienie
+  (Var_d76c), sekwencje min, losowe mrugnięcia, zmiany kopii tablic (DS:0x3a9a, 0x3ab4, 0x3ab7) jak w oryginale; losowania
+  F0_2dc4_005d wspólnym generatorem gry (`state.rng`) — liczba losowań zależy od czasu otwarcia okna, jak w oryginale;
+  F6_0000_2362 — rysowanie głów i twarzy; F6_0000_233c — koniec; czcionka władcy = bajt z 0x36fa + 8 (10 → 3).
+  Silnik (`kingMeeting.ts`): kroki `speech`/`dialog` niosą `mood` (Var_3936), `talk` (zapis Var_d76c) i `stern` (zapis Var_6b8e)
+  dokładnie w miejscach zapisów F6_0000_0000/16cd/1a3f, Diplomacy (*HELPME/*CRUSADE) i ResearchFinished (*GAPE); podczas wymiany
+  technologii mina −1. Interfejs przenosi zapisy do zmiennych animacji trwających między rozmowami (jak segment danych).
+- Animacja założenia miasta (`screens/cityView.ts` → `foundNewCityAnimation`, asembler `Overlay_22.cs` F22_0000_0eaf): osadnicy
+  z SETTLERS.PIC na HILL.PIC, napis „<miasto> founded: <rok>.” (tekst z CIV.EXE; nowszy wzorzec ma „founded in / the year”),
+  wygaszenie, panorama (−3) albo — po klawiszu — czarny ekran z paletą gry. Podpięte w `gameScreen.ts` po nadaniu nazwy miastu
+  człowieka przy włączonych animacjach.
+- Zapis w formacie oryginału z menu (`screens/saveGame.ts`, asembler `Overlay_11.cs` F11_0000_036a/05f8/0103/04ef/08f6): okno dysku
+  „Which drive contains your Save Game disk?” (białe tło z ramką z ikon — jedno losowanie generatora gry, A–F, Enter, Esc; w aplikacji
+  jedynym dyskiem jest folder gry jako C:, inny dysk → „No Disk in Drive X.”), lista „Select Save File...” CIVIL0–3 (nazwy poziomów
+  z DS:0x33a2 — `DIFFICULTY_TITLES`: Chief, Lord, Prince, King, Emperor; domyślnie ostatnie miejsce — Var_e168, także po wczytaniu zapisu oryginału),
+  „ c:CIVILn.SVE … ... save in progress.”, wynik „Game has been saved.” / czerwone pole i „Game NOT saved.” z „Write access denied.” /
+  „Disk Full.” Autozapis co 50 tur — to samo okno z miejscem 4 + ((tura / 50 − 1) % 6). `GameScreenOptions.originalSaves` z `write`;
+  bez niego GAME → Save Game zapisuje JSON jak dotąd. Decyzja: autozapis zapisuje oba formaty — CIVIL4–9.SVE (oryginał) i cichy
+  JSON silnika w folderze aplikacji (JSON ma pełny stan, m.in. generator i pamięć GoTo, których .SVE nie przenosi).
+  `apps/desktop`: IPC `gamesaves:write` (najpierw .MAP, potem .SVE; zachowuje wielkość liter istniejących plików; kody błędów
+  EACCES/EPERM/EROFS → „Write access denied.”, ENOSPC → „Disk Full.”).
+- Ustalenie (MenuBoxDialog F0_2d05_0475): ramka okna menu rysuje się tylko przy PARZYSTYM Y (`TEST y, 1`) — stąd okna bez ramki
+  w (36, 139), (48, 33), (64, 127), (160, 35). `showMenuBox` nadal przyjmuje `frame` jawnie; reguła zastosowana w oknach zapisu.
+- Sprawdzone w DOSBoxie z oryginałem 474.01 (zrzuty tylko lokalnie): okno dysku (wczytanie i zapis), lista, „save in progress”,
+  wynik, animacja założenia miasta i panorama po niej — układ zgodny. Oryginał wczytuje CIVIL3.SVE zapisany przez `saveSve`;
+  ponowny zapis w oryginale różni się tylko MapCellCount[człowiek] (0 → 1), Score[człowiek] (3 → 0) i „śmieciami” w nieużywanych
+  obszarach obrazu .MAP (x 160–319, y 50–199 — u nas 0). Wygląd twarzy porównany tylko na zrzutach z naszego UI (klatki pasują
+  bez szwów); rozmowy z władcą w oryginale nie wywołano.
+- Testy po scaleniu z main: 304 bez `CIV1_DIR` (21 pominiętych), 323 z `CIV1_DIR` i `OPENCIV1_DIR` (2 pominięte: brak CIVIL?.SVE w kopii,
+  test obciążeniowy). Nowe: `packages/ui/test/kingFaces.test.ts`, `saveGame.test.ts`, animacja założenia miasta w `palace.test.ts`,
+  zapisy animacji w `packages/engine/test/kingMeeting.test.ts`, tablice twarzy w `packages/oracle/test/original.test.ts`, sala tronowa
+  i klatki na plikach gry w `packages/ui/test/original.test.ts`.
+- Odstępstwa: obieg okna z animacją kończy się wcześniej, gdy przyjdzie zdarzenie (oryginał zawsze czeka 10 jednostek);
+  klawisz przerywający marsz osadników jest zużyty (oryginał zostawia go w buforze — kbhit — skutek ten sam: bez panoramy);
+  po „File Error” przy otwarciu .SVE oryginał nie ustawia Var_681c i melduje „Game has been saved.” — u nas „Game NOT saved.”;
+  wybór dysku tylko klawiaturą (jak F0_2d05_0ac9); bez BACK??/KING??.PIC logika animacji i jej losowania działają, klatki nie są rysowane.
+- Do zrobienia: twarz władcy w „hail the CONQUEROR” (Replay — te same punkty 0x36fa:0x10/0x12), okno wczytywania oryginału
+  (F11_0000_0000 z wyborem dysku i dziesięcioma miejscami), dźwięk.
+### 2026-11-17 — etap 8: dźwięk i muzyka jak w oryginale
+- Decyzja: zamiast odtwarzać format utworów — **wykonujemy sterowniki oryginału** (`ASOUND.CVL` AdLib, `ISOUND.CVL` głośnik PC)
+  z kopii gracza na własnym emulatorze 8086. Dane utworów są w sterownikach; nic z oryginału nie trafia do repozytorium.
+- Nowy pakiet `packages/sound` (czysty TS, bez Web Audio): `cpu8086.ts` (interpreter 8086/80186, porty i przerwania przez gospodarza),
+  `cvlDriver.ts` (ładowanie MZ z relokacjami, 11 punktów wejścia, INT 21h/1Ah bez skutku), `opl3.ts` (przeniesienie Nuked OPL3 1.8,
+  **LGPL-2.1** — jedyny plik na tej licencji), `devices.ts` (AdLib: rejestry, zegary T1/T2 do wykrycia karty, bit WSE YM3812;
+  głośnik PC: kanał 2 zegara 8253 + port 0x61), `player.ts` (`SoundPlayer`: taktowanie jak w CIV.EXE 474.01 — przerwanie zegara
+  z odświeżaniem VGA 70,086 Hz, co 7. klatka bez taktu sekwencera (60 Hz), szybki zegar 4 przerwania na klatkę dla punktu 4).
+- Ustalenia (asembler CIV.EXE 474.01 i dosłowne tłumaczenie 475.05): PlayTune = F0_11a8_046c → punkt wejścia 1 tylko przy bicie 0x10
+  ustawień; tablica skoków sterownika pod 1000:0A1D (474.01) / 1000:0A2B (475.05); ASOUND ma 45 procedur utworów (0–44);
+  inicjalizacja szuka miksera Sound Blaster Pro (0x224) i AdLib Gold — bez nich pisze do 0x388.
+- Interfejs: `UiHost.playTune` / `tuneCounter`, `Ui.playTune` (sprawdza Sound), `Ui.soundSettings` (przed grą własne, w grze
+  `state.settings`), `Ui.waitTunePhrase`; `packages/ui/src/sound.ts` — numery utworów, hymny z tabeli nacji, `combatTune`.
+  Wywołania jak w oryginale: napisy (3), menu główne (koniec frazy 5269 + k·288, potem 1), historia świata (1, 4, … 1), *INIT
+  (długi hymn, 3; cisza w turze 0), rozmowy z władcą (poseł — krótki hymn, sala tronowa — długi, groźby 33, koniec 1), pałac,
+  postacie sławne (34), „hail the CONQUEROR” i ekran pokonanego władcy, nowy budynek w panoramie (44), Alt+V w grze („Sounds ON/OFF”)
+  i w oknach menu. Silnik: pola zdarzeń `tune`/`tuneArg`/`tuneAfter` i zdarzenie `tune` tam, gdzie oryginał woła PlayTune (głód,
+  test jądrowy, niepokoje, upadek demokracji, święto i jego koniec, katastrofa elektrowni, odkrycie człowieka, cud komputera,
+  zdobycie miasta, koniec panowania, przylot statku, ZOC 37, wybuch 42); zdarzenie `combat` ma `seen` (walka widoczna dla człowieka).
+- Aplikacja: `apps/desktop/src/renderer/audio.ts` — `SoundPlayer` w `ScriptProcessorNode`, menu View → Sound (AdLib / PC Speaker /
+  No Sound, `config.json`), `autoplayPolicy: 'no-user-gesture-required'`; pliki `ASOUND.CVL`, `ISOUND.CVL` na liście opcjonalnych.
+- Weryfikacja: oryginał w DOSBoxie 0.74 (VGA, `sbtype=sb2`) — nagranie rejestrów karty (.DRO) utworu 3 zgodne w 98,7% (różnice to
+  zapisy bez zmiany wartości), czasy ±13 ms, rozjazd 1,5 ms po 44 s; głośnik PC (.WAV) — te same wysokości i rytm. Aplikacja
+  uruchomiona w Xvfb: intro gra (licznik taktów i zapisy rosną), po wyborze z menu muzyka historii świata.
+- Testy: 311 (26 pominiętych bez `CIV1_DIR`), 334 z plikami gry: interpreter 8086, syntetyczny sterownik .CVL, OPL (częstotliwość,
+  WSE, wykrywanie karty), taktowanie, głośnik PC; na plikach gry — nuty i czasy utworu 3 jak w DOSBoxie, wszystkie 45 utworów
+  obu sterowników bez błędu emulacji; UI — `packages/ui/test/sound.test.ts`.
+- **Niesprawdzone**: odsłuch na Macu (brak urządzenia dźwięku w kontenerze), poziom głośności (przyjęty jak w DOSBoxie), obciążenie
+  procesora na Macu, Roland MT-32 (`RSOUND.CVL`) i Tandy (`TSOUND.CVL`) — nieobsługiwane.
+- Odstępstwa: brak animacji walki i wybuchu — przy włączonym dźwięku krótkie czekanie zamiast nich (58 i 175 jednostek zegara);
+  przylot statku bez animacji lotu — utwór 3 (34 przy zwycięstwie człowieka) przy komunikacie; przegrana (ARCH.PIC, 35) — ekranu
+  jeszcze nie ma; tempo intro i historii świata liczone zegarem komputera (60/s), nie licznikiem sterownika; PlayTune(0) przy wyjściu
+  z programu pominięte.
+
+### 2026-11-17 — technologie i osadnicy na start (F5_0000_0fe6), długie gry testowe, ikona
+- Ustalenie (z raportu gałęzi faces-svesave: oryginał na Chieftainie wymienia w *INIT technologie startowe): StartGameMenu woła po
+  InitPlayerData funkcję F5_0000_0fe6, którą nowsza wersja wzorca ma wykomentowaną. Port w `players.ts` — `balanceStartPositions`:
+  ocena startu (odległość do najbliższego obcego osadnika na kontynencie, rzeki/łąki wokół, wielkość kontynentu / 50),
+  słabsze starty dostają drugiego osadnika (różnica > 3) i technologie (F0_1ade_1584 = `selectNextResearch`) za resztę różnicy.
+  Tekst diagnostyczny funkcji (bufor DS:0xba06) i jej wynik — nieużywane w oryginale, pominięte. Testy dostosowane (drugi osadnik).
+- Długie gry testowe: `tools/stress/engineGame.ts` (małpa za człowieka — w 75% rozkazy AIEngine, reszta losowa; niezmienniki stanu
+  po każdej turze, co 50 tur zapis/odczyt JSON i zapis .SVE) i `tools/stress/run.mjs` (wiele gier w osobnych procesach z limitem
+  czasu); `packages/ui/test/monkey.stress.test.ts` (losowe klawisze i kliknięcia na ekranie gry, `MONKEY=1`, z CIV1_DIR na plikach gry).
+  Wynik przed zmianą startu: 200 gier × do 500 tur — bez wyjątków i zawieszeń; 12 gier małpy na ekranie (do roku 2100) — bez błędów.
+  Jedyne zgłoszenie niezmienników to cecha oryginału: odrodzona cywilizacja (InitPlayerData) dostaje osadników zwykle na polu właśnie
+  zdobytego i zniszczonego miasta, gdzie stoi zdobywca — oryginał nie sprawdza zajętości pola (tolerowane w niezmiennikach).
+- Ikona aplikacji: własny rysunek (pikselowy glob w złotym wieńcu) — `tools/icon/make_icon.py` → `apps/desktop/assets/icon.{png,icns}`.
+  `tools/package-mac.sh`: paczka na Maca (esbuild → packager z ikoną → rcodesign ad hoc → zip).

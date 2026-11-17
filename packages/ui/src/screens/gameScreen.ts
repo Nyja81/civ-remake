@@ -25,6 +25,7 @@ import { Palette, readPaletteRange } from '../palette';
 import { Surface } from '../surface';
 import { replaceKeywords, textSection, yearToString } from '../text';
 import type { Ui } from '../ui';
+import { combatTune, longTune, TUNE } from '../sound';
 import { showScoreScreen } from './reports';
 import { endGameHallOfFame, type FameStore } from './hallOfFame';
 import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
@@ -34,7 +35,8 @@ import { resolveUnitAction, type UnitActionHooks } from './unitActions';
 import { showCityWindow } from './cityWindow';
 import { showCivilopedia, showCivilopediaTopic, Topic } from './civilopedia';
 import { displayGameReplay, displayHailTheConqueror } from './replay';
-import { civilDisorderAnimation, invadersAnimation, loveOurLeaderAnimation, showCityView } from './cityView';
+import { autosaveSlot, showSaveGameDialog, type OriginalSaveStore } from './saveGame';
+import { civilDisorderAnimation, foundNewCityAnimation, invadersAnimation, loveOurLeaderAnimation, showCityView } from './cityView';
 import { drawMiniPalace, showPalaceUpgrade, showPalaceView } from './palace';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
@@ -83,8 +85,13 @@ export interface GameScreenOptions {
   readonly revealAll?: boolean;
   /** Autozapis (co 50 tur, gdy włączony w Preferences); dostaje numer tury. */
   readonly autosave?: (state: GameState) => void | Promise<void>;
-  /** Zapis z menu GAME → Save Game. */
+  /** Zapis z menu GAME → Save Game (JSON silnika — gdy nie ma zapisu w formacie oryginału). */
   readonly save?: (state: GameState) => void | Promise<void>;
+  /**
+   * Zapisy oryginału w folderze gry: z funkcją `write` GAME → Save Game i autozapis idą przez okna oryginału
+   * (F11_0000_036a) do CIVIL0–3.SVE / CIVIL4–9.SVE.
+   */
+  readonly originalSaves?: OriginalSaveStore;
   /** Tabela Hall of Fame (koniec gry); `fameInitial` — tabela startowa, gdy magazyn jest pusty (FAME.DTA z gry). */
   readonly fame?: FameStore;
   readonly fameInitial?: () => Promise<HallOfFameEntry[]>;
@@ -117,6 +124,8 @@ export class GameScreen {
     this.sprites = prepareSprites({ ter: assets.pic('TER257.PIC'), sp: assets.pic('SP257.PIC'), sp299: assets.pic('SP299.PIC') });
     this.gamePalette = buildGamePalette(assets);
     const me = state.players[state.humanPlayer]!;
+    // Sound (GameSettingFlags 0x10) — ustawienie gry; Preferences i Alt+V zmieniają je w miejscu
+    ui.soundSettings = state.settings;
     this.kingKeywords = { US: me.nationPlural, RPLC1: me.leader };
     this.textDrawer = (dst, text, x, y, color, shadow) => {
       const s = dst instanceof Surface ? dst : (Object.assign(Object.create(Surface.prototype), dst) as Surface);
@@ -146,6 +155,8 @@ export class GameScreen {
     }
     this.selectNextUnit(-1);
     await this.redrawMapWithBlankingEffect();
+    // GameTurn (0x1238:0x013f): w pierwszej turze milknie hymn z ekranu *INIT
+    if (this.state.turn === 0) this.ui.playTune(TUNE.stop);
     await this.processEvents();
     for (;;) {
       if (this.state.gameOver === 1) {
@@ -188,6 +199,12 @@ export class GameScreen {
   async handle(e: UiEvent): Promise<GameScreenResult | null> {
     if (e.type === 'mousedown') return this.handleClick(e.x, e.y, e.button);
     if (!isKey(e)) return null;
+    if (e.alt && e.key.toLowerCase() === 'v') {
+      // PlayerTurn (Alt+V, 0x1403:0x384e): przełączenie dźwięku z komunikatem „Sounds ON/OFF”
+      this.state.settings.sound = !this.state.settings.sound;
+      await showDialog(this.ui, `Sounds ${this.state.settings.sound ? 'ON' : 'OFF'}\n`, 100, 80);
+      return null;
+    }
     if (e.alt) {
       const index = { g: 0, o: 1, a: 2, w: 3, c: 4 }[e.key.toLowerCase()];
       return index === undefined ? null : this.showTopMenu(index);
@@ -287,9 +304,13 @@ export class GameScreen {
   /** Koniec tury człowieka: tury pozostałych graczy w silniku, potem pierwsza jednostka nowej tury. */
   async endTurn(): Promise<void> {
     endHumanTurn(this.state);
-    // Autozapis co 50 tur (ustawienie AutoSave w Preferences)
-    if (this.options.autosave && this.state.settings.autoSave && this.state.turn > 0 && this.state.turn % 50 === 0) {
-      await this.options.autosave(this.state);
+    // Autozapis co 50 tur (ustawienie AutoSave w Preferences): w oryginale F11_0000_036a(4 + ((tura / 50 − 1) % 6)) —
+    // CIVIL4–9.SVE w folderze gry; zostaje też cichy zapis JSON silnika (pełny stan, w tym stan generatora)
+    if (this.state.settings.autoSave && this.state.turn > 0 && this.state.turn % 50 === 0) {
+      if (this.options.originalSaves?.write) {
+        await showSaveGameDialog(this.ui, this.state, this.options.originalSaves, autosaveSlot(this.state.turn));
+      }
+      if (this.options.autosave) await this.options.autosave(this.state);
     }
     await this.processEvents();
     this.selectNextUnit(-1);
@@ -337,14 +358,47 @@ export class GameScreen {
     this.ui.present();
   }
 
-  /** Nowe zdarzenia silnika jako okna: komunikaty, porady (Instant Advice), nazwa nowego miasta. */
+  /** Nowe zdarzenia silnika jako okna: komunikaty, porady (Instant Advice), nazwa nowego miasta — z dźwiękiem oryginału. */
   async processEvents(): Promise<void> {
     const events = this.state.events;
     while (this.eventsSeen < events.length) {
       const ev = events[this.eventsSeen++]!;
-      if (await this.panoramaEvent(ev)) continue;
+      await this.eventSound(ev);
+      await this.showEvent(ev);
+      if (typeof ev.tuneAfter === 'number') this.ui.playTune(ev.tuneAfter);
+    }
+  }
+
+  /**
+   * PlayTune przed zdarzeniem: `tune` z silnika (miejsca wywołań oryginału), dźwięk walki widocznej dla człowieka
+   * (AttackUnit) i wybuch jądrowy (NukeAnimation, także przy katastrofie elektrowni — przed utworem 36).
+   * Animacji walki i wybuchu jeszcze nie ma: przy włączonym dźwięku odczekujemy tyle, ile trwałyby
+   * (walka ok. 58 jednostek zegara, wybuch 35 × 5), żeby efekt nie został przerwany następnym utworem.
+   */
+  private async eventSound(ev: GameEvent): Promise<void> {
+    const pause = async (ticks: number) => {
+      if (this.ui.soundSettings.sound) await this.ui.waitTimer(ticks);
+    };
+    if (ev.nuclearCatastrophe === true) {
+      this.ui.playTune(TUNE.nuclearExplosion);
+      await pause(NUKE_ANIMATION_TICKS);
+    }
+    if (ev.kind === 'combat') {
+      if (ev.seen !== true) return;
+      this.ui.playTune(combatTune(this.state, ev));
+      await pause(COMBAT_ANIMATION_TICKS);
+      return;
+    }
+    if (typeof ev.tune !== 'number') return;
+    this.ui.playTune(ev.tune, typeof ev.tuneArg === 'number' ? ev.tuneArg : 0);
+    if (ev.kind === 'nuclear') await pause(NUKE_ANIMATION_TICKS);
+  }
+
+  private async showEvent(ev: GameEvent): Promise<void> {
+    {
+      if (await this.panoramaEvent(ev)) return;
       const fromAi = ev.kind === 'aiRequest' || ev.kind === 'meetLeader' || ev.kind === 'envoy';
-      if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message' && !fromAi) continue;
+      if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message' && !fromAi) return;
       if (typeof ev.text === 'string' && ev.text) {
         // okna z położeniem oryginału (dialogX, dialogY); mapX/mapY — DrawVisibleMap przed oknem
         if (typeof ev.mapX === 'number' && typeof ev.mapY === 'number') {
@@ -359,8 +413,11 @@ export class GameScreen {
         if (text) await showDialog(this.ui, text, 60, 60);
       } else if (ev.kind === 'cityFounded' && typeof ev.city === 'number') {
         await this.cityNameDialog(ev.city);
-        // GameEngine (FoundNewCity): okno nowego miasta, potem mapa z wygaszeniem
+        // GameEngine (FoundNewCity): przy włączonych animacjach F22_0000_0eaf, potem okno nowego miasta i mapa z wygaszeniem
         if (this.state.cities[ev.city]?.owner === this.human) {
+          if (this.state.settings.animations) {
+            await foundNewCityAnimation(this.ui, this.assets, this.state, ev.city, { palette: this.gamePalette });
+          }
           await this.cityDialog(ev.city);
           await this.redrawMapWithBlankingEffect();
         }
@@ -806,7 +863,7 @@ export class GameScreen {
         });
         if (r.index === 3) await this.preferences();
         else if (r.index === 9 && replayAvailable) shortcut = 'replay';
-        else if (r.index === 4 && this.options.save) shortcut = 'save';
+        else if (r.index === 4 && (this.options.save || this.options.originalSaves?.write)) shortcut = 'save';
         else if (r.index === 5) shortcut = 'revolution';
         else if (r.index === 7) result = 'retire';
         else if (r.index === 8) result = 'quit';
@@ -854,8 +911,14 @@ export class GameScreen {
       await this.redrawMapWithBlankingEffect();
     }
     else if (shortcut === 'save') {
-      await this.options.save!(this.state);
-      await showDialog(ui, 'Game saved.\n', 100, 80);
+      if (this.options.originalSaves?.write) {
+        await showSaveGameDialog(ui, this.state, this.options.originalSaves);
+        this.redrawAll();
+        ui.present();
+      } else {
+        await this.options.save!(this.state);
+        await showDialog(ui, 'Game saved.\n', 100, 80);
+      }
     } else if (shortcut) return this.command({ type: 'key', key: shortcut });
     return result;
   }
@@ -983,5 +1046,9 @@ export function buildGamePalette(assets: GameAssets): Palette {
   }
   return palette;
 }
+
+/** Czas animacji walki w AttackUnit (11×2 + 4×1 + 8×4 jednostek zegara) i wybuchu (NukeAnimation: 35 × 5). */
+const COMBAT_ANIMATION_TICKS = 58;
+const NUKE_ANIMATION_TICKS = 175;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));

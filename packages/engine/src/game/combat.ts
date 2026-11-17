@@ -130,8 +130,11 @@ export function attackUnit(state: GameState, p1: number, id1: number, p2: number
   }
   if (p1 === state.humanPlayer) players[p2]!.diplomacy[p1]! &= ~Diplomacy.WarDeclared;
 
+  // AttackUnit (przed CenterMap 0x29f3:0x03de): walkę widzi człowiek, gdy bierze w niej udział albo widzi którąś z jednostek
+  const h = state.humanPlayer;
+  const seen = p1 === h || p2 === h || (u1.visibleBy & (1 << h)) !== 0 || (u2.visibleBy & (1 << h)) !== 0;
   state.events.push({ kind: 'combat', player: p1, attacker: p1, defender: p2, attackerType: type1, defenderType: u2.type,
-    fromX: u1.x, fromY: u1.y, x: u2.x, y: u2.y, attackerWon: won });
+    fromX: u1.x, fromY: u1.y, x: u2.x, y: u2.y, attackerWon: won, seen });
 
   if (type1 === 25) {
     nuclearAttack(state, p1, u2.x, u2.y);

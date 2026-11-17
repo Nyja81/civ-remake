@@ -1,13 +1,14 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { OPTIONAL_FILES, REQUIRED_FILES, type LoadResult, type Smoothing } from './api';
+import { OPTIONAL_FILES, REQUIRED_FILES, type LoadResult, type SaveWriteResult, type Smoothing, type SoundCardChoice } from './api';
 
 const configPath = () => join(app.getPath('userData'), 'config.json');
 
 interface Config {
   gameDir?: string;
   smoothing?: Smoothing;
+  sound?: SoundCardChoice;
 }
 
 function readConfig(): Config {
@@ -46,7 +47,10 @@ function createWindow(): void {
     useContentSize: true,
     title: 'Civ Remake',
     backgroundColor: '#000000',
-    webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false },
+    // muzyka intro gra od startu, jak w oryginale — bez czekania na pierwsze kliknięcie
+    webPreferences: {
+      preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required',
+    },
   });
   void window.loadFile(join(__dirname, 'index.html'));
 }
@@ -147,7 +151,7 @@ ipcMain.handle('saves:write', (_e, name: string, json: string) => {
   writeFileSync(join(savesDir(), safeName(name)), json);
 });
 
-// Zapisy oryginału (CIVIL0–9.SVE + .MAP) z folderu gry — tylko odczyt, nazwy bez względu na wielkość liter.
+// Zapisy oryginału (CIVIL0–9.SVE + .MAP) w folderze gry — nazwy bez względu na wielkość liter.
 function gameSaveFiles(index: number): { sve: string; map: string } | null {
   const folder = readConfig().gameDir;
   if (!folder || !existsSync(folder) || !Number.isInteger(index) || index < 0 || index > 9) return null;
@@ -162,6 +166,27 @@ ipcMain.handle('gamesaves:read', (_e, index: number) => {
   if (!files) throw new Error(`CIVIL${index}.SVE not found`);
   return { sve: new Uint8Array(readFileSync(files.sve)), map: new Uint8Array(readFileSync(files.map)) };
 });
+// Zapis z gry (F11_0000_08f6): najpierw .MAP, potem .SVE; istniejące pliki nadpisywane pod swoją nazwą (wielkość liter).
+ipcMain.handle('gamesaves:write', (_e, index: number, sve: Uint8Array, map: Uint8Array): SaveWriteResult => {
+  const folder = readConfig().gameDir;
+  if (!folder || !existsSync(folder) || !Number.isInteger(index) || index < 0 || index > 9) {
+    return { ok: false, file: 'map', code: 'ENOENT' };
+  }
+  const present = new Map(readdirSync(folder).map((name) => [name.toUpperCase(), name]));
+  const target = (ext: string) => join(folder, present.get(`CIVIL${index}.${ext}`) ?? `CIVIL${index}.${ext}`);
+  const code = (error: unknown) => String((error as { code?: string }).code ?? 'EIO');
+  try {
+    writeFileSync(target('MAP'), map);
+  } catch (error) {
+    return { ok: false, file: 'map', code: code(error) };
+  }
+  try {
+    writeFileSync(target('SVE'), sve);
+  } catch (error) {
+    return { ok: false, file: 'sve', code: code(error) };
+  }
+  return { ok: true };
+});
 
 const SMOOTHING_LABELS: [Smoothing, string][] = [
   ['none', 'None (original pixels)'],
@@ -173,9 +198,20 @@ const smoothingOf = (): Smoothing => readConfig().smoothing ?? 'light';
 
 ipcMain.handle('smoothing:get', () => smoothingOf());
 
-/** Menu aplikacji: View → Smoothing (zapamiętywane w config.json), pełny ekran. */
+const SOUND_LABELS: [SoundCardChoice, string][] = [
+  ['adlib', 'AdLib / Sound Blaster'],
+  ['speaker', 'PC Speaker'],
+  ['none', 'No Sound'],
+];
+
+const soundOf = (): SoundCardChoice => readConfig().sound ?? 'adlib';
+
+ipcMain.handle('sound:get', () => soundOf());
+
+/** Menu aplikacji: View → Smoothing i Sound (zapamiętywane w config.json), pełny ekran. */
 function buildMenu(): void {
   const current = smoothingOf();
+  const sound = soundOf();
   const view: MenuItemConstructorOptions = {
     label: 'View',
     submenu: [
@@ -188,6 +224,18 @@ function buildMenu(): void {
           click: () => {
             saveConfig({ ...readConfig(), smoothing: mode });
             for (const w of BrowserWindow.getAllWindows()) w.webContents.send('smoothing', mode);
+          },
+        })),
+      },
+      {
+        label: 'Sound',
+        submenu: SOUND_LABELS.map(([card, label]) => ({
+          label,
+          type: 'radio' as const,
+          checked: card === sound,
+          click: () => {
+            saveConfig({ ...readConfig(), sound: card });
+            for (const w of BrowserWindow.getAllWindows()) w.webContents.send('sound', card);
           },
         })),
       },

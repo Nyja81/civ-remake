@@ -24,6 +24,7 @@ import { isKey } from '../input';
 import { showDialog } from '../menuBox';
 import { readPaletteRange, Palette } from '../palette';
 import { yearToString } from '../text';
+import { ANTHEM, longTune, TUNE } from '../sound';
 import type { Ui } from '../ui';
 import { populationText, trimToWidth } from './advisors';
 import { leaderFile, NATION_LEADER_IDS } from './king';
@@ -288,12 +289,15 @@ export async function displayHailTheConqueror(ui: Ui, assets: GameAssets, state:
   g.fontId = 6;
   const hail: HailState = { count: 0, leaders: new Array<number>(14).fill(-1) };
   await displayGameReplay(ui, assets, state, {}, hail);
+  // F9_0000_0dde: długi hymn człowieka z parametrem 3, po klawiszu PlayTune(1)
+  ui.playTune(longTune(state, state.humanPlayer), ANTHEM);
   g.fillRect(18, 150, 284, 32, 34);
   g.drawCenteredStringWithShadow('The entire world hails', 160, 152, 23, 20);
   g.drawCenteredStringWithShadow(`${state.players[state.humanPlayer]!.leader} the CONQUEROR!`, 160, 168, 23, 20);
   ui.present();
   ui.input.clear();
   await ui.waitKeyOrClick();
+  ui.playTune(TUNE.stop);
   g.fontId = font;
 }
 
@@ -355,11 +359,17 @@ async function destroyedLeaderScreen(run: ReplayRun, player: number, year: numbe
     g.copy(0, 0, 0, 320, 200, 1, 0, 0);
   }
   ui.present();
+  // F9_0000_0f79 (0x0000:0x11e9): długi hymn pokonanego z parametrem 3
+  ui.playTune(NATIONS[nation]?.longTune ?? longTune(state, player), ANTHEM);
   await ui.waitTimer(240);
   g.drawCenteredStringWithShadow(`${yearToString(year)}: ${run.plural(state.humanPlayer)} destroy`, 160, 152, 23, 20);
   g.drawCenteredStringWithShadow(`the ${run.adjective(player)} civilization!`, 160, 168, 23, 20);
   g.copy(0, 0, 133, 320, 67, 1, 0, 133);
   ui.present();
+  // 0x0000:0x14dd–0x1508: PlayTune(1), 60 jednostek zegara, długi hymn człowieka, przejście ekranu, PlayTune(1)
+  ui.playTune(TUNE.stop);
   await ui.waitTimer(60);
+  ui.playTune(longTune(state, state.humanPlayer), ANTHEM);
   await ui.dissolve(1);
+  ui.playTune(TUNE.stop);
 }
