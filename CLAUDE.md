@@ -212,7 +212,6 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - `score.ts`: Hall of Fame (wpis, ocena, wstawianie wg asemblera — wynik × (poziom + 2), słabszy wpis na ostatnie miejsce),
   postaci sławne. UI `screens/hallOfFame.ts`: tabela z Clear, „Sire, your Civilization Rating…”, odczyt FAME.DTA z gry (tylko odczyt),
   własna tabela `fame.dat` w folderze danych aplikacji.
-- Równolegle pracują agenci w osobnych klonach (gałęzie `meet-with-king`, `original-goto`, `city-window`, `advisors`) — do scalenia.
 - Testy: 96 (12 pominiętych bez `CIV1_DIR`).
 
 ### 2026-11-17 — etap 7: rozmowy z władcami (MeetWithKing)
@@ -328,3 +327,12 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   ukończony gdzie indziej; limit 127 jednostek liczony z tablicy jednostek, nie z UnitCount.
 - Do zrobienia: zakładka VIEW — panorama miasta (CityView.F19_0000_0000_ShowCityLayout); na razie wraca do INFO.
   Notatka Obsidian `Projekty/civ-remake.md` — brak dostępu do vaulta z tej sesji.
+
+### 2026-11-17 — scalenie gałęzi agentów, paczka 0.4.0
+- Do `main` scalone: `meet-with-king` (rozmowy z władcami), `original-goto` (GoTo oryginału), `advisors` (doradcy i raporty świata),
+  `city-window` (okno miasta). Konflikty tylko w imporcie/obsłudze zdarzeń `gameScreen.ts` i w dokumentacji.
+- Notatka Obsidian zaktualizowana przez sesję główną (agenci nie mieli dostępu do vaulta).
+- Paczka 0.4.0 (arm64, niepodpisana). Testy: 179 (12 pominiętych bez `CIV1_DIR`).
+- Otwarte: odległość oryginału (max + min/2) w przeciwniku komputerowym, panorama miasta (VIEW), Civilopedia, pałac, intro (historia świata),
+  dźwięk, powtórka (Replay), karawany i dyplomaci (także akcje dyplomaty człowieka), zapis `.SVE`, porównanie wyglądu z oryginałem.
+

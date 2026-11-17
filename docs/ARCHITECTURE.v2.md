@@ -34,7 +34,7 @@ a nie źródłem kodu ani zasobów.
 | 5 | Interfejs — ekran 320×200 jak w oryginale, wygładzany 4× | `packages/ui`, `apps/desktop` | ekrany startowe, menu, okna, ekran gry z mapą, rozkazami, oknem miasta, zapisem (scalone do `main`) |
 | 5a | Grafiki oryginału — dekoder `.PIC`, czcionki `FONTS.CV`, reguły rysowania mapy | `packages/gfx` | teren, ulepszenia, mgła, miasta, jednostki, minimapa (`mapView.ts`) |
 | 6 | Pakiet zastępczy grafiki — wektorowy (SVG) i Freeciv „trident” | `packages/art`, `tools/tileset` | próbki |
-| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support/<aplikacja>/saves` | `apps/desktop` | paczka 0.3.0 (arm64, niepodpisana) |
+| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support/<aplikacja>/saves` | `apps/desktop` | paczka 0.4.0 (arm64, niepodpisana) |
 | 8 | Wzorzec i testy porównawcze — tylko dla dewelopera | `packages/oracle` | odczyt tabel z CIV.EXE |
 
 ### Zasady projektowe silnika
