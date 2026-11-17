@@ -5,7 +5,7 @@ Projekt hobbystyczny. Notatka Obsidian: `Projekty/civ-remake.md`.
 
 ## Zasady obowiązkowe
 
-1. **PRZED pracą** — przeczytaj `docs/ARCHITECTURE.md` oraz notatkę `Projekty/civ-remake.md` w Obsidianie.
+1. **PRZED pracą** — przeczytaj `docs/ARCHITECTURE.v2.md` (najnowsza wersja) oraz notatkę `Projekty/civ-remake.md` w Obsidianie.
 2. **PO pracy** — dopisz zmiany do sekcji „Historia zmian” poniżej.
 3. **PO pracy — AKTUALIZACJA OBSIDIAN (obowiązkowe).** Jeśli praca dodała lub zmieniła moduł,
    pakiet, format danych, etap lub istotną decyzję — zaktualizuj `Projekty/civ-remake.md`

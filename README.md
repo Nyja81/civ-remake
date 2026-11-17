@@ -3,7 +3,7 @@
 Własna, napisana od nowa gra strategiczna na Maca, której zasady są zgodne z klasykiem z 1991 r.
 Projekt prywatny, hobbystyczny. Nie zawiera żadnych plików oryginalnej gry.
 
-- Architektura, decyzje i etapy: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Architektura, decyzje i etapy: [docs/ARCHITECTURE.v2.md](docs/ARCHITECTURE.v2.md)
 - Zasady pracy i historia zmian: [CLAUDE.md](CLAUDE.md)
 - Źródła i podziękowania: [NOTICE.md](NOTICE.md)
 
@@ -23,5 +23,5 @@ CIV1_DIR=/sciezka/do/gry npm test
 
 ## Stan
 
-Etap 0 w toku: szkielet, generator losowy, tabele technologii, jednostek i terenu
-zweryfikowane z oryginalnym CIV.EXE. Gry jeszcze nie da się uruchomić.
+Silnik: etapy 2–3 gotowe (jednostki, ruch, mgła wojny, walka, miasta, gospodarka), etapy 4–5 w dużej części,
+przeciwnik komputerowy tymczasowy. Interfejs 320×200 jak w oryginale — w toku. Szczegóły: docs/ARCHITECTURE.v2.md.
