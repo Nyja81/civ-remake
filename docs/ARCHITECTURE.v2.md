@@ -29,7 +29,7 @@ a nie źródłem kodu ani zasobów.
 |---|---|---|---|
 | 1 | Silnik zasad — stan gry i reguły, bez grafiki | `packages/engine` (`src/game/*`) | stan gry, ruch, walka, miasta, gospodarka, badania, ustroje, barbarzyńcy, zapis JSON |
 | 2 | Tabele danych — generowane z CIV.EXE właściciela licencji | `packages/engine/src/data` | technologie, jednostki, teren, budynki, cuda, nacje; ręcznie ze wzorca (do weryfikacji): przekształcenia terenu, nazwy miast |
-| 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine/src/game/ai.ts` | **tymczasowy** uproszczony; port AIEngine — do zrobienia |
+| 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine/src/game/ai.ts` | port AIEngine i oceny produkcji (SelectCityProduction); „idź do” komputera — tymczasowo najtańsza droga |
 | 4 | Komendy i zdarzenia — interfejs wydaje rozkazy, silnik odpowiada zdarzeniami i prośbami o decyzję | `packages/engine` | `unitMove`, `unitOrder`, `state.events`, odpowiedzi `confirm` |
 | 5 | Interfejs — ekran 320×200 jak w oryginale, wygładzany 4× | `packages/ui`, `apps/desktop` | ekrany startowe, menu, okna, ekran gry z mapą, rozkazami, oknem miasta, zapisem (scalone do `main`) |
 | 5a | Grafiki oryginału — dekoder `.PIC`, czcionki `FONTS.CV`, reguły rysowania mapy | `packages/gfx` | teren, ulepszenia, mgła, miasta, jednostki, minimapa (`mapView.ts`) |
@@ -83,7 +83,7 @@ a nie źródłem kodu ani zasobów.
 | 3 | Miasta i ekonomia | **gotowe w silniku**: zakładanie/zdobywanie, praca mieszkańców, wzrost, produkcja, handel, korupcja, podatki, zadowolenie, utrzymanie, zakup |
 | 4 | Technologie, ustroje, zadowolenie, cuda | w dużej części: odkrycia i wybór badań, ustroje i rewolucja, efekty cudów w gospodarce; brak: encyklopedia, część cudów (statek, Manhattan) |
 | 5 | Walka, barbarzyńcy | walka i powstania barbarzyńców gotowe; brak: atak jądrowy, klęski w miastach, globalne ocieplenie |
-| 6 | Przeciwnik komputerowy | **tymczasowy** prosty; port AIEngine + GoTo — do zrobienia |
+| 6 | Przeciwnik komputerowy | **gotowe w silniku**: strategie kontynentów, cele jednostek, ruchy jednostek i barbarzyńców, wybór produkcji, ustroje komputera; brak: GoTo oryginału, działania dyplomatów i karawan komputera |
 | 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | do zrobienia (silnik zgłasza kontakt jako zdarzenie) |
 | 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry i uproszczone okno miasta gotowe; pełne okno miasta, Civilopedia, doradcy, pałac, intro, dźwięk — do zrobienia |
 
@@ -96,6 +96,13 @@ a nie źródłem kodu ani zasobów.
 - Okna dialogowe są poza silnikiem: silnik zwraca `confirm` albo zgłasza zdarzenie z tekstem oryginału.
 - Przechowywanie ufortyfikowanych jednostek poza tablicą (`FirstFortifiedCityUnits`) — pominięte.
 
+### Wzorzec: dwie wersje OpenCivOne
+
+Nowsza, uporządkowana wersja wzorca (C# po refaktoryzacji) ma pojedyncze błędy przepisania. Przy wątpliwościach porównujemy
+z dosłownym tłumaczeniem asemblera z historii repozytorium wzorca (pliki `Segment_*.cs` sprzed commitów `fb7e4c7`, `5de93e8`).
+Znalezione i poprawione u nas: ocena jednostek w SelectCityProduction (×16·(koszt+2)), mapa ról w RecalculateStatsAndPolicies
+(pozycja jednostki, nie miasta). GoTo we wzorcu jest zastąpione własnym A* — oryginał zachowany jako „Old unfixable GoTo”.
+
 ## Otwarte kwestie
 
 - Technologie startowe: wzorzec nie przyznaje żadnych (komunikat *INIT wymienia tylko drogi) — sprawdzić w oryginale (DOSBox).
@@ -103,5 +110,6 @@ a nie źródłem kodu ani zasobów.
 - Generator losowy wzorca to MT19937 (nie rand() z MS C) — zgodność ziarna z oryginałem niesprawdzona.
 - Znaczenie pola `unknown1` w tabeli terenu (`terrainChangeId` to wartość piksela terenu na mapie oryginału).
 - Sposób, w jaki gra wyprowadza zakresy z `rand()`.
+- „Idź do” komputera: czy oryginał ogranicza drogę do pól odkrytych (u nas — tylko dla człowieka).
 - Pozostałe dane w CIV.EXE: nazwy miast, teksty, tablice strategii przeciwnika komputerowego.
 - Grafika: przejścia między różnymi typami terenu (na razie ostre krawędzie kafli), warianty kafli, pozostałe jednostki.

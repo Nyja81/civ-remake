@@ -184,3 +184,14 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Paczka 0.2.0 (arm64) zbudowana `electron-packager`em na Linuksie; **niepodpisana** (rcodesign niedostępny w tej sesji) —
   na Macu: `xattr -cr "Civ Remake.app" && codesign --force --deep -s - "Civ Remake.app"`.
 - Testy: 78 (12 pominiętych bez `CIV1_DIR`).
+
+### 2026-11-17 — etap 6: przeciwnik komputerowy z oryginału
+- `ai.ts` zastąpił tymczasowego przeciwnika portem AIEngine: RecalculateStatsAndPolicies (strategie kontynentów, mapa ról 20×13,
+  przydział celów), polityki jednostek i kontynentów, MoveUnit (osadnicy, obrona miast, transport i atak morski, broń jądrowa,
+  ocena 8 kierunków), MoveBarbarianUnit, ChangeCityProduction, ocena produkcji z SelectCityProduction, zmiana ustroju komputera.
+- `turn.ts`: pętla rozkazów komputera jak w PlayerTurn (rozkaz ≠ 0 kasuje „idź do”, po 5 próbach — czekanie, kilka przejść);
+  „idź do” komputera po całej mapie i z podejściem do celu nieosiągalnego (statki do miast w głębi lądu).
+- Ustalenie: nowsza wersja wzorca ma błędy przepisania — weryfikacja z `Segment_*.cs` z historii wzorca (opis w ARCHITECTURE.v2).
+- Testy: 80 (12 pominiętych bez `CIV1_DIR`); test gospodarki sprawdza maksymalny rozmiar miasta (komputer teraz atakuje).
+- Do zrobienia w etapie 6: GoTo oryginału, karawany i dyplomaci komputera.
+
