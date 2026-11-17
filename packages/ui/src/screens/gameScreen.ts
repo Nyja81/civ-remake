@@ -23,7 +23,7 @@ import { showDialog, showMenuBox } from '../menuBox';
 import { editBox } from '../editBox';
 import { Palette, readPaletteRange } from '../palette';
 import { Surface } from '../surface';
-import { replaceKeywords, textSection, yearToString } from '../text';
+import { loadTextSection, replaceKeywords, textSection, yearToString } from '../text';
 import type { Ui } from '../ui';
 import { combatTune, longTune, TUNE } from '../sound';
 import { showScoreScreen } from './reports';
@@ -34,6 +34,7 @@ import { ADVISOR_REPORTS, reportForKey, showHistoryReport, showIntelligenceDetai
 import { resolveUnitAction, type UnitActionHooks } from './unitActions';
 import { showCityWindow } from './cityWindow';
 import { showCivilopedia, showCivilopediaTopic, Topic } from './civilopedia';
+import { settlerAdvice, showCivilizationNote } from './note';
 import { displayGameReplay, displayHailTheConqueror } from './replay';
 import { autosaveSlot, showSaveGameDialog, type OriginalSaveStore } from './saveGame';
 import { civilDisorderAnimation, foundNewCityAnimation, invadersAnimation, loveOurLeaderAnimation, showCityView } from './cityView';
@@ -110,6 +111,8 @@ export class GameScreen {
   private readonly textDrawer: TextDrawer;
   private eventsSeen = 0;
   private blinkHidden = false;
+  /** Tura, w której PlayerTurn pokazał już poradę dla jednostki (zmienna lokalna bp-8 w oryginale). */
+  private adviceTurn = -1;
   /** Var_6b92: animacja niepokojów najwyżej raz na turę. */
   private disorderShownTurn = -1;
   /** Array_30b8 — słowa kluczowe tekstów KING.TXT, trwałe między rozmowami (początkowo jak po *INIT). */
@@ -165,6 +168,7 @@ export class GameScreen {
         await this.processEvents();
       }
       if (this.state.gameOver !== 0) return 'gameOver';
+      await this.unitAdvice();
       const e = await this.waitWithBlink();
       const result = await this.handle(e);
       if (result === 'retire') {
@@ -172,6 +176,27 @@ export class GameScreen {
         await this.endGame(await showScoreScreen(this.ui, this.assets, this.state), false, true);
       }
       if (result) return result;
+    }
+  }
+
+  /**
+   * PlayerTurn (0x1403:0x05d5–0x0646), raz na turę: w turze 0 notatka *FIRSTMOVE ($RPLC1 = naród), potem — gdy wybraną
+   * jednostką są osadnicy — porada F4_0000_00af. Inne jednostki nie zużywają porady w tej turze.
+   */
+  private async unitAdvice(): Promise<void> {
+    if (this.adviceTurn === this.state.turn || this.activeUnit === -1) return;
+    const p = this.state.players[this.human]!;
+    const u = p.units[this.activeUnit];
+    if (!u || u.type === NO_UNIT) return;
+    if (this.state.turn === 0) {
+      this.adviceTurn = this.state.turn;
+      await showCivilizationNote(this.ui, this.assets, this.state, '*FIRSTMOVE', { RPLC1: p.nationPlural });
+    } else if (u.type === 0) {
+      this.adviceTurn = this.state.turn;
+      await settlerAdvice(this.ui, this.assets, this.state, this.human, this.activeUnit, (x, y) => {
+        this.drawVisibleMap(x, y);
+        this.ui.present();
+      });
     }
   }
 
@@ -409,8 +434,13 @@ export class GameScreen {
           typeof ev.dialogX === 'number' ? ev.dialogX : 100, typeof ev.dialogY === 'number' ? ev.dialogY : 80);
         if (ev.showCity === true && typeof ev.city === 'number') await this.cityAfterEvent(ev.city);
       } else if (ev.kind === 'advice' && this.state.settings.instantAdvice && typeof ev.key === 'string') {
-        const text = this.adviceText(ev.key);
-        if (text) await showDialog(this.ui, text, 60, 60);
+        // HELP.TXT: okno „Civilization Note” (F4_0000_02d3); klucze spoza HELP.TXT — zwykłe okno z KING.TXT
+        const help = this.assets.optional('HELP.TXT');
+        if (help && loadTextSection(help, ev.key) !== null) await showCivilizationNote(this.ui, this.assets, this.state, ev.key);
+        else {
+          const text = this.adviceText(ev.key);
+          if (text) await showDialog(this.ui, text, 60, 60);
+        }
       } else if (ev.kind === 'cityFounded' && typeof ev.city === 'number') {
         await this.cityNameDialog(ev.city);
         // GameEngine (FoundNewCity): przy włączonych animacjach F22_0000_0eaf, potem okno nowego miasta i mapa z wygaszeniem

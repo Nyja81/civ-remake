@@ -47,6 +47,11 @@ export function textSection(data: Uint8Array, key: string): string | null {
  * Wynik: wiersze połączone spacjami, z końcową spacją; '^' zostaje (łamie wiersz dopiero `adjustTextOriginal`).
  */
 export function loadTextSection(data: Uint8Array, key: string): string | null {
+  return loadTextSectionLines(data, key)?.text ?? null;
+}
+
+/** Jak `loadTextSection`, z liczbą wczytanych wierszy (wynik F0_2f4d_01ad — od niej zależy wysokość okna notatki). */
+export function loadTextSectionLines(data: Uint8Array, key: string): { text: string; lines: number } | null {
   const text = decodeAscii(data.subarray(0x200)).replace(/\r\n/g, '\n');
   const lines: string[] = [];
   let pos = 0;
@@ -67,8 +72,9 @@ export function loadTextSection(data: Uint8Array, key: string): string | null {
   let i = at + 1;
   while (i < lines.length && lines[i]!.startsWith('*')) i++;
   let item = '';
-  for (; i < lines.length && !lines[i]!.startsWith('*'); i++) item += lines[i]! + ' ';
-  return item;
+  let count = 0;
+  for (; i < lines.length && !lines[i]!.startsWith('*'); i++, count++) item += lines[i]! + ' ';
+  return { text: item, lines: count };
 }
 
 /**
