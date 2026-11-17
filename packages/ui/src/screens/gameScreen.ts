@@ -1,25 +1,29 @@
 /**
  * Ekran gry w układzie oryginału (320×200):
  *   pasek menu (0,0)–(320,8)                       — Menus.F0_1238_0fea_DrawMainMenu,
- *   minimapa (0,8) 80×50                            — MapManagement.F0_2aea_0008_DrawVisibleMap,
+ *   minimapa (0,8) 80×50                            — część MapManagement.F0_2aea_0008_DrawVisibleMap,
  *   panel pałacu, roku i skarbca (0,58) 80×39       — GameEngine.F0_1238_107e_ReportHumanTaxAndPopulation,
  *   panel jednostki (0,97) 80×103                   — PlayerTurn.F0_1403_4060_DrawStatusPanel,
- *   mapa (80,8) 15×12 pól po 16 pikseli.
- * Rozwijane menu: Menus.F0_2c84_0000_ShowTopMenu i podmenu. Źródło: OpenCivOne (MIT).
+ *   mapa (80,8) 15×12 pól po 16 pikseli            — drawMapView z packages/gfx (teren, mgła, miasta, jednostki).
+ * Rozwijane menu: Menus.F0_2c84_0000_ShowTopMenu i podmenu; obsługa wejścia: część PlayerTurn. Źródło: OpenCivOne (MIT).
  *
- * Interfejs nie zna jeszcze zasad gry: nie ma jednostek, miast ani mgły wojny (robi je silnik w osobnym wątku pracy),
- * dlatego panel jednostki pokazuje stan „End of Turn”, a cała mapa jest odkryta (hak `isVisible`).
+ * Zasady gry liczy silnik (`packages/engine`): ekran tylko zamienia klawisze i kliknięcia na jego komendy
+ * (unitMove, unitOrder, nextUnit, endHumanTurn) i pokazuje zdarzenia jako okna.
  */
-import { MAP_HEIGHT, MAP_WIDTH, Terrain, type World } from '@civ-remake/engine';
-import { renderTerrain, type IndexedImage } from '@civ-remake/gfx';
+import {
+  advanceToHuman, cellIndex, endHumanTurn, Improvement, MAP_HEIGHT, MovementType, nextUnit, NO_UNIT, playerHasTech, Tech, TERRAIN,
+  terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, wrapX, type GameState, type MoveResult, type Order,
+} from '@civ-remake/engine';
+import { drawMapView, drawMiniMap, drawUnit, prepareSprites, type MapSprites, type TextDrawer } from '@civ-remake/gfx';
 import type { GameAssets } from '../assets';
 import { colorCode } from '../font';
-import { isKey, type UiEvent } from '../input';
+import { isKey, type KeyEvent, type UiEvent } from '../input';
 import { showDialog, showMenuBox } from '../menuBox';
+import { editBox } from '../editBox';
 import { Palette, readPaletteRange } from '../palette';
-import { yearToString } from '../text';
+import { Surface } from '../surface';
+import { textSection, yearToString } from '../text';
 import type { Ui } from '../ui';
-import type { NewGameSettings } from './newGame';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
 
@@ -44,95 +48,254 @@ export const CIVILOPEDIA_MENU = ' Complete\n Technology Advances\n City Improvem
 
 /** Pozycje rozwijanych menu (x, y = 8). */
 const MENU_X = [16, 72, 112, 144, 182] as const;
+const SETTING_KEYS = ['instantAdvice', 'autoSave', 'endOfTurn', 'animations', 'sound', 'enemyMoves', 'civilopediaText', 'palace'] as const;
 
-export type GameScreenResult = 'quit' | 'retire';
+/** Klawisze kierunku (strzałki, klawiatura numeryczna) → kierunek 1–8 oryginału (1 = północ, zgodnie z zegarem). */
+export const DIRECTION_KEYS: Readonly<Record<string, number>> = {
+  ArrowUp: 1, '8': 1, PageUp: 2, '9': 2, ArrowRight: 3, '6': 3, PageDown: 4, '3': 4,
+  ArrowDown: 5, '2': 5, End: 6, '1': 6, ArrowLeft: 7, '4': 7, Home: 8, '7': 8,
+};
+
+/** Klawisze rozkazów oryginału (Menus.F0_2c84_01d8_OrdersMenu, PlayerTurn). */
+export const ORDER_KEYS: Readonly<Record<string, Order>> = {
+  ' ': 'skip', b: 'build', f: 'fortify', s: 'sentry', r: 'road', i: 'irrigate', m: 'mine', p: 'pollution',
+  P: 'pillage', h: 'home', w: 'wait', u: 'unload', D: 'disband',
+};
+
+export type GameScreenResult = 'quit' | 'retire' | 'gameOver';
 
 export interface GameScreenOptions {
-  /** Ziarno gry (zasoby specjalne i chaty). */
-  readonly seed: number;
-  /** Czy pole jest odkryte dla gracza (mgła wojny — dostarczy silnik). Domyślnie wszystko widać. */
-  readonly isVisible?: (x: number, y: number) => boolean;
+  /** Pokazuje całą mapę (tryb debugowania oryginału). */
+  readonly revealAll?: boolean;
 }
 
 export class GameScreen {
   viewX = 0;
   viewY = 0;
-  miniMapX = 0;
-  miniMapY = 0;
-  year = -4000;
-  coins: number;
-  taxRate = 5;
-  scienceRate = 5;
-  /** GameSettingFlags: 0 Instant Advice, 1 AutoSave, 2 End of Turn, 3 Animations, 4 Sound, 5 Enemy Moves, 6 Civilopedia Text, 7 Palace. */
-  settingFlags: number;
-  private readonly terrain: IndexedImage;
+  /** Aktywna jednostka gracza albo -1 („End of Turn”). */
+  activeUnit = -1;
+  private readonly sprites: MapSprites;
   private readonly gamePalette: Palette;
-  private readonly isVisible: (x: number, y: number) => boolean;
+  private readonly textDrawer: TextDrawer;
+  private eventsSeen = 0;
+  private blinkHidden = false;
 
   constructor(
     private readonly ui: Ui,
     private readonly assets: GameAssets,
-    readonly settings: NewGameSettings,
-    readonly world: World,
-    options: GameScreenOptions,
+    readonly state: GameState,
+    private readonly options: GameScreenOptions = {},
   ) {
-    this.isVisible = options.isVisible ?? (() => true);
-    this.terrain = renderTerrain(world, { ter: assets.pic('TER257.PIC'), sp: assets.pic('SP257.PIC'), sp299: assets.pic('SP299.PIC') }, { seed: options.seed });
+    this.sprites = prepareSprites({ ter: assets.pic('TER257.PIC'), sp: assets.pic('SP257.PIC'), sp299: assets.pic('SP299.PIC') });
     this.gamePalette = buildGamePalette(assets);
-    this.coins = settings.difficulty === 0 ? 50 : 0;
-    // StartGameMenu: Instant Advice tylko na poziomie Chieftain; dźwięk wyłączony (brak sterownika dźwięku)
-    this.settingFlags = (settings.difficulty === 0 ? 1 : 0) | 0b0010 | 0b1000 | 0b100000 | 0b1000000 | 0b10000000;
-    this.viewX = 33;
-    this.viewY = 19;
+    this.textDrawer = (dst, text, x, y, color, shadow) => {
+      const s = dst instanceof Surface ? dst : (Object.assign(Object.create(Surface.prototype), dst) as Surface);
+      if (shadow) s.drawText(ui.gfx.font, text, x, y + 1, 0);
+      s.drawText(ui.gfx.font, text, x, y, color);
+    };
   }
 
-  /** Główna pętla ekranu gry; kończy się przy Retire albo QUIT. */
+  get human(): number {
+    return this.state.humanPlayer;
+  }
+
+  /** Główna pętla ekranu gry; kończy się przy Retire, QUIT albo końcu gry. */
   async run(): Promise<GameScreenResult> {
+    if (this.state.currentPlayer !== this.human) advanceToHuman(this.state);
+    this.eventsSeen = 0;
+    this.selectNextUnit(-1, true);
     await this.redrawMapWithBlankingEffect();
+    await this.processEvents();
     for (;;) {
-      const e = await this.ui.input.next();
+      if (this.state.gameOver !== 0) return 'gameOver';
+      const e = await this.waitWithBlink();
       const result = await this.handle(e);
       if (result) return result;
     }
   }
 
-  /** Obsługa jednego zdarzenia (osobno, żeby dało się ją testować). */
-  async handle(e: UiEvent): Promise<GameScreenResult | null> {
-    if (e.type === 'mousedown') {
-      if (e.y < 8) return this.showTopMenu(clamp(Math.trunc(e.x / 60), 0, 4));
-      if (e.x < 80) {
-        if (e.y < 58) {
-          // PlayerTurn: kliknięcie w minimapę przesuwa widok
-          this.drawVisibleMap(wrapX(e.x - 7 + this.miniMapX), clamp(e.y - 14 + this.miniMapY, 0, 49));
+  /** Czeka na zdarzenie; w tym czasie aktywna jednostka miga (co ~0,25 s). */
+  private async waitWithBlink(): Promise<UiEvent> {
+    for (;;) {
+      const e = this.activeUnit === -1 ? await this.ui.input.next() : await this.ui.waitEvent(250, true);
+      if (e && e.type !== 'mouseup' && e.type !== 'mousemove') {
+        if (this.blinkHidden) {
+          this.blinkHidden = false;
+          this.drawMap();
           this.ui.present();
         }
-        return null;
+        return e;
       }
-      if (e.button === 'left') {
-        const cell = this.cellAt(e.x, e.y);
-        if (cell) {
-          // PlayerTurn: kliknięcie w pole bez jednostki i miasta centruje mapę
-          this.drawVisibleMap(cell.x - 7, cell.y - 6);
-          this.ui.present();
-        }
-      }
-      return null;
-    }
-    if (isKey(e)) {
-      if (e.alt) {
-        const index = { g: 0, o: 1, a: 2, w: 3, c: 4 }[e.key.toLowerCase()];
-        if (index !== undefined) return this.showTopMenu(index);
-        return null;
-      }
-      // Tymczasowo (brak jednostek): strzałki przesuwają widok o jedno pole. W oryginale ruszają aktywną jednostką.
-      const scroll: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-      const d = scroll[e.key];
-      if (d) {
-        this.drawVisibleMap(this.viewX + d[0], this.viewY + d[1]);
+      if (!e && this.activeUnit !== -1) {
+        this.blinkHidden = !this.blinkHidden;
+        this.drawMap();
         this.ui.present();
       }
     }
+  }
+
+  /** Obsługa jednego zdarzenia (osobno, żeby dało się ją testować). */
+  async handle(e: UiEvent): Promise<GameScreenResult | null> {
+    if (e.type === 'mousedown') return this.handleClick(e.x, e.y, e.button);
+    if (!isKey(e)) return null;
+    if (e.alt) {
+      const index = { g: 0, o: 1, a: 2, w: 3, c: 4 }[e.key.toLowerCase()];
+      return index === undefined ? null : this.showTopMenu(index);
+    }
+    return this.command(e);
+  }
+
+  private async handleClick(x: number, y: number, button: 'left' | 'right' | 'none'): Promise<GameScreenResult | null> {
+    if (y < 8) return this.showTopMenu(clamp(Math.trunc(x / 60), 0, 4));
+    if (x < 80) {
+      if (y < 58) {
+        // PlayerTurn: kliknięcie w minimapę przesuwa widok
+        const { xMap, yMap } = this.miniMapOrigin();
+        this.drawVisibleMap(wrapX(x - 7 + xMap), clamp(y - 14 + yMap, 0, 49));
+        this.ui.present();
+      } else if (y >= 97 && this.activeUnit === -1) {
+        await this.endTurn();
+      }
+      return null;
+    }
+    const cell = this.cellAt(x, y);
+    if (cell && button === 'left') {
+      // PlayerTurn: kliknięcie w pole bez własnej jednostki centruje mapę (miasta i lista jednostek — kolejne etapy)
+      this.drawVisibleMap(cell.x - 7, cell.y - 6);
+      this.ui.present();
+    }
     return null;
+  }
+
+  /** Klawisz z kolejki PlayerTurn: ruch, rozkaz, koniec tury. */
+  private async command(e: KeyEvent): Promise<GameScreenResult | null> {
+    const h = this.human;
+    const id = this.activeUnit;
+    if (id === -1) {
+      if (e.key === 'Enter') await this.endTurn();
+      else if (DIRECTION_KEYS[e.key] !== undefined) this.scrollView(DIRECTION_KEYS[e.key]!);
+      return null;
+    }
+    if (e.key === 'c') {
+      this.centerOnUnit(true);
+      this.ui.present();
+      return null;
+    }
+    const direction = DIRECTION_KEYS[e.key];
+    let result: MoveResult | undefined;
+    if (direction !== undefined) {
+      result = unitMove(this.state, h, id, direction);
+      if (result.kind === 'confirm' && (await showMenuBox(this.ui, result.question, 100, 80, { clearInput: true })).index === 1) {
+        this.redrawAll();
+        result = unitMove(this.state, h, id, direction, { confirm: true });
+      }
+    } else {
+      const order = ORDER_KEYS[e.key];
+      if (!order) return null;
+      result = unitOrder(this.state, h, id, order);
+      if (result?.kind === 'confirm' && (await showMenuBox(this.ui, result.question, 100, 80, { clearInput: true })).index === 1) {
+        this.redrawAll();
+        result = unitOrder(this.state, h, id, order, { confirm: true });
+      }
+    }
+    this.redrawAll();
+    if (result?.kind === 'blocked' && result.reason) await showDialog(this.ui, result.reason.endsWith('\n') ? result.reason : `${result.reason}\n`, 100, 80);
+    await this.processEvents();
+    const u = this.state.players[h]!.units[id]!;
+    if (u.type === NO_UNIT || u.movesLeft === 0 || u.status & (UnitStatus.Sentry | UnitStatus.Fortified | UnitStatus.Fortifying) || this.state.players[h]!.waiting === id) {
+      this.selectNextUnit(id);
+      await this.processEvents();
+    } else {
+      this.centerOnUnit(false);
+    }
+    this.redrawAll();
+    this.ui.present();
+    return this.state.gameOver !== 0 ? 'gameOver' : null;
+  }
+
+  /** Koniec tury człowieka: tury pozostałych graczy w silniku, potem pierwsza jednostka nowej tury. */
+  async endTurn(): Promise<void> {
+    endHumanTurn(this.state);
+    await this.processEvents();
+    this.selectNextUnit(-1, true);
+    this.redrawAll();
+    this.ui.present();
+    await this.processEvents();
+  }
+
+  private selectNextUnit(after: number, forceCenter = false): void {
+    this.activeUnit = this.state.gameOver === 0 ? nextUnit(this.state, this.human, after) : -1;
+    this.blinkHidden = false;
+    if (this.activeUnit !== -1) this.centerOnUnit(forceCenter);
+  }
+
+  /** MapManagement.F0_1866_16a9_CenterMap — przesuwa widok, gdy jednostka jest przy krawędzi (albo zawsze z `force`). */
+  private centerOnUnit(force: boolean): void {
+    const u = this.state.players[this.human]!.units[this.activeUnit];
+    if (!u || u.type === NO_UNIT) return;
+    let x = u.x;
+    if (x < 16 && this.viewX > 64) x += 80;
+    if (force || x < this.viewX + 2 || x > this.viewX + 13 || u.y < this.viewY + 2 || u.y > this.viewY + 9) {
+      this.viewX = wrapX(x - 8);
+      this.viewY = clamp(u.y - 6, 0, MAP_HEIGHT - MAP_VIEW.rows);
+    }
+  }
+
+  /** Tymczasowo przy „End of Turn”: kierunek przesuwa widok o jedno pole. */
+  private scrollView(direction: number): void {
+    const d = [[0, 0], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]][direction]!;
+    this.drawVisibleMap(this.viewX + d[0]!, this.viewY + d[1]!);
+    this.ui.present();
+  }
+
+  /** Nowe zdarzenia silnika jako okna: komunikaty, porady (Instant Advice), nazwa nowego miasta. */
+  async processEvents(): Promise<void> {
+    const events = this.state.events;
+    while (this.eventsSeen < events.length) {
+      const ev = events[this.eventsSeen++]!;
+      if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message') continue;
+      if (typeof ev.text === 'string' && ev.text) {
+        await showDialog(this.ui, ev.text.endsWith('\n') ? ev.text : `${ev.text}\n`, 100, 80);
+      } else if (ev.kind === 'advice' && this.state.settings.instantAdvice && typeof ev.key === 'string') {
+        const text = this.adviceText(ev.key);
+        if (text) await showDialog(this.ui, text, 60, 60);
+      } else if (ev.kind === 'cityFounded' && typeof ev.city === 'number') {
+        await this.cityNameDialog(ev.city);
+      } else if (ev.kind === 'chooseResearch' && typeof ev.suggested === 'number' && ev.suggested >= 0) {
+        // Okno wyboru badań (Science Advisor) — kolejny etap; na razie przyjmujemy propozycję silnika.
+        this.state.players[this.human]!.researching = ev.suggested;
+      }
+    }
+  }
+
+  /** Porada z HELP.TXT albo KING.TXT (pliki gracza), złamana do szerokości okna. */
+  private adviceText(key: string): string | null {
+    for (const file of ['HELP.TXT', 'KING.TXT']) {
+      const data = this.assets.optional(file);
+      const text = data ? textSection(data, key) : null;
+      if (text) return text.replace(/\^/g, '\n').replace(/([^\n])$/, '$1\n');
+    }
+    return null;
+  }
+
+  /** TextBoxDialogues.F23_0000_0000_CityNameDialog — nazwa nowego miasta (80,80) 160×32. */
+  private async cityNameDialog(cityId: number): Promise<void> {
+    const city = this.state.cities[cityId];
+    if (!city || city.owner !== this.human) return;
+    const gfx = this.ui.gfx;
+    gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
+    let name = '';
+    while (name.length === 0) {
+      gfx.fillRect(80, 80, 160, 32, 15);
+      gfx.drawRectangle(80, 80, 160, 32, 11);
+      gfx.drawString('City Name...', 88, 82, 0);
+      const r = await editBox(this.ui, 88, 96, 12, this.state.cityNames[city.nameId] ?? '');
+      name = r.ok ? r.text.trim() : this.state.cityNames[city.nameId] ?? 'City';
+    }
+    this.state.cityNames[city.nameId] = name;
+    gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+    this.redrawAll();
+    this.ui.present();
   }
 
   /** Pole mapy pod punktem ekranu albo null. */
@@ -144,9 +307,13 @@ export class GameScreen {
   /** GameEngine.F0_1238_1b44_RedrawMapWithBlankingEffect — wygaszenie, narysowanie ekranu, rozjaśnienie paletą gry. */
   async redrawMapWithBlankingEffect(): Promise<void> {
     await this.ui.fadePalette([0, 0, 0], 5);
+    this.redrawAll();
+    await this.ui.fadePalette(this.gamePalette, 5);
+  }
+
+  redrawAll(): void {
     this.drawVisibleMap(this.viewX, this.viewY);
     this.drawStatusPanel();
-    await this.ui.fadePalette(this.gamePalette, 5);
   }
 
   /** Menus.F0_1238_0fea_DrawMainMenu */
@@ -158,65 +325,108 @@ export class GameScreen {
 
   /** MapManagement.F0_2aea_0008_DrawVisibleMap — pasek menu, panel stanu, pola mapy i minimapa. */
   drawVisibleMap(x: number, y: number): void {
-    const gfx = this.ui.gfx;
     this.drawMainMenu();
     this.reportTaxAndPopulation();
     this.viewX = wrapX(x);
     this.viewY = clamp(y, 0, MAP_HEIGHT - MAP_VIEW.rows);
+    this.drawMap();
+  }
 
-    for (let i = 0; i < MAP_VIEW.columns; i++) {
-      for (let j = 0; j < MAP_VIEW.rows; j++) {
-        const mapX = wrapX(this.viewX + i);
-        const mapY = this.viewY + j;
-        const sx = MAP_VIEW.x + i * 16;
-        const sy = MAP_VIEW.y + j * 16;
-        if (this.isVisible(mapX, mapY)) gfx.screen.blit(this.terrain, mapX * 16, mapY * 16, 16, 16, sx, sy);
-        else gfx.fillRect(sx, sy, 16, 16, 0);
-      }
-    }
-
-    // Minimapa: widok zawsze w tym samym miejscu (prostokąt 31,26), mapa przesuwa się pod nim.
-    // Odstępstwo: wzorzec liczy przesunięcie z argumentów przed przycięciem; tu z położenia po przycięciu.
-    // Bez technologii Navigation minimapa przesuwa się też w pionie (yMap = y − 19).
-    this.miniMapX = this.viewX - 32;
-    this.miniMapY = this.viewY - 19;
-    gfx.fillRect(0, 8, 80, 50, 0);
-    for (let r = 0; r < 50; r++) {
-      const mapY = r + this.miniMapY;
-      if (mapY < 0 || mapY >= MAP_HEIGHT) continue;
-      for (let c = 0; c < 80; c++) {
-        const mapX = wrapX(c + this.miniMapX);
-        if (!this.isVisible(mapX, mapY)) continue;
-        // UnitManagement: odkryte pole na minimapie ma kolor 1 (woda) albo 2 (ląd)
-        gfx.screen.setPixel(c, r + 8, this.world.terrain[mapY * MAP_WIDTH + mapX] === Terrain.Water ? 1 : 2);
-      }
-    }
+  /** Same pola mapy i minimapa (bez paneli) — także przy miganiu aktywnej jednostki. */
+  private drawMap(): void {
+    const gfx = this.ui.gfx;
+    const hideUnit = this.blinkHidden && this.activeUnit !== -1 ? { player: this.human, unitId: this.activeUnit } : undefined;
+    drawMapView(gfx.screen, this.state, this.sprites, {
+      viewX: this.viewX, viewY: this.viewY, text: this.textDrawer, revealAll: this.options.revealAll, hideUnit,
+    });
+    drawMiniMap(gfx.screen, this.state, this.viewX, this.viewY);
+    // Ramka minimapy jak DrawShadowRectangle(0, 8, 79, 49, 15, 8) we wzorcu (górna i prawa krawędź 8, dolna i lewa 15),
+    // tak samo jak ramki paneli; ramka widoku przerysowana na wierzchu.
     gfx.drawShadowRectangle(0, 8, 79, 49, 15, 8);
-    gfx.drawRectangle(this.viewX - this.miniMapX - 1, this.viewY - this.miniMapY + 7, 17, 10, 15);
+    const { xMap, yMap } = this.miniMapOrigin();
+    gfx.drawRectangle(this.viewX - xMap - 1, this.viewY - yMap + 7, 17, 10, 15);
+  }
+
+  /** Przesunięcie minimapy (Var_6ed6_MiniMapX / Var_70ea_MiniMapY): widok zawsze w środku; z Navigation bez przesunięcia w pionie. */
+  miniMapOrigin(): { xMap: number; yMap: number } {
+    const navigation = playerHasTech(this.state, this.human, Tech.Navigation);
+    return { xMap: this.viewX - 32, yMap: navigation ? 0 : this.viewY - 19 };
   }
 
   /** GameEngine.F0_1238_107e_ReportHumanTaxAndPopulation — panel pałacu, roku, nauki i skarbca. */
   reportTaxAndPopulation(): void {
     const gfx = this.ui.gfx;
+    const p = this.state.players[this.human]!;
     gfx.fillRectangleWithShadow(0, 58, 80, 39);
     gfx.fillRect(3, 60, 74, 11, 11);
-    // Mini-pałac (F0_1238_14a3_DrawMiniPalace): bez miast rysuje się tylko linia podstawy.
+    if (this.state.peaceTurns > 1) gfx.fillRect(3, 60, clamp(this.state.peaceTurns * 2, 0, 60), 2, 15);
+    // Mini-pałac (F0_1238_14a3_DrawMiniPalace): na razie tylko linia podstawy; części pałacu — razem z widokiem pałacu.
     gfx.drawLine(8 - 5, 58 + 13, 8 + 68, 58 + 13, 2);
-    gfx.drawString(yearToString(this.year), 2, 81, 0);
-    // postęp badań 0–3: żarówka z ekranu 2 (SP299.PIC)
+    // Liczba mieszkańców (PopulationValueToString) — gdy silnik będzie ją liczył.
+    gfx.drawString(yearToString(this.state.year), 2, 81, 0);
+    // postęp badań 0–3: żarówka z ekranu 2 (SP299.PIC); wzór postępu zależy od zmiennej, której silnik jeszcze nie ma
     gfx.copy(2, 160, 120, 8, 8, 0, 48, 80);
     // Odstępstwo: wzorzec wypisuje 10 − tax + science; zakładamy pomyłkę w tłumaczeniu (luksusy = 10 − tax − science).
-    const luxury = 10 - this.taxRate - this.scienceRate;
-    gfx.drawString(`${this.coins}$ ${luxury}(${this.taxRate}/${this.scienceRate})`, 2, 89, 0);
+    const luxury = 10 - p.taxRate - p.scienceRate;
+    gfx.drawString(`${p.gold}$ ${luxury}(${p.taxRate}/${p.scienceRate})`, 2, 89, 0);
   }
 
-  /** PlayerTurn.F0_1403_4060_DrawStatusPanel — bez jednostek wariant „End of Turn”. */
+  /** PlayerTurn.F0_1403_4060_DrawStatusPanel — aktywna jednostka albo „End of Turn”. */
   drawStatusPanel(): void {
     const gfx = this.ui.gfx;
     gfx.fillRectangleWithShadow(0, 97, 80, 103);
-    gfx.drawString('End of Turn', 4, 124, 0);
-    gfx.drawString('Press Enter', 4, 136, 0);
-    gfx.drawString('to continue', 4, 144, 0);
+    const p = this.state.players[this.human]!;
+    const u = this.activeUnit === -1 ? undefined : p.units[this.activeUnit];
+    if (!u || u.type === NO_UNIT) {
+      gfx.drawString('End of Turn', 4, 124, 0);
+      gfx.drawString('Press Enter', 4, 136, 0);
+      gfx.drawString('to continue', 4, 144, 0);
+      return;
+    }
+    const def = UNITS[u.type]!;
+    let y = 99;
+    gfx.drawString(p.nationAdjective, 4, y, 0);
+    y += 8;
+    gfx.drawString(def.name, 4, y, 0);
+    y += 8;
+    if (u.status & UnitStatus.Veteran) {
+      gfx.drawString('Veteran', 8, y, 0);
+      y += 8;
+    }
+    const moves = clamp(Math.trunc(u.movesLeft / 3), 0, 99);
+    const withFuel = moves + (def.turnsOutside !== 0 ? def.moves * u.specialMoves : 0);
+    const third = u.movesLeft % 3;
+    gfx.drawString(`Moves: ${moves}${third !== 0 ? `.${third}` : ''}${moves !== withFuel ? `(${withFuel})` : ''}`, 4, y, 0);
+    y += 8;
+    const home = this.state.cities[u.homeCity];
+    gfx.drawString(home && home.status !== -1 ? (this.state.cityNames[home.nameId] ?? '') : 'NONE', 4, y, 0);
+    y += 8;
+    gfx.drawString(`(${TERRAIN[terrainAt(this.state.map, u.x, u.y)]?.name ?? ''})`, 4, y, 0);
+    y += 8;
+    const imp = this.state.map.visibleImprovements[cellIndex(u.x, u.y)]!;
+    const line = (text: string) => {
+      gfx.drawString(text, 4, y, 0);
+      y += 8;
+    };
+    if (imp & Improvement.Railroad) line('(RailRoad)');
+    else if (imp & Improvement.Road) line('(Road)');
+    if (imp & Improvement.Irrigation) line('(Irrigation)');
+    else if (imp & Improvement.Mine) line('(Mining)');
+    if (imp & Improvement.Pollution) line('(Pollution)');
+    y += 4;
+    // pozostałe jednostki na polu
+    let x = 8;
+    const stack = unitsAt(this.state, this.human, u.x, u.y).filter((i) => i !== this.activeUnit);
+    for (const other of stack) {
+      if (y >= 184) break;
+      drawUnit(gfx.screen, this.state, this.sprites, this.human, other, x, y, false, undefined, this.textDrawer);
+      x += 16;
+      if (x > 64) {
+        x = 8;
+        y += 16;
+      }
+    }
+    if (stack.length > 0 && y >= 184) gfx.drawString('+', 74, 192, 0);
   }
 
   /** Menus.F0_2c84_0000_ShowTopMenu — ekran zapamiętany na ekranie 1 i przywracany po zamknięciu menu. */
@@ -226,6 +436,7 @@ export class GameScreen {
     gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
     let result: GameScreenResult | null = null;
     let action: string | null = null;
+    let shortcut: string | null = null;
     switch (index) {
       case 0: {
         // View Replay dostępne dopiero po końcu gry (SpaceshipFlags & 0x100)
@@ -237,7 +448,7 @@ export class GameScreen {
         break;
       }
       case 1:
-        // Rozkazy dotyczą aktywnej jednostki; bez niej oryginał nie pokazuje menu.
+        shortcut = await this.ordersMenu();
         break;
       case 2:
         if ((await showMenuBox(ui, ADVISORS_MENU, MENU_X[2], 8)).index >= 0) action = 'advisor';
@@ -254,19 +465,91 @@ export class GameScreen {
     gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
     ui.present();
     if (action) await showDialog(ui, 'Not available yet.\n', 100, 80);
+    if (shortcut) return this.command({ type: 'key', key: shortcut });
     return result;
+  }
+
+  /** Menus.F0_2c84_01d8_OrdersMenu — rozkazy aktywnej jednostki; zwraca klawisz wybranego rozkazu. */
+  async ordersMenu(): Promise<string | null> {
+    const u = this.activeUnit === -1 ? undefined : this.state.players[this.human]!.units[this.activeUnit];
+    if (!u || u.type === NO_UNIT) return null; // bez jednostki oryginał nie pokazuje menu
+    const { text, keys, disabled } = ordersFor(this.state, this.human, this.activeUnit);
+    const r = await showMenuBox(this.ui, text, MENU_X[1], 8, { disabled });
+    return r.index >= 0 && r.index < keys.length && keys[r.index] ? keys[r.index]! : null;
   }
 
   /** Podmenu Preferences z „ptaszkami” przy włączonych ustawieniach; wybór przełącza ustawienie. */
   async preferences(): Promise<void> {
     let defaultIndex = -1;
+    const s = this.state.settings;
     for (;;) {
-      const r = await showMenuBox(this.ui, PREFERENCES_MENU, 24, 16, { checked: this.settingFlags, defaultIndex });
+      const checked = SETTING_KEYS.reduce((mask, k, i) => (s[k] ? mask | (1 << i) : mask), 0);
+      const r = await showMenuBox(this.ui, PREFERENCES_MENU, 24, 16, { checked, defaultIndex });
       if (r.index === -1) return;
-      if (!r.help) this.settingFlags ^= 1 << r.index;
+      if (!r.help) s[SETTING_KEYS[r.index]!] = !s[SETTING_KEYS[r.index]!];
       defaultIndex = r.index;
     }
   }
+}
+
+/** Lista rozkazów jednostki jak w Menus.F0_2c84_01d8_OrdersMenu (\x8f = skrót klawiszowy na biało). */
+export function ordersFor(state: GameState, player: number, unitId: number): { text: string; keys: string[]; disabled: number } {
+  const u = state.players[player]!.units[unitId]!;
+  const imp = state.map.visibleImprovements[cellIndex(u.x, u.y)]!;
+  const k = colorCode(15);
+  const lines: string[] = [` No Orders ${k}space`];
+  const keys: string[] = [' '];
+  let disabled = 0;
+  const has = (tech: number) => playerHasTech(state, player, tech);
+  if (u.type === 0) {
+    lines.push(imp & Improvement.City ? ` Add to City ${k}b` : ` Found New City ${k}b`);
+    keys.push('b');
+    if (!(imp & Improvement.Road)) {
+      lines.push(` Build Road ${k}r`);
+      keys.push('r');
+    } else if (!(imp & Improvement.Railroad) && has(Tech.RailRoad)) {
+      lines.push(` Build RailRoad ${k}r`);
+      keys.push('r');
+    }
+    // Nawadnianie i kopalnie: dokładne warunki (TerrainModifications, CanIrrigateCell) sprawdza silnik przy wykonaniu.
+    if (!(imp & Improvement.Irrigation)) {
+      lines.push(` Build Irrigation ${k}i`);
+      keys.push('i');
+    }
+    if (!(imp & Improvement.Mine)) {
+      lines.push(` Build Mines ${k}m`);
+      keys.push('m');
+    }
+    if (imp & Improvement.Pollution) {
+      lines.push(` Clean up Pollution ${k}p`);
+      keys.push('p');
+    }
+    lines.push(` Build Fortress ${k}f`);
+    if (!has(Tech.Construction)) disabled |= 1 << keys.length;
+    keys.push('f');
+  } else if (UNITS[u.type]!.movementType === MovementType.Land) {
+    lines.push(` Fortify ${k}f`);
+    keys.push('f');
+  }
+  lines.push(` Wait ${k}w`, ` Sentry ${k}s`, ' GoTo');
+  keys.push('w', 's', '');
+  // Pillage: nie dla dyplomaty (26), karawany (27) i myśliwca (14)
+  if (imp & Improvement.PillageMask && u.type !== 26 && u.type !== 27 && u.type !== 14) {
+    lines.push(` Pillage ${k}P`);
+    keys.push('P');
+  }
+  if (imp & Improvement.City) {
+    lines.push(` Home City ${k}h`);
+    keys.push('h');
+  }
+  // Unload: transportowiec morski (rola 5) albo lotniskowiec (23) z innymi jednostkami na polu
+  if ((UNITS[u.type]!.role === 5 || u.type === 23) && unitsAt(state, player, u.x, u.y).length > 1) {
+    lines.push(` Unload ${k}u`);
+    keys.push('u');
+  }
+  lines.push(' ', ` Disband Unit ${k}D`);
+  keys.push('', 'D');
+  return { text: lines.join('\n') + '\n', keys, disabled };
 }
 
 /** CommonTools.LoadAndApplyDefaultColorPalette: BACK0A.PAL (despotyzm, starożytność) z kolorami 0–127 z SP256.PAL. */
@@ -285,5 +568,4 @@ export function buildGamePalette(assets: GameAssets): Palette {
   return palette;
 }
 
-const wrapX = (x: number) => ((x % MAP_WIDTH) + MAP_WIDTH) % MAP_WIDTH;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));

@@ -1,35 +1,44 @@
 /**
  * Przebieg gry od uruchomienia — StartGame.StartMainGame (OpenCivOne, MIT):
- * intro → menu główne → (mapa) → ustawienia nowej gry → ekran gry; po Retire / QUIT powrót do menu głównego.
+ * intro → menu główne → ustawienia nowej gry → stan gry z silnika (newGame) → tekst powitalny → ekran gry;
+ * po Retire / QUIT / końcu gry powrót do menu głównego.
  */
-import { generateWorld, mscRandom, worldFromMapPixels, type World } from '@civ-remake/engine';
+import { newGame, TECHS, worldFromMapPixels, type GameState, type NewGameOptions } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
 import type { Ui } from '../ui';
 import { GameScreen } from './gameScreen';
 import { GameType, showMainGameIntro } from './intro';
-import { showLogoAndMainGameMenu, type MapChoice } from './mainMenu';
-import { initNewGameData, type NewGameSettings } from './newGame';
-
-export interface StartedGame {
-  readonly settings: NewGameSettings;
-  readonly world: World;
-  readonly seed: number;
-}
+import { showLogoAndMainGameMenu } from './mainMenu';
+import { initNewGameData, showInitText, type NewGameSettings } from './newGame';
 
 export interface GameFlowHooks {
-  /** Wywoływane po ustawieniu nowej gry (np. żeby przekazać ustawienia silnikowi). */
-  readonly onNewGame?: (game: StartedGame) => void;
+  /** Wywoływane po utworzeniu nowej gry (np. dla diagnostyki albo zapisu). */
+  readonly onNewGame?: (state: GameState, settings: NewGameSettings) => void;
   /** Ziarno nowej gry; domyślnie losowe 0–32767. */
   readonly seed?: () => number;
 }
 
-/** Tworzy świat według wyboru z menu (losowy z ustawieniami albo Ziemia z MAP.PIC). */
-export function createWorld(assets: GameAssets, map: MapChoice, seed: number): World {
-  if (map.kind === 'earth') {
-    const pic = assets.pic('MAP.PIC');
-    return worldFromMapPixels(pic.pixels, pic.width);
-  }
-  return generateWorld(mscRandom(seed), map.options);
+/** Wybory z menu → opcje silnika (`newGame`). Mapa Ziemi z MAP.PIC gracza. */
+export function newGameOptions(assets: GameAssets, settings: NewGameSettings, seed: number): NewGameOptions {
+  const earth = settings.map.kind === 'earth';
+  const pic = earth ? assets.pic('MAP.PIC') : null;
+  return {
+    seed,
+    earth,
+    earthWorld: pic ? worldFromMapPixels(pic.pixels, pic.width) : undefined,
+    world: settings.map.kind === 'earth' ? undefined : settings.map.options,
+    difficulty: settings.difficulty,
+    civilizations: settings.opponents + 1,
+    nation: settings.nationalityId,
+    leaderName: settings.leaderName,
+    tribe: settings.customTribe ? { plural: settings.nation, adjective: settings.nationality } : undefined,
+  };
+}
+
+/** Nazwy technologii znanych graczowi na starcie (do tekstu *INIT). */
+export function knownTechnologies(state: GameState): string[] {
+  const p = state.players[state.humanPlayer]!;
+  return TECHS.filter((t) => p.techs[t.id]).map((t) => t.name);
 }
 
 export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHooks = {}): Promise<never> {
@@ -37,12 +46,12 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
   for (;;) {
     const map = await showLogoAndMainGameMenu(ui, assets, preselected);
     preselected = GameType.None;
-    const seed = hooks.seed?.() ?? Math.floor(Math.random() * 32768);
-    const world = createWorld(assets, map, seed);
     const settings = await initNewGameData(ui, assets, map);
-    hooks.onNewGame?.({ settings, world, seed });
-    const screen = new GameScreen(ui, assets, settings, world, { seed });
-    await screen.run();
+    const seed = hooks.seed?.() ?? Math.floor(Math.random() * 32768);
+    const state = newGame(newGameOptions(assets, settings, seed));
+    hooks.onNewGame?.(state, settings);
+    await showInitText(ui, assets, settings, knownTechnologies(state));
+    await new GameScreen(ui, assets, state).run();
     // powrót do ekranu tytułowego
     ui.gfx.patternAvailable = false;
     ui.gfx.fillRect(0, 0, 320, 200, 0);

@@ -1,7 +1,8 @@
 /**
  * Ustawienia nowej gry na ekranie DIFFS.PIC — StartGameMenu.F5_0000_0000_InitNewGameData (OpenCivOne, MIT):
  * poziom trudności, liczba cywilizacji, plemię, imię władcy, a na koniec tekst powitalny (*INIT z KING.TXT).
- * Funkcja zbiera tylko wybory gracza; stan gry tworzy silnik.
+ * Funkcja zbiera tylko wybory gracza; stan gry tworzy silnik (`newGame`), a tekst powitalny pokazuje `showInitText`
+ * — w oryginale po przydzieleniu startowych technologii, dlatego jest osobno.
  */
 import { NATIONS } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
@@ -28,6 +29,8 @@ export interface NewGameSettings {
   readonly nation: string;
   /** Przymiotnik, np. "Roman". */
   readonly nationality: string;
+  /** Gracz wpisał własną nazwę plemienia (Esc przy wyborze plemienia). */
+  readonly customTribe: boolean;
 }
 
 export const DIFFICULTY_MENU = 'Difficulty Level...\n Chieftain (easiest)\n Warlord\n Prince\n King\n Emperor (toughest)\n';
@@ -57,8 +60,6 @@ function drawDifficultyImage(ui: Ui, difficulty: number, x: number, y: number): 
 export interface InitNewGameOptions {
   /** Losowanie (0 ≤ wynik < n) — przy własnym plemieniu numer gracza jest losowy. */
   readonly random?: (n: number) => number;
-  /** Nazwy technologii, które gracz zna na starcie (do tekstu powitalnego); dostarczy je silnik. */
-  readonly startingTechnologies?: readonly string[];
 }
 
 export async function initNewGameData(ui: Ui, assets: GameAssets, map: MapChoice, options: InitNewGameOptions = {}): Promise<NewGameSettings> {
@@ -94,7 +95,8 @@ export async function initNewGameData(ui: Ui, assets: GameAssets, map: MapChoice
   let leaderName: string;
   let nation: string;
   let nationality: string;
-  if (tribe !== -1) {
+  const customTribe = tribe === -1;
+  if (!customTribe) {
     // opcje 0..opponents to nacje 1..opponents+1, dalsze to nacje 9..
     const id = tribe <= opponents ? tribe + 1 : tribe - opponents + 8;
     humanPlayer = id & 7;
@@ -118,18 +120,16 @@ export async function initNewGameData(ui: Ui, assets: GameAssets, map: MapChoice
   leaderName = await playerNameDialog(ui, leaderName);
   gfx.fontId = 1;
 
-  const settings: NewGameSettings = {
-    map, difficulty, opponents, activeCivilizations, humanPlayer, nationalityId, leaderName, nation, nationality,
-  };
-  await showInitText(ui, assets, settings, options.startingTechnologies ?? []);
-  return settings;
+  return { map, difficulty, opponents, activeCivilizations, humanPlayer, nationalityId, leaderName, nation, nationality, customTribe };
 }
 
 /**
  * Tekst powitalny (koniec F5_0000_0000_InitNewGameData): białe tło z ramką z ikon jedzenia,
  * portret władcy i tekst *INIT z KING.TXT z listą znanych technologii. Bez KING.TXT ekran jest pomijany.
  */
-export async function showInitText(ui: Ui, assets: GameAssets, settings: NewGameSettings, technologies: readonly string[]): Promise<void> {
+export async function showInitText(
+  ui: Ui, assets: GameAssets, settings: Pick<NewGameSettings, 'nation' | 'leaderName' | 'difficulty'>, technologies: readonly string[],
+): Promise<void> {
   const king = assets.optional('KING.TXT');
   const section = king ? textSection(king, '*INIT') : null;
   if (section === null) return;
