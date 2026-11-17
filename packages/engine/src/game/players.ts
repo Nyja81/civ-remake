@@ -44,7 +44,7 @@ export function emptyPlayer(): Player {
   return {
     nation: -1, leader: '', nationPlural: '', nationAdjective: '', gold: 0, government: Government.Anarchy,
     taxRate: 0, scienceRate: 0, researchProgress: 0, score: 0, researching: -1, techs: new Array<boolean>(72).fill(false),
-    techCount: 0, futureTechs: 0, cityCount: 0, totalCitySize: 0, settlerCount: 0, ranking: 0, contactCountdown: 0,
+    techCount: 0, futureTechs: 0, spaceshipEta: -1, spaceshipSuccess: 0, spaceshipPopulation: 0, cityCount: 0, totalCitySize: 0, settlerCount: 0, ranking: 0, contactCountdown: 0,
     xStart: 0, waiting: -1, diplomacy: new Array<number>(8).fill(0),
     units: Array.from({ length: MAX_UNITS_PER_PLAYER }, emptyUnit),
     continents: Array.from({ length: 16 }, () => ({ strategy: 0, cityCount: 0, attack: 0, defense: 0 })),

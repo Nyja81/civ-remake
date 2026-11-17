@@ -25,6 +25,7 @@ import { Palette, readPaletteRange } from '../palette';
 import { Surface } from '../surface';
 import { textSection, yearToString } from '../text';
 import type { Ui } from '../ui';
+import { showScoreScreen } from './reports';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
 
@@ -115,9 +116,18 @@ export class GameScreen {
     await this.redrawMapWithBlankingEffect();
     await this.processEvents();
     for (;;) {
+      if (this.state.gameOver === 1) {
+        // podbój świata w trakcie ruchu człowieka: tura dobiega końca, silnik ogłasza koniec gry
+        endHumanTurn(this.state);
+        await this.processEvents();
+      }
       if (this.state.gameOver !== 0) return 'gameOver';
       const e = await this.waitWithBlink();
       const result = await this.handle(e);
+      if (result === 'retire') {
+        // Retire (GAME): koniec gry z oknem wyniku (EndGame)
+        await showScoreScreen(this.ui, this.assets, this.state);
+      }
       if (result) return result;
     }
   }
@@ -288,8 +298,27 @@ export class GameScreen {
         chooseResearch(this.state, ev.suggested);
       } else if (ev.kind === 'chooseGovernment' && Array.isArray(ev.options)) {
         await this.governmentDialog(ev.options as number[]);
+      } else if (ev.kind === 'gameEnd') {
+        await this.gameEndDialog(ev.reason === 'conquest', ev.canContinue === true);
       }
     }
+  }
+
+  /**
+   * Koniec gry (GameTurn): okno wyniku (EndGame), a gdy to nie podbój — pytanie *FAME z KING.TXT, czy grać dalej
+   * (GameEndType = 1 − wybór: opcja 1 = gramy dalej).
+   */
+  async gameEndDialog(conquest: boolean, canContinue: boolean): Promise<void> {
+    this.ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
+    await showScoreScreen(this.ui, this.assets, this.state, conquest);
+    this.ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+    this.ui.present();
+    if (!canContinue) return;
+    const king = this.assets.optional('KING.TXT');
+    const section = king ? textSection(king, '*FAME') : null;
+    // Bez KING.TXT — własne pytanie w tym samym układzie (opcja 1 = gramy dalej)
+    const text = section ? section.replace(/\^/g, '\n').replace(/([^\n])$/, '$1\n') : 'Your reign is over.\n Retire.\n Keep playing.\n';
+    if ((await showDialog(this.ui, text, 80, 80)) === 1) this.state.gameOver = 0;
   }
 
   /** GameEngine.F0_1ade_1584_SelectNextResearchField (człowiek): wybór badań w oknie (80, 64) z pomocą. */

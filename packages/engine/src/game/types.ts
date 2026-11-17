@@ -90,6 +90,10 @@ export interface Player {
   techs: boolean[];
   techCount: number;
   futureTechs: number;
+  /** Statek kosmiczny: rok przylotu (-1 — nie wystartował), szansa sukcesu w %, liczba kolonistów (tys.). */
+  spaceshipEta: number;
+  spaceshipSuccess: number;
+  spaceshipPopulation: number;
   cityCount: number;
   totalCitySize: number;
   settlerCount: number;

@@ -45,6 +45,24 @@ describe('okna zdarzeń silnika', () => {
   });
 });
 
+describe('koniec gry', () => {
+  it('okno wyniku, potem pytanie o dalszą grę — wybór „dalej” wznawia grę', async () => {
+    const { ui, state, screen } = setup();
+    state.gameOver = 2;
+    state.events.push({ kind: 'gameEnd', reason: 'retirement', canContinue: true, score: 0 });
+    await drive(ui, [key('Enter'), key('ArrowDown'), key('Enter')], () => screen.processEvents());
+    expect(state.gameOver).toBe(0);
+  });
+
+  it('podbój: tylko okno wyniku, gra zakończona', async () => {
+    const { ui, state, screen } = setup();
+    state.gameOver = 2;
+    state.events.push({ kind: 'gameEnd', reason: 'conquest', canContinue: false, score: 0 });
+    await drive(ui, [key('Enter')], () => screen.processEvents());
+    expect(state.gameOver).toBe(2);
+  });
+});
+
 describe('miasto', () => {
   it('założenie miasta pyta o nazwę; klik w miasto otwiera okno z listą produkcji', async () => {
     const { ui, state, screen } = setup();

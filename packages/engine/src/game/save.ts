@@ -2,7 +2,8 @@
  * Zapis i odczyt stanu gry (własny format JSON; zapis .SVE oryginału — etap 0, do zrobienia).
  */
 import { mscRandom } from '../world/random';
-import type { GameState } from './types';
+import { emptyPlayer } from './players';
+import type { GameState, Player } from './types';
 
 const ARRAYS = ['terrain', 'riverVariant', 'improvements', 'visibleImprovements', 'group', 'buildScore', 'landOwner', 'occupant'] as const;
 
@@ -44,5 +45,10 @@ export function loadGame(json: string): GameState {
   void version;
   void _r;
   void _m;
-  return { ...(rest as unknown as GameState), map: map as unknown as GameState['map'], rng, events: [] };
+  const base = rest as unknown as GameState;
+  const state: GameState = { ...base, aiFlags: base.aiFlags ?? 0, aiMakeContact: base.aiMakeContact ?? false,
+    map: map as unknown as GameState['map'], rng, events: [] };
+  // Zapisy ze starszych wersji: brakujące pola gracza z wartości początkowych
+  state.players = state.players.map((p: Player) => ({ ...emptyPlayer(), ...p }));
+  return state;
 }

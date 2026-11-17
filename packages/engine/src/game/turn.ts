@@ -29,6 +29,7 @@ import { WonderId } from './buildings';
 import { Government, Improvement, NO_UNIT, UnitStatus, type GameState } from './types';
 import { cityAt, deleteUnit, exploreCell, nearestCity, unitsAt, updateUnitVisibility } from './units';
 import { PIXEL_TO_TERRAIN } from '../world/earth';
+import { civilizationScore } from './score';
 
 export type Order =
   | 'skip' | 'disband' | 'pillage' | 'build' | 'fortify' | 'sentry' | 'irrigate' | 'mine' | 'road'
@@ -597,8 +598,13 @@ setGotoResolver(gotoDirection);
 /** Wykonuje turę od bieżącego gracza aż do początku ruchów człowieka (albo końca gry). */
 export function advanceToHuman(state: GameState): void {
   for (;;) {
-    if (state.gameOver !== 0) return;
+    if (state.gameOver !== 0 && state.gameOver !== 1) return;
     const player = state.currentPlayer;
+    if (state.gameOver === 1 && player < 8) {
+      // podbój świata: pozostali gracze nie wykonują ruchów, tura dobiega końca (GameEndType ≠ 0 przy Var_b884)
+      state.currentPlayer = 8;
+      continue;
+    }
     if (player >= 8) {
       endOfTurn(state);
       state.currentPlayer = 0;
@@ -660,13 +666,43 @@ function endOfTurn(state: GameState): void {
     const c = state.wonderCity[w]!;
     if (c !== -1 && c < 128) state.players[state.cities[c]!.owner]!.score += 25;
   }
-  if (state.year >= 2080 - 20 * state.difficulty && state.year < 2100 - 20 * state.difficulty) {
-    const h = state.players[state.humanPlayer]!;
+  checkGameEnd(state);
+}
+
+/**
+ * Koniec gry (GameTurn po upływie tury): przylot statku kosmicznego, podbój świata, koniec panowania (rok 2100 − 20·poziom).
+ * Ustawia `gameOver = 2` i zgłasza `gameEnd` z wynikiem; przy końcu bez podboju oryginał pyta, czy grać dalej (*FAME) —
+ * interfejs może wtedy przywrócić `gameOver = 0`.
+ */
+function checkGameEnd(state: GameState): void {
+  const h = state.players[state.humanPlayer]!;
+  let spaceWinner = -1;
+  for (let i = 1; i < 8; i++) {
+    const p = state.players[i]!;
+    if (p.spaceshipEta !== -1 && p.spaceshipEta === state.year) {
+      spaceWinner = i;
+      break;
+    }
+  }
+  const endYear = 2100 - 20 * state.difficulty;
+  if (state.year >= endYear - 20) {
     state.events.push({ kind: 'news', text: `${GOVERNMENT_NAMES[h.government]} ${h.leader}\nplans retirement\nin 20 years.\n` });
   }
-  if (state.year >= 2100 - 20 * state.difficulty) {
-    state.events.push({ kind: 'gameEnd', reason: 'retirement' });
+  const conquest = state.gameOver === 1;
+  if (spaceWinner === -1 && !conquest && state.year < endYear) return;
+  if (conquest) {
+    spaceWinner = -1;
+    state.events.push({ kind: 'news', text: '*** GAME OVER ***\nYour civilization\nhas conquered\nthe entire planet!\n' });
   }
+  if (spaceWinner !== -1) {
+    state.events.push({ kind: 'news', text: `*** GAME OVER ***\n${state.players[spaceWinner]!.nationAdjective} spaceship\narrives at Alpha Centauri.\n` });
+  }
+  if (state.year >= endYear) {
+    state.events.push({ kind: 'news', text: `*** GAME OVER ***\n${h.leader} dynasty\nends after glorious\n6000 year reign!\n` });
+  }
+  const reason = conquest ? 'conquest' : spaceWinner !== -1 ? 'spaceship' : 'retirement';
+  state.gameOver = 2;
+  state.events.push({ kind: 'gameEnd', reason, winner: spaceWinner, canContinue: !conquest, score: civilizationScore(state, state.humanPlayer, conquest).total });
 }
 
 export { exploreCell };
