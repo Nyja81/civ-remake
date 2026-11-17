@@ -27,3 +27,4 @@ export * from './game/barbarians';
 export * from './game/government';
 export * from './game/save';
 export * from './game/production';
+export * from './game/catastrophes';

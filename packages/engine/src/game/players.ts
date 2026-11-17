@@ -73,7 +73,7 @@ export function newGame(options: NewGameOptions): GameState {
     map, players: Array.from({ length: MAX_PLAYERS }, emptyPlayer),
     cities: Array.from({ length: MAX_CITIES }, emptyCity),
     wonderCity: new Array<number>(22).fill(-1), cityNames: [...CITY_NAMES], cityNameTaken: new Array<boolean>(256).fill(false),
-    techFirstDiscoveredBy: new Array<number>(72).fill(0), techCatchUp: 0, globalWarming: 0, pollutedSquares: 0, gameOver: 0,
+    techFirstDiscoveredBy: new Array<number>(72).fill(0), techCatchUp: 0, globalWarming: 0, pollutionLevel: 0, pollutedSquares: 0, gameOver: 0,
     rng, events: [],
   };
 

@@ -20,6 +20,7 @@ import {
   occupantPlayer, placeUnit, setCellOwner, stackCount, transportSpace, unitsAt, updateUnitVisibility,
 } from './units';
 import { foundTribalHut } from './huts';
+import { nuclearAttack } from './catastrophes';
 
 export type MoveResult =
   | { kind: 'moved' }
@@ -125,7 +126,7 @@ export function moveUnit(state: GameState, player: number, unitId: number, direc
       return blocked();
     }
     deleteUnit(state, player, unitId);
-    state.events.push({ kind: 'nuclearAttack', player, x: nx, y: ny });
+    nuclearAttack(state, player, nx, ny);
     return { kind: 'action', action: 'nuclear' };
   }
   if (unit.movesLeft === 0) return blocked();

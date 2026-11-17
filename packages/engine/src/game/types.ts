@@ -209,6 +209,8 @@ export interface GameState {
   /** Wyrównanie kosztu badań co 50 tur (Var_d2de). */
   techCatchUp: number;
   globalWarming: number;
+  /** Poziom skutków zanieczyszczenia (PollutionEffectLevel). */
+  pollutionLevel: number;
   pollutedSquares: number;
   /** 0 = gra trwa. */
   gameOver: number;

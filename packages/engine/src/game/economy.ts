@@ -18,6 +18,7 @@ import { UNITS } from '../data/units';
 import { hasSpecialResource } from '../world/features';
 import { Terrain } from '../world/generate';
 import { aiSelectProduction } from './ai';
+import { nuclearEffects } from './catastrophes';
 import { BuildingId, WonderId, addBuilding, hasBuilding, removeBuilding } from './buildings';
 import { cityName, deleteCity, playerHasWonder, testIfPlayerDestroyed } from './cities';
 import { CITY_OFFSETS, cellIndex, distance, isValid, terrainAt, updateVisibleCell, wrapX } from './map';
@@ -544,7 +545,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
       if (city.status & CityStatus.CivilDisorder && hasBuilding(city, BuildingId.NuclearPlant) && !playerHasTech(state, player, Tech.FusionPower) && state.rng.next(3) === 0) {
         removeBuilding(city, BuildingId.NuclearPlant);
         state.events.push({ kind: 'news', city: cityId, nuclearCatastrophe: true, text: `Nuclear Catastrophe\nin ${cityName(state, cityId)}!\nContamination feared!\n` });
-        // skutki skażenia (AddEffectsOfNuclearAttackOrCatastrophe) — etap 7
+        nuclearEffects(state, city.x, city.y);
       }
       // utrzymanie budynków (bez pałacu); dopłata za koszary zależna od poziomu i technologii
       for (let bit = 1; bit < 24; bit++) {

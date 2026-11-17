@@ -11,6 +11,7 @@ import { cellIndex, terrainAt } from './map';
 import { Diplomacy, Government, Improvement, UnitStatus, type GameState } from './types';
 import { cityAt, deleteUnit, unitsAt } from './units';
 import { BuildingId, hasBuilding } from './buildings';
+import { nuclearAttack } from './catastrophes';
 
 /** Najlepszy obrońca w stosie gracza na polu (GetBestDefenseUnitInStack). */
 export function bestDefender(state: GameState, player: number, x: number, y: number): number {
@@ -133,7 +134,7 @@ export function attackUnit(state: GameState, p1: number, id1: number, p2: number
     fromX: u1.x, fromY: u1.y, x: u2.x, y: u2.y, attackerWon: won });
 
   if (type1 === 25) {
-    // Nuclear — etap 7 (NuclearAttack); na razie zwykła wygrana bez skutków ubocznych
+    nuclearAttack(state, p1, u2.x, u2.y);
     return 1;
   }
 
