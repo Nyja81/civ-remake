@@ -206,3 +206,12 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Paczka 0.3.0 (arm64, niepodpisana). Testy: 89 (12 pominiętych bez `CIV1_DIR`).
 - Do zrobienia: MeetWithKing (rozmowy z władcami) i dyplomacja komputer–komputer, Hall of Fame, GoTo oryginału.
 
+### 2026-11-17 — etap 7: dyplomacja komputer–komputer, prośby komputera, Hall of Fame
+- `diplomacy.ts`: SetDiplomacyFlags/ClearDiplomacyFlags, DetermineWhoIsStrongest, CanExchangeTechnologies, traktaty i zerwania
+  między komputerami, wygasanie traktatów i kontaktu formalnego, prośby *HELPME/*CRUSADE (zdarzenie `aiRequest`, `acceptAiRequest`).
+- `score.ts`: Hall of Fame (wpis, ocena, wstawianie wg asemblera — wynik × (poziom + 2), słabszy wpis na ostatnie miejsce),
+  postaci sławne. UI `screens/hallOfFame.ts`: tabela z Clear, „Sire, your Civilization Rating…”, odczyt FAME.DTA z gry (tylko odczyt),
+  własna tabela `fame.dat` w folderze danych aplikacji.
+- Równolegle pracują agenci w osobnych klonach (gałęzie `meet-with-king`, `original-goto`, `city-window`, `advisors`) — do scalenia.
+- Testy: 96 (12 pominiętych bez `CIV1_DIR`).
+
