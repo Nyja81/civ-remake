@@ -37,3 +37,17 @@ describe('symulacja wielu tur', () => {
     }
   });
 });
+
+import { loadGame, saveGame } from '../src';
+describe('zapis gry', () => {
+  it('zapis i odczyt dają identyczny dalszy przebieg', () => {
+    const a = newGame({ seed: 515, difficulty: 1, civilizations: 5, nation: 2 });
+    advanceToHuman(a);
+    unitOrder(a, a.humanPlayer, 0, 'build');
+    play(a, 30);
+    const b = loadGame(saveGame(a));
+    play(a, 40);
+    play(b, 40);
+    expect(saveGame(b)).toBe(saveGame(a));
+  });
+});
