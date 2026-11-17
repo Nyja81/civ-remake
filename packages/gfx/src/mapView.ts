@@ -6,7 +6,8 @@
  */
 import {
   activeUnitAt, bestDefender, cellIndex, cityAt, DIRECTIONS, hasBuilding, hasSpecialResource, Improvement,
-  MAP_HEIGHT, MAP_WIDTH, MovementType, NO_UNIT, occupantPlayer, playerHasTech, Tech, Terrain, UNITS, UnitStatus,
+  MAP_HEIGHT, MAP_WIDTH, MovementType, NO_UNIT, occupantPlayer, PLAYER_COLORS, PLAYER_DARK_COLORS, playerHasTech, Tech, Terrain,
+  UNITS, UnitStatus,
   unitsAt, wrapX, type GameState,
 } from '@civ-remake/engine';
 import type { PicImage } from './pic';
@@ -24,9 +25,8 @@ export type TextDrawer = (surface: Surface, text: string, x: number, y: number, 
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12 } as const;
 
-/** Kolory graczy (Array_1946_PlayerColours) i ich ciemniejsze odcienie (Array_1956). */
-export const PLAYER_COLORS = [12, 15, 10, 9, 14, 11, 13, 7] as const;
-export const PLAYER_DARK_COLORS = [4, 7, 2, 1, 10, 3, 4, 8] as const;
+/** Kolory graczy (Array_1946_PlayerColours) i ich ciemniejsze odcienie (Array_1956) — z CIV.EXE (engine/data/ruleTables). */
+export { PLAYER_COLORS, PLAYER_DARK_COLORS };
 
 interface Sprite {
   readonly w: number;

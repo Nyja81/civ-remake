@@ -15,6 +15,7 @@ import { readPaletteRange } from '../palette';
 import { PaletteCycles } from '../paletteCycle';
 import { textLines } from '../text';
 import type { Ui } from '../ui';
+import { STORY_EVENT_TICKS, STORY_PALETTE_CYCLES } from '../data/screenTables';
 
 /** Typ gry wybrany w menu głównym (Var_6b32_SelectedGameType). */
 export const GameType = { None: -1, NewGame: 0, LoadGame: 1, Earth: 2, Customize: 3, HallOfFame: 4 } as const;
@@ -129,29 +130,11 @@ export async function showMainGameIntro(ui: Ui, assets: GameAssets): Promise<num
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 /**
- * Cykle palety obrazów historii świata BIRTH1–8 (szybkość, od, do) — w oryginale tablica w danych muzyki
- * (segment Var_6416: od, do, dzielnik; szybkość = 300 / dzielnik); wartości przepisane z nowszej wersji wzorca
- * (MapInitAndIntro.storyImagePaletteCycles), do sprawdzenia z oryginałem.
+ * Cykle palety obrazów historii świata BIRTH1–8 jako (szybkość, od, do): z tablicy CIV.EXE (segment 0x3710, [od, do,
+ * dzielnik]) — szybkość = 300 / dzielnik (dzielenie całkowite, F7_0000_17cf).
  */
-export const STORY_PALETTE_CYCLES: readonly (readonly (readonly [number, number, number])[])[] = [
-  [[14, 146, 152], [60, 183, 187], [17, 188, 191]],
-  [[27, 48, 56], [30, 32, 47], [23, 141, 148], [13, 176, 183], [100, 211, 215], [300, 152, 155], [20, 57, 79]],
-  [[17, 80, 95], [42, 96, 111], [10, 112, 127], [30, 136, 140], [27, 184, 188]],
-  [[60, 134, 138], [30, 139, 143], [13, 240, 241], [12, 96, 101], [10, 242, 244], [25, 245, 250], [27, 251, 252], [14, 102, 105]],
-  [[14, 184, 187], [18, 180, 183], [25, 135, 140], [14, 214, 215], [17, 96, 102]],
-  [[14, 136, 138], [37, 129, 131], [14, 246, 249], [25, 250, 254]],
-  [[14, 246, 249], [30, 250, 251], [27, 208, 210], [18, 135, 138]],
-  [[18, 208, 210], [27, 216, 218], [18, 131, 134], [12, 48, 53], [4, 246, 249]],
-];
-
-/**
- * Chwile kolejnych wierszy historii w sekundach od pierwszego wiersza (w oryginale tablica czasów muzyki, segment
- * Var_6416 + 0x83, w jednostkach zegara odtwarzacza) — przepisane z nowszej wersji wzorca (MapInitAndIntro.storyEvents).
- */
-export const STORY_EVENT_SECONDS: readonly number[] = [
-  0, 5, 8, 11, 18, 21, 24, 31, 34, 37, 40, 43, 46, 49, 52, 59, 62, 65, 68, 71, 78, 81, 84, 87, 90, 93,
-  100, 103, 106, 109, 112, 115, 118, 121, 128, 131, 134, 137, 140, 143, 146, 149, 152, 155, 162, 165,
-];
+export const STORY_PALETTE_SPEEDS: readonly (readonly (readonly [number, number, number])[])[] = STORY_PALETTE_CYCLES.map((image) =>
+  image.map(([from, to, divisor]) => [Math.trunc(300 / divisor), from, to] as const));
 
 /**
  * Historia świata podczas budowy nowego świata — MapInitAndIntro.F7_0000_17cf_AdvanceAnimation (OpenCivOne, MIT;
@@ -223,8 +206,10 @@ export async function showWorldHistory(ui: Ui, assets: GameAssets, options: { re
       image++;
     }
     if (text.length > 19) pause++;
+    // F0_2dc4_007c(czas z tablicy, 45·pauza + zegar, 0x7fff) — wszystko w jednostkach zegara muzyki; za końcem tablicy
+    // oryginał czyta 0xffff (−1), więc liczy się tylko pauza
     const elapsed = (now() - start) * speed;
-    due = Math.max((STORY_EVENT_SECONDS[index] ?? 0) * 1000, elapsed + 45 * pause * INTRO_TICK_MS);
+    due = Math.max((STORY_EVENT_TICKS[index] ?? -1) * INTRO_TICK_MS, elapsed + 45 * pause * INTRO_TICK_MS);
   }
   if (!aborted) await cycles.wait(180 / speed);
   ui.playTune(TUNE.stop);
@@ -248,6 +233,6 @@ async function storyImage(ui: Ui, assets: GameAssets, cycles: PaletteCycles, n: 
   const range = pal ? readPaletteRange(pal) : readPaletteRange(assets.file(pic));
   if (range) target.apply(range);
   await ui.fadePalette(target, 8);
-  STORY_PALETTE_CYCLES[n - 1]!.forEach(([speed, from, to], i) => cycles.add(i + 1, speed, from, to));
-  STORY_PALETTE_CYCLES[n - 1]!.forEach((_, i) => cycles.start(i + 1));
+  STORY_PALETTE_SPEEDS[n - 1]!.forEach(([speed, from, to], i) => cycles.add(i + 1, speed, from, to));
+  STORY_PALETTE_SPEEDS[n - 1]!.forEach((_, i) => cycles.start(i + 1));
 }

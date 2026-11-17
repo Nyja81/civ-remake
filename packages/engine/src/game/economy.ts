@@ -31,6 +31,7 @@ import { addReplayData, ReplayKind } from './replay';
 import { CityStatus, Government, Improvement, NO_UNIT, type GameState } from './types';
 import { createUnit, deleteUnit, occupantPlayer } from './units';
 import { caravanArrives } from './unitActions';
+import { LEADER_TITLES } from '../data/names';
 
 export const Resource = { Food: 0, Shields: 1, Trade: 2 } as const;
 
@@ -553,7 +554,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     if (h.unhappy === 0 && city.size > 2 && (city.size + 1) >> 1 <= h.happy && gov !== Government.Anarchy) {
       if (!(city.status & CityStatus.Celebrating)) {
         if (human) {
-          state.events.push({ kind: 'news', city: cityId, animation: 'celebration', tune: 34, tuneAfter: 1, text: `'We love the ${GOVERNMENT_NAMES[gov]}'\nday celebrated in\n${cityName(state, cityId)}!\n` });
+          state.events.push({ kind: 'news', city: cityId, animation: 'celebration', tune: 34, tuneAfter: 1, text: `'We love the ${LEADER_TITLES[gov]}'\nday celebrated in\n${cityName(state, cityId)}!\n` });
         }
         city.status |= CityStatus.Celebrating;
       } else if (gov >= Government.Republic) {
@@ -561,7 +562,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
       }
     } else if (balance >= 0 && city.status & CityStatus.Celebrating) {
       if (human && gov !== Government.Anarchy) {
-        state.events.push({ kind: 'news', city: cityId, tune: 35, tuneAfter: 1, text: `'We love the ${GOVERNMENT_NAMES[gov]}'\ncelebration canceled\nin ${cityName(state, cityId)}.\n` });
+        state.events.push({ kind: 'news', city: cityId, tune: 35, tuneAfter: 1, text: `'We love the ${LEADER_TITLES[gov]}'\ncelebration canceled\nin ${cityName(state, cityId)}.\n` });
       }
       city.status &= ~CityStatus.Celebrating;
     }
@@ -631,7 +632,6 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
   return report;
 }
 
-export const GOVERNMENT_NAMES = ['Anarchy', 'Despotism', 'Monarchy', 'Communism', 'Republic', 'Democracy'] as const;
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(Math.max(v, lo), hi);

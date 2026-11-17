@@ -11,6 +11,8 @@ export * from './world/earth';
 export * from './world/features';
 export * from './data/terrainModifications';
 export * from './data/cityNames';
+export * from './data/ruleTables';
+export * from './data/names';
 export * from './game/types';
 export * from './game/map';
 export * from './game/units';

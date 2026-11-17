@@ -15,7 +15,7 @@ import { UNITS } from '../data/units';
 import { Terrain } from '../world/generate';
 import { foundCity } from './cities';
 import { confirmBreakTreaty, clearPeace } from './combat';
-import { GOVERNMENT_NAMES, processCities } from './economy';
+import { processCities } from './economy';
 import { DIRECTIONS, cellIndex, distance, distanceDoubled, isValid, terrainAt, updateVisibleCell } from './map';
 import { fullMoves, moveUnit, type MoveOptions, type MoveResult } from './movement';
 import { aiChangeGovernment, aiUnitCommand, reassignPolicies, recalculateStatsAndPolicies, type AiCommand } from './ai';
@@ -36,6 +36,7 @@ import { civilizationScore, playerPopulation } from './score';
 import { addReplayData, ReplayKind } from './replay';
 import { checkPalaceUpgrade } from './palace';
 import { diplomacyTurn } from './diplomacy';
+import { LEADER_TITLES } from '../data/names';
 
 export type Order =
   | 'skip' | 'disband' | 'pillage' | 'build' | 'fortify' | 'sentry' | 'irrigate' | 'mine' | 'road'
@@ -689,7 +690,7 @@ function checkGameEnd(state: GameState): void {
   }
   const endYear = 2100 - 20 * state.difficulty;
   if (state.year >= endYear - 20) {
-    state.events.push({ kind: 'news', text: `${GOVERNMENT_NAMES[h.government]} ${h.leader}\nplans retirement\nin 20 years.\n` });
+    state.events.push({ kind: 'news', text: `${LEADER_TITLES[h.government]} ${h.leader}\nplans retirement\nin 20 years.\n` });
   }
   const conquest = state.gameOver === 1;
   if (spaceWinner === -1 && !conquest && state.year < endYear) return;

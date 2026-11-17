@@ -7,9 +7,8 @@ import { civilizationScore, WONDERS, type GameState } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
 import { yearToString } from '../text';
 import type { Ui } from '../ui';
+import { LEADER_TITLES } from '@civ-remake/engine';
 
-/** Array_19b2_GovernmentTypeNames — tytuł władcy w nagłówku raportu. */
-export const LEADER_TITLES = ['Mr.', 'Emperor', 'King', 'Comrade', 'President', 'President'] as const;
 
 /** DrawReportScreen: tło w kolorze `fill`, tytuł i nagłówek władcy („Emperor Caesar: 3950 BC”). */
 export function drawReportScreen(ui: Ui, state: GameState, title: string, fill: number): void {

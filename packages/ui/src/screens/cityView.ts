@@ -28,21 +28,12 @@ import { Surface } from '../surface';
 import { yearToString } from '../text';
 import { TUNE } from '../sound';
 import type { Ui } from '../ui';
+import { FIGURE_OFFSETS_X, FIGURE_OFFSETS_Y, WONDER_RECTS } from '../data/screenTables';
 
-/**
- * Prostokąty cudów na WONDERS.PIC / WONDERS2.PIC (x1, y1, x2, y2) — tablica w danych CIV.EXE przepisana ze wzorca
- * (do dodania do `npm run extract`); F19_0000_1606 zamienia x2/y2 na szerokość i wysokość = x2 − x1 + 1, y2 − y1 + 1.
- */
-export const WONDER_RECTS: readonly (readonly [number, number, number, number])[] = [
-  [0, 0, 0, 0], [131, 54, 318, 82], [159, 149, 227, 198], [88, 97, 211, 135], [229, 116, 268, 198], [61, 117, 101, 172],
-  [164, 97, 227, 147], [1, 38, 66, 118], [268, 53, 318, 114], [9, 117, 59, 172], [126, 1, 182, 53], [276, 1, 318, 51],
-  [103, 139, 157, 198], [184, 1, 224, 69], [40, 69, 101, 115], [1, 14, 147, 33], [253, 1, 274, 47], [226, 1, 251, 47],
-  [103, 79, 162, 137], [270, 116, 318, 198], [63, 1, 124, 54], [240, 60, 266, 114],
-];
+/** Prostokąty cudów na WONDERS.PIC / WONDERS2.PIC (x1, y1, x2, y2) — z CIV.EXE (data/screenTables). */
+export { WONDER_RECTS };
 const wonderHeight = (w: number) => WONDER_RECTS[w]![3] - WONDER_RECTS[w]![1] + 1;
 
-/** Przesunięcia postaci w animacjach zamieszek i święta (Array_4f42). */
-const FIGURE_OFFSETS = [-96, -36, 0, -56] as const;
 
 interface Bitmaps {
   houses: (Surface | null)[];
@@ -355,8 +346,8 @@ export async function civilDisorderAnimation(ui: Ui, assets: GameAssets, state: 
   const f = university ? frames(gfx, 1, 79, 1, 64, 78, 63) : frames(gfx, 1, 75, 1, 66, 74, 65);
   await animate(ui, range(-48, 420, 3), (i, j, put) => {
     for (let k = 0; k < 4; k++) {
-      const x = FIGURE_OFFSETS[k]! + i;
-      if (x > -48 && x < 320) put(f[(k * 3 + j) % 10]!, x, 126 + k * 2);
+      const x = FIGURE_OFFSETS_X[k]! + i;
+      if (x > -48 && x < 320) put(f[(k * 3 + j) % 10]!, x, 132 + FIGURE_OFFSETS_Y[k]!);
     }
   });
 }
@@ -370,8 +361,8 @@ export async function loveOurLeaderAnimation(ui: Ui, assets: GameAssets, state: 
   const f = frames(gfx, 1, 79, 1, 66, 78, 65);
   await animate(ui, range(420, -48, -3), (i, j, put) => {
     for (let k = 0; k < 4; k++) {
-      const x = Math.trunc((FIGURE_OFFSETS[k]! * 3) / 2) + i;
-      if (x > -48 && x < 320) put(f[(k * 3 + j) % 10]!, x, 126 + k * 2);
+      const x = Math.trunc((FIGURE_OFFSETS_X[k]! * 3) / 2) + i;
+      if (x > -48 && x < 320) put(f[(k * 3 + j) % 10]!, x, 132 + FIGURE_OFFSETS_Y[k]!);
     }
   });
 }

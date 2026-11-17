@@ -24,9 +24,10 @@ import { readPaletteRange } from '../palette';
 import { Surface } from '../surface';
 import { adjustTextBlockWidth, replaceKeywords, textSection } from '../text';
 import type { Ui } from '../ui';
+import { NATION_LEADER_IDS } from '../data/screenTables';
 
-/** Array_3938_NationalityIDToLeaderID — numer portretu KING??.PIC dla nacji. */
-export const NATION_LEADER_IDS = [3, 10, 7, 12, 1, 4, 13, 2, 3, 8, 3, 11, 9, 6, 0, 5] as const;
+/** Array_3938_NationalityIDToLeaderID — numer portretu KING??.PIC dla nacji (z CIV.EXE, data/screenTables). */
+export { NATION_LEADER_IDS };
 
 /** Nazwa tła sali tronowej: BACK + ustrój/2 (komunizm = 3) + A albo M (gracz zna Invention; nie dla komunizmu). */
 export function throneRoomFile(government: number, invention: boolean): string {
