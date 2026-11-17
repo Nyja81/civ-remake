@@ -23,6 +23,10 @@ export const UI_OPTIONAL_FILES = [
   'HELP.TXT', // porady (Instant Advice)
   'DOCKER.PIC', // rysunki części statku kosmicznego
   'FAME.DTA', // tabela Hall of Fame z kopii gry (tylko odczyt — własna tabela w folderze danych aplikacji)
+  // rozmowy z władcami (MeetWithKing): tło sali tronowej wg ustroju i portrety władców z paletami
+  'BACK0A.PIC', 'BACK1A.PIC', 'BACK2A.PIC', 'BACK3A.PIC', 'BACK0M.PIC', 'BACK1M.PIC', 'BACK2M.PIC',
+  ...Array.from({ length: 14 }, (_, i) => `KING${String(i).padStart(2, '0')}.PIC`),
+  ...Array.from({ length: 14 }, (_, i) => `KING${String(i).padStart(2, '0')}.PAL`),
   'STORY.TXT', 'BIRTH2.PIC', 'BIRTH3.PIC', 'BIRTH4.PIC', 'BIRTH5.PIC', 'BIRTH6.PIC', 'BIRTH7.PIC', 'BIRTH8.PIC',
   'BIRTH1.PAL', 'BIRTH2.PAL', 'BIRTH3.PAL', 'BIRTH4.PAL', 'BIRTH5.PAL', 'BIRTH6.PAL', 'BIRTH7.PAL', 'BIRTH8.PAL',
 ] as const;

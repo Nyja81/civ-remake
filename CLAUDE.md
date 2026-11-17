@@ -215,3 +215,36 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Równolegle pracują agenci w osobnych klonach (gałęzie `meet-with-king`, `original-goto`, `city-window`, `advisors`) — do scalenia.
 - Testy: 96 (12 pominiętych bez `CIV1_DIR`).
 
+### 2026-11-17 — etap 7: rozmowy z władcami (MeetWithKing)
+- Silnik: `packages/engine/src/game/kingMeeting.ts` — port F6_0000_0000 przepisany z wersji „goto” na kod strukturalny
+  (etykiety wzorca w komentarzach): ocena sił na kontynentach (obawa komputera, kwota trybutu), broń jądrowa, Wielki Mur/ONZ,
+  chęć pokoju z wojen z innymi, senat republiki komputera (przejście na monarchię), wymiana technologii (*EXCHANGE
+  z portem AcquireTechnologyFromAnotherPlayer), *CANCEL, *TRIBUTE, *TAKECIV, wypowiedzenie wojny (*PROVOKE/*REJECT/*RID),
+  *PEACE z *TREATY (F6_0000_1a3f/1a99, na Chieftainie usuwanie jednostek komputera przy miastach człowieka), senat człowieka,
+  *GIVECIV/*GIVECASH/*GROVEL/*MOBILIZE, *ATTITUDE / powitanie przyjaźni, opcje człowieka *THREAT (*GIVEMORE, „You must attack
+  the evil”, *NOCONTACT/*ATWAR/*MERCENARY/*UNFORTUNATE), PeaceTreaty, *SCHISM; F6_0000_16cd (poseł, powitanie F6_0000_1874).
+  Interfejs silnik↔UI: `meetWithKing()` / `aiRequestMeeting()` / `envoyMeeting()` zwracają `KingMeeting` — `step` (emissary,
+  portrait, speech, dialog, advice, close; klucz KING.TXT + słowa kluczowe albo gotowy tekst, maska nieaktywnych opcji)
+  i `answer(numer opcji)`; skutki wykonuje silnik. `runMeeting()` prowadzi rozmowę bez interfejsu (testy).
+  Zdarzenie `meetLeader` niesie `previousCountdown` (licznik sprzed kontaktu).
+- UI: `packages/ui/src/screens/king.ts` — sala tronowa BACK??.PIC wg ustroju (wariant M z Invention) z portretem KING??.PIC
+  w (90, 0) i kolorami 64–143 z KING??.PAL, okno bez ramki F6_0000_251d w (36, 139) z wierszem 8 px (nowa opcja `lineHeight`
+  w `showMenuBox`), teksty KING.TXT (`kingText`: sekcja, słowa kluczowe, łamanie do 80/40 znaków) z własnymi tekstami
+  zastępczymi, gdy brak pliku. `gameScreen.ts` obsługuje `meetLeader`, `aiRequest` (*HELPME/*CRUSADE przez posła i portret)
+  i `envoy` (*GAPE). Pliki BACK??.PIC, KING00–13.PIC/.PAL na liście opcjonalnych; bez nich ekran uproszczony.
+- Testy: 103 (12 pominiętych bez `CIV1_DIR`): silnik — trybut przy przewadze komputera, pokój z traktatem i *THREAT,
+  *GIVECIV, wymiana technologii, odprawiony poseł, zdarzenie kontaktu, *HELPME; UI — rozmowa bez KING.TXT i portretów,
+  *HELPME z syntetycznym KING.TXT, salą i portretem, odprawiony poseł.
+- Odstępstwa / niepewne: rozmowa odbywa się po ruchu komputera (oryginał — w trakcie; flagę kontaktu sprzed spotkania niesie
+  zdarzenie); pytanie o posła przy *HELPME/*CRUSADE/*GAPE zawsze zadawane (wzorzec zostawia Var_3934 = −1 po każdej rozmowie,
+  co blokowałoby te prośby — do sprawdzenia w oryginale); *GIVECASH i *GIVEMORE: kwota odejmowana komputerowi (we wzorcu rejestr
+  SI / wartość AX po oknie — nieczytelne); *MERCENARY nie zmienia flag dyplomacji (dosłownie jak we wzorcu); opcja
+  „Check Intelligence” pominięta (brak raportu wywiadu); RuleDebugFlags.Bit0 przyjęty jako ustawiony.
+- Pominięte: animacja twarzy i doradcy z GOVT??.PIC (F6_0000_1b33/2362/233c — tablice klatek i położeń w danych CIV.EXE),
+  czcionka władcy (tablica w CIV.EXE; przyjęta czcionka 1), dźwięk (PlayTune). Losowania animacji (RNG) nie są wykonywane.
+- DiplomatActions.cs:269 (dyplomata w mieście → rozmowa, param4 = 1) **niepodłączone**: silnik nie ma jeszcze akcji dyplomaty
+  w mieście (zdarzenie `diplomatAction` bez obsługi); `meetWithKing(…, { visit: true })` jest gotowe do użycia.
+- **Niesprawdzone na plikach oryginału**: układ sali tronowej, kolory tekstu na tle, rozmieszczenie opcji w sekcjach KING.TXT.
+- Do zrobienia: akcje dyplomaty (w tym rozmowa), raport wywiadu, ekstrakcja tablic animacji i czcionek władców z CIV.EXE,
+  Hall of Fame, GoTo oryginału.
+

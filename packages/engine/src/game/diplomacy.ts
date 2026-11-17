@@ -2,7 +2,8 @@
  * Dyplomacja. Źródło: Diplomacy.cs z OpenCivOne (MIT): UpdateDiplomacyStatus (kontakt, traktaty komputer–komputer),
  * SetDiplomacyFlags/ClearDiplomacyFlags, DetermineWhoIsStrongest, CanExchangeTechnologies oraz część
  * UpdatePlayerGovernmentAndDiplomacy (wygasanie traktatów, kontakt formalny, prośby komputera o pomoc i krucjatę).
- * Rozmowy z władcami (MeetWithKing) — interfejs; silnik zgłasza zdarzenia `meetLeader` i `aiRequest`.
+ * Rozmowy z władcami (MeetWithKing) — kingMeeting.ts; silnik zgłasza zdarzenia `meetLeader` i `aiRequest`,
+ * a interfejs prowadzi rozmowę (meetWithKing, aiRequestMeeting).
  * Pominięte: zapis do powtórki (Replay), flagi debugowania reguł (przyjęte wartości domyślne — wszystkie bity ustawione).
  */
 import { NATIONS } from '../data/nations';
@@ -97,7 +98,9 @@ export function updateDiplomacyStatus(state: GameState, p1: number, p2: number, 
   if (other !== -1) {
     const first = !(state.players[p1]!.diplomacy[p2]! & Diplomacy.Contact);
     if (first || state.turn - state.players[other]!.contactCountdown >= 16) {
-      state.events.push({ kind: 'meetLeader', player: other, x, y, first });
+      // F6_0000_0000(gracz, x, y, 0): rozmowę prowadzi interfejs (meetWithKing); zdarzenie niesie licznik sprzed spotkania
+      const previousCountdown = state.players[other]!.contactCountdown;
+      state.events.push({ kind: 'meetLeader', player: other, x, y, first, previousCountdown });
       state.players[other]!.contactCountdown = state.turn;
     }
   }
