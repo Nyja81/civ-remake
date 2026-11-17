@@ -214,9 +214,9 @@ describe('tura i kalendarz', () => {
   });
 });
 
-import { gotoDirection } from '../src';
+import { getNextMove } from '../src';
 describe('idź do', () => {
-  it('omija wodę i dochodzi do celu', () => {
+  it('GoTo oryginału prowadzi jednostkę lądową do celu na tym samym kontynencie', () => {
     const s = game(5);
     advanceToHuman(s);
     const h = s.humanPlayer;
@@ -233,7 +233,9 @@ describe('idź do', () => {
     const tx = target % 80, ty = Math.floor(target / 80);
     for (let step = 0; step < 40 && (u.x !== tx || u.y !== ty); step++) {
       u.movesLeft = 3;
-      const d = gotoDirection(s, h, 0, tx, ty);
+      u.gotoX = tx;
+      u.gotoY = ty;
+      const d = getNextMove(s, h, 0);
       expect(d).toBeGreaterThan(0);
       unitMove(s, h, 0, d);
     }

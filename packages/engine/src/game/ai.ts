@@ -3,8 +3,8 @@
  * i kontynentów, ChangeCityProduction, UnitChooseNewDirection) oraz GameEngine.SelectCityProduction (część oceniająca)
  * z OpenCivOne (MIT) — reguły w tej samej kolejności co we wzorcu.
  *
- * Odstępstwa: „idź do” komputera używa najtańszej drogi (`gotoDirection`) zamiast algorytmu GoTo oryginału;
- * działania dyplomatów (DiplomatInteractionWithUnit, akcje w miastach) i ruch rakiety obok celu — etap 7;
+ * „Idź do” komputera i barbarzyńców: GoTo oryginału (goto.ts, F0_2e31_000e).
+ * Odstępstwa: działania dyplomatów (DiplomatInteractionWithUnit, akcje w miastach) i ruch rakiety obok celu — etap 7;
  * statystyki Var_e3c2/Var_db42 z przeliczania miast (wybór despotyzmu/republiki) — przyjęte 0.
  */
 import { BUILDINGS, WONDERS } from '../data/buildings';
@@ -20,6 +20,7 @@ import { attackOdds, bestDefender } from './combat';
 import { BuildingId, hasBuilding, WonderId } from './buildings';
 import { cityTreasury, playerHasWonder } from './cities';
 import { DIRECTIONS, cellIndex, distance, isValid, terrainAt, wrapX } from './map';
+import { getNextMove } from './goto';
 import { playerHasTech } from './techs';
 import { CityStatus, Diplomacy, Government, Improvement, NO_UNIT, UnitStatus, type GameState, type Player } from './types';
 import { activeUnitAt, cellHasHut, cellOwner, deleteUnit, isEnemyUnitAdjacent, nearestCity, occupantPlayer, unitsAt } from './units';
@@ -1033,7 +1034,12 @@ function barbarianCommand(state: GameState, p: number, unitId: number): AiComman
     xStep = -2;
     yStep = -2;
   }
-  if (yStep !== -2) unit.gotoNextDirection = gotoResolver(state, p, unitId, city.x, city.y);
+  if (yStep !== -2) {
+    // kierunek do miasta z GoTo oryginału (F0_2e31_000e), potem cel zostaje skasowany
+    unit.gotoX = city.x;
+    unit.gotoY = city.y;
+    unit.gotoNextDirection = getNextMove(state, p, unitId);
+  }
   unit.gotoX = unit.gotoY = -1;
   if (unit.type === 26) {
     const t = terrainAt(state.map, ux, uy);
@@ -1111,12 +1117,6 @@ function barbarianCommand(state: GameState, p: number, unitId: number): AiComman
   if (imp(state, ux, uy) & Improvement.City && others(state, p, unitId).length === 0 && best < 99) return ' ';
   unit.gotoNextDirection = dir;
   return dir === 0 ? ' ' : dir;
-}
-
-/** Kierunek najtańszej drogi — podpinany z turn.ts (unika zależności cyklicznej przy inicjalizacji). */
-let gotoResolver: (state: GameState, p: number, id: number, x: number, y: number) => number = () => -1;
-export function setGotoResolver(fn: typeof gotoResolver): void {
-  gotoResolver = fn;
 }
 
 // ── wybór produkcji (SelectCityProduction, część oceniająca) ───────────────────────────

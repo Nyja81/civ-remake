@@ -248,3 +248,23 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Do zrobienia: akcje dyplomaty (w tym rozmowa), raport wywiadu, ekstrakcja tablic animacji i czcionek władców z CIV.EXE,
   Hall of Fame, GoTo oryginału.
 
+
+
+### 2026-11-17 — etap 6: GoTo oryginału
+- Nowy moduł `packages/engine/src/game/goto.ts`: port segmentu 2e31 z asemblera (`Segment_2e31.cs` z historii wzorca):
+  `getNextMove` (F0_2e31_000e), ComputeGoToPath (05e6), CanUnitMove (0a2c), FindShortestPath (0c1d), `checkUnitPath` (111c),
+  zawijanie X (119b), odległość oryginału `shortestDistance` (F0_2dc4_0208: dłuższa różnica + połowa krótszej).
+- Tablice ścieżek 20×13 (`GameMap.landPath` = Arr_db44, `GameMap.waterPath` = Arr_7f38) liczone w `createGameMap` zaraz po etapie 6
+  (F7_0000_1188 z CheckUnitPath(…, ląd, 20), F7_0000_1440), także dla Ziemi. Pamięć FindShortestPath (ostatni cel, koszty 16×16)
+  w `GameMap.gotoCache` — zmienia wyniki kolejnych wywołań, więc jest częścią stanu i zapisu; pozostałe zmienne globalne
+  oryginału (cel pośredni, kolejki) — zmienne modułu, ustawiane przed każdym użyciem.
+- Zapis: tablice i pamięć jako base64; zapis bez nich — przeliczenie przy odczycie.
+- `turn.ts`: „idź do” człowieka i komputera jak w PlayerTurn (Label151): kierunek z GetNextMove, -1 kasuje cel i ostatni kierunek,
+  bez celu ostatni kierunek = -1; rozkaz 0 komputera — ponowne pytanie AIEngine (licznik prób), bez kasowania celu po nieudanym
+  ruchu. `ai.ts`: MoveBarbarianUnit bierze kierunek z GetNextMove; usunięte tymczasowe `gotoDirection` (Dijkstra) i `setGotoResolver`.
+- Rozbieżności nowszego wzorca z asemblerem (lista w ARCHITECTURE.v2 → „Wzorzec: dwie wersje OpenCivOne”).
+- Odstępstwa: odczyty poza tablicami/stroną mapy = 0; krok zachłanny pomija pola poza mapą w pionie; nieudany ruch człowieka
+  kasuje „idź do” (zabezpieczenie pętli `nextUnit`); tablica wody nie jest przeliczana przy odczycie (oryginał: F7_0000_1440 przy wczytaniu).
+- Testy: `packages/engine/test/goto.test.ts` (symetria bitów tablic, szew wody, mapa syntetyczna, bliski i daleki cel z jeziorem,
+  statek wzdłuż wybrzeża, cel nieosiągalny, zapis). Razem 103 (12 pominiętych bez `CIV1_DIR`).
+- Do zrobienia: porównać odległość oryginału (F0_2dc4_0208) z `distance` używanym w `ai.ts`.
