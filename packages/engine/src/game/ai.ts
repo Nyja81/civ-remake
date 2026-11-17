@@ -27,13 +27,13 @@ import { playerHasTech } from './techs';
 import { addReplayData, ReplayKind } from './replay';
 import { CityStatus, Diplomacy, Government, Improvement, NO_UNIT, UnitStatus, type GameState, type Player } from './types';
 import { activeUnitAt, cellHasHut, cellOwner, deleteUnit, isEnemyUnitAdjacent, nearestCity, occupantPlayer, placeUnit, unitsAt } from './units';
+import { GOVERNMENT_NAMES } from '../data/names';
 
 const R = UnitRole;
 const int16 = (v: number) => (v << 16) >> 16;
 const NONE = -1;
 const BUILDING_TECH = [0, ...BUILDINGS.map((b) => b.requiredTech)];
 const WONDER_TECH = [0, ...WONDERS.map((w) => w.requiredTech)];
-const GOVERNMENTS = ['Anarchy', 'Despotism', 'Monarchy', 'Communism', 'Republic', 'Democracy'];
 
 // ── pomocnicze funkcje stosu (UnitManagement) ──────────────────────────────────────────
 
@@ -180,7 +180,7 @@ export function aiChangeGovernment(state: GameState, p: number, government: numb
   if (embassy && (pl.government !== government || pl.diplomacy[0]! & Diplomacy.Allied)) {
     if (pl.diplomacy[0]! & Diplomacy.Allied) {
       pl.diplomacy[0]! &= ~Diplomacy.Allied;
-      state.events.push({ kind: 'message', style: 'diplomats', text: `The ${pl.nationAdjective} government\nchanged to ${GOVERNMENTS[government]}!\n` });
+      state.events.push({ kind: 'message', style: 'diplomats', text: `The ${pl.nationAdjective} government\nchanged to ${GOVERNMENT_NAMES[government]}!\n` });
     } else {
       pl.diplomacy[0]! |= Diplomacy.Allied;
       state.events.push({ kind: 'message', style: 'diplomats', text: `The ${pl.nationAdjective} government\nhas been overthrown!\n` });

@@ -5,7 +5,7 @@
  */
 import {
   emptyHallOfFame, loadGame, loadSve, newGame, resumeLoadedGame, saveGame, sveInfo, TECHS, worldFromMapPixels, type GameState,
-  type HallOfFameEntry, type NewGameOptions,
+  DIFFICULTY_TITLES, type HallOfFameEntry, type NewGameOptions,
 } from '@civ-remake/engine';
 import { showMenuBox } from '../menuBox';
 import { yearToString } from '../text';
@@ -15,7 +15,7 @@ import { GameScreen } from './gameScreen';
 import { decodeFameDta, type FameStore } from './hallOfFame';
 import { GameType, showMainGameIntro, showWorldHistory } from './intro';
 import { showLogoAndMainGameMenu, type SavedGameLoader } from './mainMenu';
-import { DIFFICULTY_NAMES, initNewGameData, showInitText, type NewGameSettings } from './newGame';
+import { initNewGameData, showInitText, type NewGameSettings } from './newGame';
 
 /** Magazyn zapisów gry (w aplikacji: folder danych aplikacji). */
 export interface SaveStore {
@@ -68,7 +68,7 @@ export function knownTechnologies(state: GameState): string[] {
 /** Wiersz listy jak w ReadGameInfoFromFile: „poziom imię, naród/rok”. */
 function originalSaveLabel(index: number, sve: Uint8Array): string {
   const info = sveInfo(sve);
-  return `CIVIL${index}.SVE ${DIFFICULTY_NAMES[info.difficulty] ?? '?'} ${info.leader}, ${info.nation}/${yearToString(info.year)}`;
+  return `CIVIL${index}.SVE ${DIFFICULTY_TITLES[info.difficulty] ?? '?'} ${info.leader}, ${info.nation}/${yearToString(info.year)}`;
 }
 
 type SaveChoice = { label: string; load: () => Promise<GameState> };

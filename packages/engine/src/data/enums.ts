@@ -64,6 +64,31 @@ export interface TerrainDefinition {
   readonly terrainChangeId: number;
 }
 
+/**
+ * Skutki nawadniania i kopalń dla 12 podstawowych typów terenu.
+ * Wartość ujemna: -1 = niemożliwe, -2 = +1 do żywności/produkcji, -3 = +2 itd.
+ * Wartość nieujemna: teren po przekształceniu (wartość piksela, jak `terrainChangeId`).
+ */
+export interface TerrainModification {
+  readonly irrigationEffect: number;
+  readonly irrigationTurns: number;
+  readonly miningEffect: number;
+  readonly miningTurns: number;
+  /** Przeciwnik komputerowy może ulepszać ten teren przed Monarchią. */
+  readonly aiBeforeMonarchy: boolean;
+  /** …i po Monarchii. */
+  readonly aiAfterMonarchy: boolean;
+}
+
+/** Część statku kosmicznego (numer rysunku = indeks). */
+export interface SpaceshipPartDefinition {
+  readonly name: string;
+  /** Masa w dziesiątkach ton. */
+  readonly mass: number;
+  /** Rysunek w DOCKER.PIC: x, y, szerokość, wysokość. */
+  readonly rect: readonly [number, number, number, number];
+}
+
 export interface TechDefinition {
   /** Indeks w tabeli = identyfikator technologii w zapisie gry. */
   readonly id: number;

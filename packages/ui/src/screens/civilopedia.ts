@@ -10,9 +10,8 @@
  * 4 pojęcia gry. Ta sama cyfra wybiera plik opisów BLURB0–4.TXT z kopii gry gracza; bez pliku — własne teksty
  * z `data/civilopediaText.ts`.
  *
- * Napisy stałe: wzorzec po refaktoryzacji zmienił część z nich (m.in. usunął słowo „Civilization”). Przyjęte tu brzmienie
- * zgadza się z długościami napisów w segmencie danych oryginału (odstępy adresów w dosłownym tłumaczeniu), ale treść
- * części z nich jest odtworzona, nie odczytana — lista w `CIVILOPEDIA_STRINGS`. Do sprawdzenia z CIV.EXE.
+ * Napisy stałe (`CIVILOPEDIA_STRINGS`) są odczytane z CIV.EXE (`npm run extract`): wzorzec po refaktoryzacji zmienił część
+ * z nich (tytuł listy to „ENCYCLOPAEDIA of CIVILIZATION”, wymaganie −1 to pusty napis spod DS:0x4c4).
  */
 import { BUILDINGS, improvementDef, TECHS, TERRAIN, TERRAIN_MODIFICATIONS, UNITS, type GameState } from '@civ-remake/engine';
 import { prepareSprites, type MapSprites } from '@civ-remake/gfx';
@@ -22,6 +21,7 @@ import { vga6to8 } from '../palette';
 import { textSection } from '../text';
 import type { Ui } from '../ui';
 import { ownCivilopediaText } from '../data/civilopediaText';
+import { CIVILOPEDIA_STRINGS, GAME_CONCEPTS, TECH_PICTURES, TERRAIN_PICTURES, UNIT_PICTURES } from '../data/screenTables';
 import { drawRandomFoodIcons } from './newGame';
 import { drawImprovementIcon, trimToWidth } from './advisors';
 
@@ -29,50 +29,12 @@ import { drawImprovementIcon, trimToWidth } from './advisors';
 export const Topic = { All: -1, Technology: 0, Improvement: 1, Unit: 2, Terrain: 3, Concept: 4 } as const;
 export type TopicType = 0 | 1 | 2 | 3 | 4;
 
-/** Pojęcia gry (Array_3c64) — tematy menu Miscellaneous. */
-export const GAME_CONCEPTS = [
-  'Veteran Units', 'Fortify', 'Irrigation', 'Mining', 'Roads', 'RailRoads', 'Anarchy', 'Despotism', 'Monarchy', 'Communism',
-  'Republic', 'Democracy', 'Fortress', 'Pillage', 'Disband', 'Pollution', 'Sentry', 'Luxuries', 'Taxes', 'Science', 'Trade Routes',
-] as const;
-
 /**
- * Napisy stałe stron encyklopedii. W nawiasach długość napisu w segmencie danych oryginału (bez zera końcowego);
- * „?” — treść odtworzona tak, by pasowała długością (wzorzec ma tu inny napis), do sprawdzenia z CIV.EXE.
+ * Pojęcia gry (Array_3c64), napisy stron, numery rysunków (F8_0000_16c4/1790/17c3) — z CIV.EXE (data/screenTables).
+ * Rysunki: indeks = numer rysunku, wartość = temat; tablica technologii ma 72 bajty (ostatnie 4 to już początek tablicy
+ * jednostek) — tyle czyta pętla oryginału.
  */
-export const CIVILOPEDIA_STRINGS = {
-  /** 0x3c90 (29) ? — wzorzec: "Game Encyclopedia". */
-  title: 'The Civilization Encyclopedia',
-  /** 0x3cf2 (20) ? — wzorzec: "Technology Advance". */
-  technology: 'Civilization Advance',
-  cityImprovement: 'City Improvement',
-  wonder: 'Wonder of the World',
-  /** 0x3d5a (13) ? — wzorzec: "Unit Type". */
-  unit: 'Military Unit',
-  terrain: 'Terrain Type',
-  concept: 'Game Concept',
-  /** 0x3e3a (14) ? — wzorzec: "Maintenance: " z dopiskiem " shields." (oryginał nie dopisuje nic po liczbie). */
-  maintenance: 'Maintenance: $',
-  /** 0x3e6f (11) ? — wzorzec: " shields.". */
-  unitCostSuffix: ' resources.',
-  /** 0x3ea0 (15) ? — wzorzec: "Moves: ". */
-  moves: 'Movement Rate: ',
-  /**
-   * Wymaganie „brak” (indeks −1): oryginał dokleja wtedy napis sprzed tabeli nazw technologii (nieznany);
-   * wzorzec ma tu "None" (jednostki) albo "Requires no Advancement" (budynki).
-   */
-  noTech: 'None',
-} as const;
-
-/** Numer rysunku technologii w ICONPG1–8.PIC (tablica F8_0000_16c4): indeks = numer rysunku, wartość = technologia. */
-const TECH_PICTURES = [
-  24, 32, 11, 65, 26, 36, 13, 59, 53, 44, 39, 5, 1, 51, 4, 35, 16, 50, 52, 38, 29, 49, 22, 0, 21, 10,
-  33, 60, 19, 37, 45, 12, 15, 43, 30, 40, 2, 41, 17, 27, 18, 3, 61, 56, 57, 6, 34, 55, 14, 62, 20, 58, 23, 8, 64, 66, 63, 31, 9,
-  48, 42, 7, 47, 54, 28, 25, 46, -1, 4, 21, 19, 14,
-] as const;
-/** Numer rysunku jednostki w ICONPGA–E.PIC (F8_0000_1790). */
-const UNIT_PICTURES = [4, 21, 19, 14, 24, 15, 13, 18, 16, 17, 8, 9, 12, 26, 20, 6, 1, 22, 25, 23, 11, 0, 10, 5, 2, 3, 27, 7] as const;
-/** Numer rysunku terenu w ICONPGT1–2.PIC (F8_0000_17c3). */
-const TERRAIN_PICTURES = [6, 7, 8, 9, 10, 11, 0, 2, 3, 1, 4, 5] as const;
+export { CIVILOPEDIA_STRINGS, GAME_CONCEPTS };
 
 const pictureOf = (table: readonly number[], topic: number) => table.indexOf(topic);
 
@@ -182,8 +144,8 @@ export function drawCivilopediaPage(ctx: CivilopediaContext, listType: number, s
   g.fillRect(60, 2, 200, 9, 15);
   g.drawCenteredString(CIVILOPEDIA_STRINGS.title, 161, 4, 0);
   g.drawCenteredString(CIVILOPEDIA_STRINGS.title, 160, 3, 10);
-  g.drawString('EXIT', 286, 4, 12);
-  if (listType === -1) g.drawString('MORE', 8, 4, 12);
+  g.drawString(CIVILOPEDIA_STRINGS.exit, 286, 4, 12);
+  if (listType === -1) g.drawString(CIVILOPEDIA_STRINGS.more, 8, 4, 12);
   g.fillRect(2, 14, 316, 184, 15);
   const columnWidth = listType <= 0 ? 100 : 150;
   const items: CivilopediaItem[] = [];
@@ -375,9 +337,9 @@ export async function showCivilopediaTopic(ctx: CivilopediaContext, type: TopicT
       break;
     case 1: {
       const def = improvementDef(index);
-      draw(`Requires ${techOrNone(def.requiredTech)}`, 12, y, 9);
+      draw(`${CIVILOPEDIA_STRINGS.requires}${techOrNone(def.requiredTech)}`, 12, y, 9);
       y += 8;
-      draw(`Cost: ${10 * def.cost} shields.`, 12, y, 9);
+      draw(`${CIVILOPEDIA_STRINGS.cost}${10 * def.cost}${CIVILOPEDIA_STRINGS.shields}`, 12, y, 9);
       y += 8;
       // cuda nie mają utrzymania (w tabeli oryginału 0)
       draw(`${CIVILOPEDIA_STRINGS.maintenance}${index <= 24 ? BUILDINGS[index - 1]!.upkeep : 0}`, 12, y, 12);
@@ -386,13 +348,13 @@ export async function showCivilopediaTopic(ctx: CivilopediaContext, type: TopicT
     }
     case 2: {
       const def = UNITS[index]!;
-      draw(`Requires ${techOrNone(def.requiredTech)}${index === 25 ? ' and Nuclear Fission' : ''}`, 100, y, 9);
+      draw(`${CIVILOPEDIA_STRINGS.requires}${techOrNone(def.requiredTech)}${index === 25 ? CIVILOPEDIA_STRINGS.andNuclearFission : ''}`, 100, y, 9);
       y += 8;
-      draw(`Cost: ${10 * def.cost}${CIVILOPEDIA_STRINGS.unitCostSuffix}`, 100, y, 9);
+      draw(`${CIVILOPEDIA_STRINGS.unitCost}${10 * def.cost}${CIVILOPEDIA_STRINGS.unitCostSuffix}`, 100, y, 9);
       y += 8;
-      draw(`Attack Strength: ${def.attack}`, 100, y, 12);
+      draw(`${CIVILOPEDIA_STRINGS.attack}${def.attack}`, 100, y, 12);
       y += 8;
-      draw(`Defense Strength: ${def.defense}`, 100, y, 12);
+      draw(`${CIVILOPEDIA_STRINGS.defense}${def.defense}`, 100, y, 12);
       y += 8;
       draw(`${CIVILOPEDIA_STRINGS.moves}${def.moves}`, 100, y, 0);
       y += 8;

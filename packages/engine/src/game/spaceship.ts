@@ -1,34 +1,21 @@
 /**
  * Statek kosmiczny. Źródło: Spaceship.cs (GetSpaceshipState, AddSpaceshipPart, ShowSpaceshipDialog — część licząca,
  * LaunchSpaceshipDialog), Actions.SpaceshipArrivalFailed, CityWorker (ukończenie części) oraz tabele SpaceshipCells
- * i SpaceshipParts z GameData z OpenCivOne (MIT). Tabele przepisane ze wzorca — do weryfikacji z CIV.EXE.
+ * z OpenCivOne (MIT). Plan statku i części — z CIV.EXE (`data/ruleTables.ts`, `npm run extract`).
  *
  * Plan statku: 15×12 pól; komórka zawiera numer rysunku części (0–2 struktura, 3 napęd, 4 paliwo, 6 mieszkania,
  * 7 podtrzymanie życia, 8 panel słoneczny) albo -1. Flagi `spaceshipFlags`: bit gracza = wystrzelony, bit gracza + 8 = w budowie.
  */
+import { SPACESHIP_CELLS, SPACESHIP_PARTS } from '../data/ruleTables';
 import { Tech } from '../data/techs';
 import type { GameState } from './types';
 
 export const SPACESHIP_WIDTH = 15;
 export const SPACESHIP_HEIGHT = 12;
 
-/** SpaceshipCells: [x, y, rysunek]; 0–32 struktura, 33+ — moduły i komponenty. */
-export const SPACESHIP_CELLS: readonly (readonly [number, number, number])[] = [
-  [11, 5, 1], [11, 4, 2], [11, 6, 1], [11, 7, 2], [12, 4, 0], [13, 4, 0], [12, 5, 4], [13, 5, 3], [12, 7, 0], [13, 7, 0], [12, 6, 4], [13, 6, 3],
-  [12, 8, 4], [13, 8, 3], [12, 3, 4], [13, 3, 3], [11, 8, 2], [11, 9, 1], [11, 10, 2], [12, 10, 0], [13, 10, 0], [12, 9, 4], [13, 9, 3], [11, 3, 2], [11, 2, 1],
-  [11, 1, 2], [12, 1, 0], [13, 1, 0], [12, 2, 4], [13, 2, 3], [12, 11, 4], [13, 11, 3], [12, 0, 4], [13, 0, 3],
-  [11, 5, 1], [11, 4, 2], [11, 6, 1],
-  [11, 7, 2], [9, 6, 6], [9, 4, 7], [11, 3, 2], [10, 3, 0], [9, 3, 0], [8, 1, 8], [10, 8, 0], [9, 8, 0], [8, 8, 0], [7, 8, 0],
-  [7, 6, 7], [8, 3, 0], [7, 3, 0], [8, 9, 8], [7, 4, 6], [6, 3, 0], [5, 3, 0], [5, 4, 7], [6, 8, 0], [5, 8, 0], [4, 9, 8], [5, 6, 6],
-  [4, 3, 0], [3, 3, 0], [3, 6, 7], [4, 8, 0], [3, 8, 0], [4, 1, 8], [3, 4, 6],
-];
+export { SPACESHIP_CELLS, SPACESHIP_PARTS };
 
-/** SpaceshipParts: nazwa i masa (dziesiątki ton) wg numeru rysunku. */
-export const SPACESHIP_PARTS: readonly { readonly name: string; readonly mass: number }[] = [
-  { name: 'Structure1', mass: 1 }, { name: 'Structure2', mass: 1 }, { name: 'Structure3', mass: 1 },
-  { name: 'Propulsion', mass: 4 }, { name: 'Fuel', mass: 4 }, { name: 'NONE', mass: 4 },
-  { name: 'Habitation', mass: 16 }, { name: 'Life Support', mass: 16 }, { name: 'Solar Panel', mass: 4 },
-];
+
 
 export const emptySpaceship = (): number[] => new Array<number>(SPACESHIP_WIDTH * SPACESHIP_HEIGHT).fill(-1);
 

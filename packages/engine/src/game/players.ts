@@ -13,14 +13,10 @@ import { mscRandom, type RandomSource } from '../world/random';
 import { emptyCity } from './cities';
 import { cellIndex, createGameMap, distance, terrainAt } from './map';
 import { researchFinished, TECH_COUNT } from './techs';
+import { EARTH_START } from '../data/ruleTables';
 import { Government, NO_UNIT, type GameState, type Player } from './types';
 import { cellHasHut, createUnit, deleteUnit, emptyUnit, nearestCity, setCellOwner } from './units';
 
-/** Pozycje startowe na mapie Ziemi wg nacji (Array_35da w oryginale). */
-export const EARTH_START: readonly (readonly [number, number])[] = [
-  [0, 0], [36, 19], [45, 22], [38, 15], [41, 24], [12, 18], [39, 18], [57, 24],
-  [0, 0], [44, 12], [42, 42], [33, 16], [5, 23], [66, 19], [31, 14], [49, 19],
-];
 
 export interface NewGameOptions {
   /** Ziarno gry: mapa, zasoby, chaty i wszystkie losowania. */

@@ -1,4 +1,4 @@
-// PLIK GENEROWANY — nie edytuj ręcznie. Źródło: tabela technologii w CIV.EXE (wersja 475.05).
+// PLIK GENEROWANY — nie edytuj ręcznie. Źródło: tabela technologii w CIV.EXE (te same dane w wersjach 474.01 i 475.05).
 // Odtworzenie: CIV1_DIR=... npm run extract
 import type { TechDefinition } from './enums';
 

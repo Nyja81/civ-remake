@@ -7,6 +7,7 @@
  * że to samo ziarno da tę samą mapę co w oryginale.
  */
 import { MAP_HEIGHT, MAP_WIDTH } from '../data/enums';
+import { DIRECTIONS } from '../data/ruleTables';
 import type { RandomSource } from './random';
 
 export const Terrain = {
@@ -15,12 +16,8 @@ export const Terrain = {
 } as const;
 export type Terrain = (typeof Terrain)[keyof typeof Terrain];
 
-/** Kierunki z oryginału: indeks 0 = brak ruchu, 1–8 = sąsiedzi od północy zgodnie z ruchem wskazówek zegara, 9–20 = pierścień w odległości 2, 21 = (2,2). */
-export const MOVE_DIRECTIONS: readonly (readonly [number, number])[] = [
-  [0, 0], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1],
-  [0, -2], [1, -2], [2, -1], [2, 0], [2, 1], [1, 2], [0, 2], [-1, 2], [-2, 1], [-2, 0], [-2, -1], [-1, -2],
-  [2, 2],
-];
+/** Kierunki z oryginału (DIRECTIONS z CIV.EXE): 0 = brak ruchu, 1–8 sąsiedzi od północy zgodnie z ruchem wskazówek zegara, 9–20 = pierścień w odległości 2, 21 = (2,2). */
+export const MOVE_DIRECTIONS: readonly (readonly [number, number])[] = DIRECTIONS.slice(0, 22);
 
 export interface WorldOptions {
   /** 0 = mało lądu, 1 = normalnie, 2 = dużo. */
