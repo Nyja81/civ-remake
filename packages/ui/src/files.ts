@@ -39,4 +39,11 @@ export const UI_OPTIONAL_FILES = [
   'ICONPGT1.PIC', 'ICONPGT2.PIC', 'CITYPIX2.PIC', 'HILL.PAL',
   // powtórka po podboju świata (DisplayHailTheConquerorMessage): tło i galeria pokonanych władców
   'SLAM1.PIC', 'SLAM2.PIC', 'SLAM1.PAL',
+  // pałac (Palace): tło, dziedziniec, części budynku wg poziomu, ogrody, smutny pałac
+  'CBACK.PIC', 'SAD.PIC', 'CBACKS1.PIC', 'CBACKS2.PIC', 'CBACKS3.PIC',
+  'CASTLE0.PIC', 'CASTLE1.PIC', 'CASTLE2.PIC', 'CASTLE3.PIC', 'CASTLE4.PIC',
+  'CBRUSH0.PIC', 'CBRUSH1.PIC', 'CBRUSH2.PIC', 'CBRUSH3.PIC', 'CBRUSH4.PIC', 'CBRUSH5.PIC',
+  // panorama miasta (CityView): wzgórze, domy i ulice, budynki, cuda, mieszkańcy, animacje najazdu, zamieszek i święta
+  'HILL.PIC', 'CITYPIX1.PIC', 'CITYPIX3.PIC', 'WONDERS.PIC', 'WONDERS2.PIC', 'POP.PIC',
+  'INVADERS.PIC', 'INVADER2.PIC', 'INVADER3.PIC', 'RIOT.PIC', 'RIOT2.PIC', 'LOVE1.PIC', 'LOVE2.PIC',
 ] as const;

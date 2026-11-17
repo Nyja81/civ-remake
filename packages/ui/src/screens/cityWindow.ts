@@ -14,8 +14,6 @@
  * `sellBuilding`, `activateUnitInCity`, `toggleAutoProduction`, `buyProduction`, `setProduction`). Oryginał po każdej
  * zmianie wraca do etykiety L045f (całe okno od nowa) albo L12c2 (bez mapki); tu okno zawsze rysuje się od nowa —
  * wynik jest ten sam poza kolejnością nakładania się ikon plonów na sąsiednich polach po zdjęciu mieszkańca z pola.
- *
- * Do zrobienia: zakładka VIEW (CityView.F19_0000_0000_ShowCityLayout — panorama miasta); na razie wraca do INFO.
  */
 import {
   activateUnitInCity, buyCost, buyProduction, CITY_OFFSETS, CityStatus, cellIndex, cityNeighborArea, cityTileIndex, cycleSpecialist,
@@ -29,7 +27,9 @@ import { editBox } from '../editBox';
 import type { UiEvent } from '../input';
 import { showMenuBox } from '../menuBox';
 import { showCivilopediaTopic, Topic } from './civilopedia';
+import type { Palette } from '../palette';
 import type { Ui } from '../ui';
+import { showCityView } from './cityView';
 
 export interface CityWindowContext {
   readonly ui: Ui;
@@ -37,6 +37,8 @@ export interface CityWindowContext {
   readonly state: GameState;
   readonly sprites: MapSprites;
   readonly text: TextDrawer;
+  /** Paleta gry przywracana po panoramie miasta (VIEW). */
+  readonly palette?: Palette;
 }
 
 export interface CityWindowResult {
@@ -589,9 +591,14 @@ async function handleInput(ctx: CityWindowContext, cityId: number, w: WindowStat
     let tab = key !== null && tabKeys[key] !== undefined ? tabKeys[key]! : -1;
     if (tab === -1 && key !== 'Escape' && key !== 'Enter' && mx >= 96 && mx < 224) tab = Math.trunc((mx - 96) / 32);
     if (tab !== -1) {
-      // VIEW (CityView.F19_0000_0000_ShowCityLayout) — do zrobienia; oryginał po panoramie wraca do INFO
-      w.tab = tab === 3 ? 0 : tab;
-      if (tab === 3) w.redraw = true;
+      w.tab = tab;
+      if (tab === 3) {
+        // VIEW: panorama miasta (CityView.F19_0000_0000_ShowCityLayout(city, −1)), potem okno wraca do INFO (Var_6b64 = 1)
+        ctx.ui.gfx.fontId = 1;
+        await showCityView(ctx.ui, ctx.assets, state, cityId, -1, null, { palette: ctx.palette });
+        w.tab = 0;
+        w.redraw = true;
+      }
       return 'stay';
     }
   }

@@ -88,9 +88,9 @@ describe('dyplomata człowieka: menu „… diplomat arrives in …”', () => {
     const { ui, s, h, city, screen } = setup();
     s.players[h]!.gold = 3000;
     activeUnit(screen, s, 26, 29, 20);
-    // menu → opcja 4; okno buntu → „Incite revolt”; komunikaty: bunt, zdobycie miasta
+    // menu → opcja 4; okno buntu → „Incite revolt”; komunikat buntu; zdobycie miasta pokazuje panorama (CityView, animacje włączone)
     await drive(ui, [key('ArrowDown'), key('ArrowDown'), key('ArrowDown'), key('ArrowDown'), key('Enter'), key('ArrowDown'), key('Enter'),
-      key('Enter'), key('Enter')], () => screen.handle(key('ArrowRight')));
+      key('Enter')], () => screen.handle(key('ArrowRight')));
     expect(s.cities[city]!.owner).toBe(h);
   });
 

@@ -25,6 +25,8 @@ export interface MenuBoxOptions {
   readonly checked?: number;
   /** Stała wysokość wiersza — w rozmowie z władcą (Var_3936 ≠ −1) wzorzec przyjmuje 8. */
   readonly lineHeight?: number;
+  /** Var_db38 = 1: okno jest tylko rysowane (bez oczekiwania i bez pokazania klatki); wynik −1. */
+  readonly noWait?: boolean;
 }
 
 export interface MenuBoxResult {
@@ -152,6 +154,7 @@ export async function showMenuBox(ui: Ui, text: string, x: number, y: number, op
   }
 
   if (options.clearInput) ui.input.clear();
+  if (options.noWait) return { index: -1, help: false, mousePressed: false, mouse: { x: ui.input.mouse.x, y: ui.input.mouse.y } };
 
   const isDisabled = (i: number) => i >= 0 && (disabled & (1 << i)) !== 0;
   const inside = (px: number, py: number) =>

@@ -42,3 +42,5 @@ export * from './game/unitActions';
 export * from './game/replay';
 export * from './game/picCodec';
 export * from './game/sve';
+export * from './game/palace';
+export * from './game/cityView';

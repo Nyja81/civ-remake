@@ -452,3 +452,44 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   powstaje po wpisach 11/12 tej samej tury (oryginał zapisuje przed nimi); brak twarzy władcy i dźwięku w „hail”;
   powtórka w trybie debugowania (F8) pominięta.
 - Do zrobienia: zapis do .SVE z menu (dziś zapis w JSON), porównanie z oryginałem w DOSBoxie.
+
+### 2026-11-17 — etap 8: pałac, panorama miasta, historia świata
+- Źródło: dosłowne tłumaczenie asemblera z pierwszego commitu wzorca (`Overlay_17.cs`, `Overlay_19.cs`, `Overlay_7.cs`,
+  `Segment_1238.cs`, `Overlay_5.cs`) — nowsze `Palace.cs` i `CityView.cs` są przepisane od nowa / z błędami przepisania.
+- Silnik `packages/engine/src/game/palace.ts`: stan pałacu człowieka `state.palace` (poziomy 12 części DS:0xd91e, style DS:0xb222,
+  PalaceBuildCount; pole opcjonalne — starsze zapisy dostają stan początkowy jak w StartGameMenu), próg F0_1238_16e7, F0_1238_1c98
+  (rozbudowy z wyniku), sprawdzenie w GameTurn (`checkPalaceUpgrade` w `endOfTurn`, zdarzenie `palace` do 37. rozbudowy), wybór i
+  przesuwanie części (F17_0000_0000: L0148, L0268, L02ce/L02ef), `upgradePalace`, mini-pałac F0_1238_14a3 (komputer: losowanie
+  słowem 16-bitowym r = 5r + 1, część = (r & 0xff) % 9 — nowszy wzorzec liczy modulo całości).
+- Silnik `cityView.ts`: rozkład panoramy F19_0000_0000 (domy, ulice, cuda, budynki, hydroelektrownia, akwedukt) na siatce 19×12;
+  jak oryginał ustawia ziarno wspólnego generatora gry (srand z sumy znaków nazwy miasta).
+- UI `screens/palace.ts`: F17_0000_07ec_DrawPalace (kawałki z CASTLE0–4.PIC wg F17_0000_0e95/0cfe/0e2f, CBACK.PIC, CBACKS1–3.PIC,
+  CBRUSH0–5.PIC), okno rozbudowy (*PALACE, „Which section shall we improve?”, „Select new section.”), widok pałacu po kliknięciu
+  w panel (x < 80, 58 ≤ y < 72), mini-pałac w panelu ekranu gry i w raporcie historyka (SP257.PIC 7×15).
+- UI `screens/cityView.ts`: F19_0000_0000_ShowCityLayout (HILL.PIC, CITYPIX1–3, WONDERS/WONDERS2, tytuł czcionką 6 w dwóch wierszach,
+  komunikat w oknie (80, 8), nowy budynek wchodzi po 60 jednostkach zegara efektem rozpuszczania, cykl palety 64–79),
+  F19_0000_111f (mieszkańcy z POP.PIC), animacje F19_0000_167b (najazd), F19_0000_18c1 (zamieszki), F19_0000_1ae1 („We love the King”).
+  Podpięte: zakładka VIEW okna miasta (potem INFO), przy włączonych animacjach — ukończony budynek/cud człowieka (bez pałacu, części
+  statku i AUTO), zdobycie miasta przez człowieka lub człowiekowi, niepokoje (raz na turę, Var_6b92), święto. Silnik oznacza
+  komunikaty niepokojów i święta polem `animation`.
+- UI `screens/intro.ts`: historia świata `showWorldHistory` (F7_0000_17cf: STORY.TXT czcionką 7 w (160,160), obrazy BIRTH1–8.PIC
+  z wygaszeniem i rozjaśnieniem do BIRTHn.PAL, cykle palety obrazów) — w `flow.ts` przed ustawieniami nowej gry; cykle palety
+  w intro (slot 1: 146–152, slot 4: 224–239). Nowy moduł `paletteCycle.ts` (AddPaletteCycleSlot/CyclePaletteTimer, krok co
+  jednostkę zegara), `showMenuBox` z opcją `noWait` (Var_db38 = 1). Nowe pliki opcjonalne w `files.ts`.
+- Ustalenie: losowanie zakresu w oryginale to F0_2dc4_005d = (n · rand()) >> 15 (Segment_2dc4 w dosłownym tłumaczeniu);
+  silnik (`mscRandom.next`) przyjmuje rand() % n — do zmiany w całym silniku po porównaniu z oryginałem (panorama już używa wzoru oryginału).
+- Tablice z danych CIV.EXE przepisane ze wzorca (obraz segmentu danych `BinaryResources.bin`; do dodania do `npm run extract`):
+  szerokości kawałków pałacu DS:0x4b2c, przesunięcia w pionie DS:0x4b36, prostokąty cudów panoramy.
+- Testy: 208 (12 pominiętych bez `CIV1_DIR`): `packages/engine/test/palace.test.ts` (progi, zdarzenie, zapis, wybór części,
+  mini-pałac, rozkład panoramy i ziarno), `packages/ui/test/palace.test.ts` (rozbudowa z plikami i bez, rysunek pałacu, mini-pałac,
+  widok po kliknięciu, panorama z plikami i bez, VIEW, budowa z animacją, animacje, cykle palety, historia świata).
+- **Niesprawdzone na plikach oryginału**: wygląd pałacu (położenia kawałków, tło, ogrody), panoramy (położenia budynków, cudów, murów,
+  torów, tytułu) i animacji, kadry POP/INVADER/RIOT/LOVE, tempo historii świata.
+- Odstępstwa / niepewne: czasy wierszy historii i cykle palety obrazów BIRTH przepisane z nowszego wzorca (w oryginale tablice
+  w danych muzyki, segment Var_6416); historia idzie przed ustawieniami gry (oryginał — w trakcie budowy mapy), bez muzyki, ekran
+  czyszczony na początku; styl ogrodów i dziedzińca po rozbudowie bez zmian (oryginał zapisuje niezainicjowaną zmienną);
+  odczyty poza tablicami (levels[−1], levels[9] w mini-pałacu, komórki poza siatką panoramy) przyjęte jak w komentarzach kodu;
+  w DrawCityPopulation dosłowne tłumaczenie ma niejasne instrukcje TEST (przyjęte jak w nowszym wzorcu); animacje najazdu,
+  zamieszek i święta z nowszego wzorca (nieporównane z asemblerem); przerwanie pętli panoramy także kliknięciem (oryginał — kbhit).
+- Pominięte: animacja założenia miasta (Animations.FoundNewCity, panorama z −3 — funkcja gotowa), smutny pałac SAD.PIC przy
+  przegranej przez statek kosmiczny komputera (EndGame_SpaceVictory), dźwięk (PlayTune), napis „BUILDING NEW WORLD...”.
