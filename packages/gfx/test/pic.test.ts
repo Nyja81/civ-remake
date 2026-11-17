@@ -26,3 +26,19 @@ describe.skipIf(!dir || !existsSync(dir))('dekoder PIC na plikach oryginału', (
     }
   });
 });
+
+describe('obraz 4-bitowy (blok "X1")', () => {
+  it('nieparzysta szerokość: wiersz zajmuje pełne bajty, starsza połówka ostatniego bajtu pominięta', async () => {
+    const { encodePicPixels } = await import('@civ-remake/engine');
+    const width = 3;
+    const height = 2;
+    // wiersz 0: piksele 1 2 3 (bajty 0x21, 0xF3 — 0xF to wypełnienie), wiersz 1: 4 5 6 (0x54, 0xA6)
+    const file = encodePicPixels(2, 2, new Uint8Array([0x21, 0xf3, 0x54, 0xa6]));
+    file[1] = 0x31; // "X1"
+    file[4] = width;
+    file[6] = height;
+    const img = decodePic(file);
+    expect([img.width, img.height]).toEqual([3, 2]);
+    expect([...img.pixels]).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+});

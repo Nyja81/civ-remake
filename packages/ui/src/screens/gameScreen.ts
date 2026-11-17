@@ -656,12 +656,28 @@ export class GameScreen {
     drawMapView(gfx.screen, this.state, this.sprites, {
       viewX: this.viewX, viewY: this.viewY, text: this.textDrawer, revealAll: this.options.revealAll, hideUnit,
     });
+    this.drawActiveUnit();
     drawMiniMap(gfx.screen, this.state, this.viewX, this.viewY);
     // Ramka minimapy jak DrawShadowRectangle(0, 8, 79, 49, 15, 8) we wzorcu (górna i prawa krawędź 8, dolna i lewa 15),
     // tak samo jak ramki paneli; ramka widoku przerysowana na wierzchu.
     gfx.drawShadowRectangle(0, 8, 79, 49, 15, 8);
     const { xMap, yMap } = this.miniMapOrigin();
     gfx.drawRectangle(this.viewX - xMap - 1, this.viewY - yMap + 7, 17, 10, 15);
+  }
+
+  /**
+   * Aktywna jednostka w fazie „widocznej” migania: MapManagement.F0_2aea_0e29_DrawUnit na jej polu, na wierzchu.
+   * DrawVisibleMap nie rysuje jednostek w miastach, więc bez tego nowa jednostka zbudowana w mieście nie byłaby widoczna.
+   */
+  private drawActiveUnit(): void {
+    if (this.activeUnit === -1 || this.blinkHidden) return;
+    const u = this.state.players[this.human]!.units[this.activeUnit];
+    if (!u || u.type === NO_UNIT) return;
+    const sx = wrapX(u.x - this.viewX) * 16 + MAP_VIEW.x;
+    const sy = (u.y - this.viewY) * 16 + MAP_VIEW.y;
+    if (sx < MAP_VIEW.x || sx >= 320 || sy < MAP_VIEW.y || sy >= MAP_VIEW.y + MAP_VIEW.rows * 16) return;
+    const stacked = unitsAt(this.state, this.human, u.x, u.y).length > 1;
+    drawUnit(this.ui.gfx.screen, this.state, this.sprites, this.human, this.activeUnit, sx, sy, stacked, undefined, this.textDrawer);
   }
 
   /** Przesunięcie minimapy (Var_6ed6_MiniMapX / Var_70ea_MiniMapY): widok zawsze w środku; z Navigation bez przesunięcia w pionie. */

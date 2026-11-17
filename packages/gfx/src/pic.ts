@@ -110,11 +110,16 @@ export function decodePic(file: Uint8Array): PicImage {
       const height = bv.getUint16(2, true);
       let raw = rleDecode(lzwDecode(block.subarray(5), block[4]!));
       if (signature === 0x3158) {
-        const unpacked = new Uint8Array(raw.length * 2);
-        raw.forEach((b, i) => {
-          unpacked[i * 2] = b & 15;
-          unpacked[i * 2 + 1] = b >> 4;
-        });
+        // Wiersz obrazu 4-bitowego zajmuje pełne bajty: przy nieparzystej szerokości starsza połówka ostatniego bajtu
+        // wiersza jest pomijana (np. TORCH.PIC 13×14 — kursor myszy; wzorzec: GBitmap.FromPICFile).
+        const rowBytes = Math.ceil(width / 2);
+        const unpacked = new Uint8Array(width * height);
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const b = raw[y * rowBytes + (x >> 1)] ?? 0;
+            unpacked[y * width + x] = x & 1 ? b >> 4 : b & 15;
+          }
+        }
         raw = unpacked;
       }
       const pixels = new Uint8Array(width * height);

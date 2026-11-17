@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { CivApi } from './api';
+import type { CivApi, Smoothing } from './api';
 
 const api: CivApi = {
   load: () => ipcRenderer.invoke('game:load'),
@@ -9,5 +9,9 @@ const api: CivApi = {
   writeSave: (name: string, json: string) => ipcRenderer.invoke('saves:write', name, json),
   listGameSaves: () => ipcRenderer.invoke('gamesaves:list'),
   readGameSave: (index: number) => ipcRenderer.invoke('gamesaves:read', index),
+  getSmoothing: () => ipcRenderer.invoke('smoothing:get'),
+  onSmoothing: (callback: (mode: Smoothing) => void) => {
+    ipcRenderer.on('smoothing', (_e, mode: Smoothing) => callback(mode));
+  },
 };
 contextBridge.exposeInMainWorld('civ', api);

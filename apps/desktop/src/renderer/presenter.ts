@@ -1,11 +1,15 @@
 /**
- * Wyświetlanie ekranu oryginału w oknie: ekran 320×200 w indeksach palety → RGBA (paleta) → xBR 4× (1280×800)
- * → lekkie zmiękczenie (blur 0.6 px) → canvas okna, skalowany z zachowaniem proporcji 16:10 (czarne pasy).
- * To samo wygładzanie co mapa w wersji 0.1.0. Klatka liczy się tylko po zmianie ekranu lub palety.
+ * Wyświetlanie ekranu oryginału w oknie: ekran 320×200 w indeksach palety → RGBA (paleta) → powiększenie 4× (1280×800)
+ * → canvas okna, skalowany z zachowaniem proporcji 16:10 (czarne pasy). Powiększenie wg ustawienia View → Smoothing:
+ * - none: piksele oryginału (najbliższy sąsiad),
+ * - light (domyślne od 0.5.1): xBR 4× bez mieszania kolorów, bez zmiękczenia,
+ * - strong: xBR 4× z mieszaniem kolorów + zmiękczenie 0.6 px (wygląd do wersji 0.5.0).
+ * Klatka liczy się tylko po zmianie ekranu, palety albo ustawienia.
  * Mysz: współrzędne okna przeliczane na piksele ekranu 320×200.
  */
 import { indexedToRgba, type Gfx, type InputQueue, type UiHost } from '@civ-remake/ui';
 import { xbr4x } from 'xbr-js/dist/xBRjs.esm.js';
+import type { Smoothing } from '../api';
 
 export const SOURCE_W = 320;
 export const SOURCE_H = 200;
@@ -15,16 +19,27 @@ export const SMOOTH_H = SOURCE_H * SCALE;
 /** Promień zmiękczenia po xBR (jak mapa w renderer.ts wersji 0.1.0). */
 export const SOFTEN_PX = 0.6;
 
-/** Wygładza obraz RGBA w rozdzielczości oryginału do canvasu 4× większego. */
-export function smoothFrame(rgba: Uint8ClampedArray, width: number, height: number, sharp: HTMLCanvasElement, soft: HTMLCanvasElement): void {
-  const scaled = xbr4x(new Uint32Array(rgba.buffer, rgba.byteOffset, width * height), width, height, { blendColors: true, scaleAlpha: false });
+/** Powiększa obraz RGBA w rozdzielczości oryginału do canvasu 4× większego (`out`); `work` — canvas pomocniczy tej samej wielkości. */
+export function smoothFrame(rgba: Uint8ClampedArray, width: number, height: number, work: HTMLCanvasElement, out: HTMLCanvasElement,
+  mode: Smoothing = 'strong', scaleAlpha = false): void {
+  const ctx = out.getContext('2d')!;
+  ctx.clearRect(0, 0, out.width, out.height);
+  if (mode === 'none') {
+    work.width = width;
+    work.height = height;
+    work.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(work, 0, 0, width * SCALE, height * SCALE);
+    return;
+  }
+  const scaled = xbr4x(new Uint32Array(rgba.buffer, rgba.byteOffset, width * height), width, height, { blendColors: mode === 'strong', scaleAlpha });
   const pixels = new Uint8ClampedArray(scaled.byteLength);
   pixels.set(new Uint8Array(scaled.buffer, scaled.byteOffset, scaled.byteLength));
-  sharp.getContext('2d')!.putImageData(new ImageData(pixels, width * SCALE, height * SCALE), 0, 0);
-  const ctx = soft.getContext('2d')!;
-  ctx.clearRect(0, 0, soft.width, soft.height);
-  ctx.filter = `blur(${SOFTEN_PX}px)`;
-  ctx.drawImage(sharp, 0, 0);
+  work.width = width * SCALE;
+  work.height = height * SCALE;
+  work.getContext('2d')!.putImageData(new ImageData(pixels, width * SCALE, height * SCALE), 0, 0);
+  if (mode === 'strong') ctx.filter = `blur(${SOFTEN_PX}px)`;
+  ctx.drawImage(work, 0, 0);
   ctx.filter = 'none';
 }
 
@@ -44,6 +59,8 @@ export class Presenter implements UiHost {
   private hasFrame = false;
   /** Prostokąt obrazu w pikselach CSS okna. */
   private view = { x: 0, y: 0, w: SMOOTH_W, h: SMOOTH_H };
+  private smoothing: Smoothing = 'light';
+  private cursor: { rgba: Uint8ClampedArray; width: number; height: number; hotX: number; hotY: number } | null = null;
   /** Czas ostatniego wygładzenia klatki (ms) — do diagnostyki. */
   lastFrameMs = 0;
   frames = 0;
@@ -73,11 +90,19 @@ export class Presenter implements UiHost {
   render(): void {
     const t0 = performance.now();
     indexedToRgba(this.gfx.screen, this.gfx.palette, this.rgba);
-    smoothFrame(this.rgba, SOURCE_W, SOURCE_H, this.sharp, this.soft);
+    smoothFrame(this.rgba, SOURCE_W, SOURCE_H, this.sharp, this.soft, this.smoothing);
     this.lastFrameMs = performance.now() - t0;
     this.frames++;
     this.hasFrame = true;
     this.blit();
+  }
+
+  /** Zmienia wygładzanie (menu View → Smoothing) i przelicza klatkę oraz kursor. */
+  setSmoothing(mode: Smoothing): void {
+    if (mode === this.smoothing) return;
+    this.smoothing = mode;
+    if (this.cursor) this.setCursor(this.cursor.rgba, this.cursor.width, this.cursor.height, this.cursor.hotX, this.cursor.hotY);
+    if (this.hasFrame) this.render();
   }
 
   /** Rysuje gotową klatkę w oknie z zachowaniem proporcji 16:10. */
@@ -100,7 +125,8 @@ export class Presenter implements UiHost {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, w, h);
     if (!this.hasFrame) return;
-    ctx.imageSmoothingEnabled = true;
+    // Bez mieszania przy dopasowaniu do okna dla „none”, żeby piksele oryginału zostały ostre.
+    ctx.imageSmoothingEnabled = this.smoothing !== 'none';
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(this.soft, this.view.x * dpr, this.view.y * dpr, vw * dpr, vh * dpr);
   }
@@ -134,18 +160,16 @@ export class Presenter implements UiHost {
     });
   }
 
-  /** Kursor myszy z obrazka oryginału (TORCH.PIC), wygładzony tak samo jak ekran. Niesprawdzone na pliku oryginału. */
-  setCursor(rgba: Uint8ClampedArray, width: number, height: number, hotX = 0, hotY = 0): void {
+  /**
+   * Kursor myszy z TORCH.PIC (StartGame: LoadIcon("TORCH.PIC")), powiększony 4× tak samo jak ekran.
+   * Punkt aktywny: koniec pochodni w lewym górnym rogu.
+   */
+  setCursor(rgba: Uint8ClampedArray, width: number, height: number, hotX = 1, hotY = 1): void {
     if (width > 32 || height > 32) return; // przeglądarka ogranicza kursory do 128×128
-    const sharp = canvas2d(width * SCALE, height * SCALE);
-    const soft = canvas2d(width * SCALE, height * SCALE);
-    const scaled = xbr4x(new Uint32Array(rgba.buffer, rgba.byteOffset, width * height), width, height, { blendColors: true, scaleAlpha: true });
-    const pixels = new Uint8ClampedArray(scaled.byteLength);
-    pixels.set(new Uint8Array(scaled.buffer, scaled.byteOffset, scaled.byteLength));
-    sharp.getContext('2d')!.putImageData(new ImageData(pixels, width * SCALE, height * SCALE), 0, 0);
-    const ctx = soft.getContext('2d')!;
-    ctx.filter = `blur(${SOFTEN_PX}px)`;
-    ctx.drawImage(sharp, 0, 0);
-    this.canvas.style.cursor = `url(${soft.toDataURL()}) ${hotX * SCALE} ${hotY * SCALE}, default`;
+    this.cursor = { rgba, width, height, hotX, hotY };
+    const work = canvas2d(width * SCALE, height * SCALE);
+    const out = canvas2d(width * SCALE, height * SCALE);
+    smoothFrame(rgba, width, height, work, out, this.smoothing, true);
+    this.canvas.style.cursor = `url(${out.toDataURL()}) ${hotX * SCALE} ${hotY * SCALE}, default`;
   }
 }

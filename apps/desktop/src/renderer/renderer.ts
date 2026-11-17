@@ -24,7 +24,7 @@ function showOverlay(title: string, text = '', withButton = false): void {
   overlay.classList.remove('hidden');
 }
 
-/** Kursor z TORCH.PIC (kolor 0 = przezroczysty). Rozmiar i punkt aktywny niesprawdzone na pliku oryginału. */
+/** Kursor z TORCH.PIC (13×14, obraz 4-bitowy; kolor 0 = przezroczysty, paleta z bloku M0 pliku). */
 function applyCursor(presenter: Presenter, assets: GameAssets): void {
   const file = assets.optional('TORCH.PIC');
   if (!file) return;
@@ -72,6 +72,8 @@ function start(result: LoadResult): void {
   const ui = new Ui(gfx, presenter);
   presenter.attachInput(ui.input);
   applyCursor(presenter, assets);
+  void window.civ.getSmoothing().then((mode) => presenter.setSmoothing(mode));
+  window.civ.onSmoothing((mode) => presenter.setSmoothing(mode));
   (window as unknown as { civUi: unknown }).civUi = { ui, presenter, assets }; // diagnostyka (konsola)
   const saves = { list: () => window.civ.listSaves(), read: (n: string) => window.civ.readSave(n), write: (n: string, j: string) => window.civ.writeSave(n, j) };
   const originalSaves = { list: () => window.civ.listGameSaves(), read: (i: number) => window.civ.readGameSave(i) };

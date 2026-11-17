@@ -148,3 +148,30 @@ describe('zapis i wczytanie', () => {
     expect(await drive(ui, [key('Enter')], () => savedGameLoader(empty)(ui))).toBeNull();
   });
 });
+
+describe('jednostka w mieście', () => {
+  it('aktywna jednostka zbudowana w mieście jest rysowana na polu miasta (miganie)', async () => {
+    const { createUnit, unitOrder, UNITS } = await import('@civ-remake/engine');
+    const { state, screen, ui } = setup();
+    const h = state.humanPlayer;
+    const settler = state.players[h]!.units[0]!;
+    const { x, y } = settler;
+    unitOrder(state, h, 0, 'build');
+    expect(cityAt(state, x, y)).not.toBe(-1);
+    state.events.length = 0;
+    // nowa jednostka (jak po ukończeniu produkcji); bez aktywnej jednostki DrawVisibleMap rysuje samo miasto
+    const id = createUnit(state, h, UNITS.findIndex((u) => u.name === 'Militia'), x, y);
+    screen.activeUnit = -1;
+    screen.drawVisibleMap(x - 7, y - 6);
+    const sx = ((x - screen.viewX + 80) % 80) * 16 + 80;
+    const sy = (y - screen.viewY) * 16 + 8;
+    const cell = () => Array.from({ length: 16 }, (_, j) => [...ui.gfx.screen.pixels.subarray((sy + j) * 320 + sx, (sy + j) * 320 + sx + 16)]).flat();
+    expect(sy).toBeGreaterThanOrEqual(8);
+    expect(sy).toBeLessThan(200 - 16);
+    const cityOnly = cell();
+    // jednostka aktywna (faza widoczna migania) — rysowana na wierzchu miasta
+    screen.activeUnit = id;
+    screen.drawVisibleMap(screen.viewX, screen.viewY);
+    expect(cell()).not.toEqual(cityOnly);
+  });
+});

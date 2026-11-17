@@ -508,3 +508,13 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Paczka 0.5.0 (arm64, niepodpisana).
 - Do zrobienia: dźwięk, zapis .SVE z menu, tabele przepisane ręcznie → `npm run extract`, porównanie wyglądu z DOSBoxem,
   animacja założenia miasta.
+
+### 2026-11-17 — poprawki po pierwszym uruchomieniu na Macu, paczka 0.5.1
+- Zgłoszenia Damiana: nowa jednostka zbudowana w mieście niewidoczna, dziwny kursor, za mocne wygładzanie.
+- Jednostka w mieście: DrawVisibleMap nie rysuje jednostek na polach miast, a ekran gry nie rysował aktywnej jednostki osobno.
+  Teraz `GameScreen.drawActiveUnit` rysuje ją na wierzchu w fazie widocznej migania (F0_2aea_0e29_DrawUnit). Test w `gameplay.test.ts`.
+- Kursor: TORCH.PIC to obraz 4-bitowy (blok X1) 13×14 — wiersz zajmuje pełne bajty, a dekoder brał piksele ciągiem, więc przy nieparzystej
+  szerokości obraz był przekrzywiony. Poprawione w `decodePic` (wzorzec: GBitmap.FromPICFile); punkt aktywny (1, 1). Test w `pic.test.ts`.
+- Wygładzanie: menu aplikacji View → Smoothing — None (piksele oryginału), Light (xBR 4× bez mieszania kolorów, bez zmiękczenia;
+  domyślne), Strong (dotychczasowe: xBR z mieszaniem + blur 0.6 px). Zapamiętywane w `config.json` (IPC `smoothing:get`, `smoothing`).
+- Testy: 278 (13 pominiętych bez `CIV1_DIR`), 290 z plikami gry.

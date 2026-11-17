@@ -4,6 +4,9 @@ export type LoadResult =
   | { ok: false; reason: 'no-folder' }
   | { ok: false; reason: 'missing'; folder: string; missing: string[] };
 
+/** Wygładzanie obrazu: brak (piksele oryginału), lekkie (xBR bez mieszania kolorów), mocne (xBR z mieszaniem + zmiękczenie). */
+export type Smoothing = 'none' | 'light' | 'strong';
+
 export interface CivApi {
   /** Wczytuje pliki grafik i mapy z zapamiętanego folderu z oryginalną grą. */
   load(): Promise<LoadResult>;
@@ -16,6 +19,10 @@ export interface CivApi {
   /** Zapisy oryginału CIVIL0–9.SVE z plikiem .MAP w folderze gry (tylko odczyt; zapis gry zostaje w folderze aplikacji). */
   listGameSaves(): Promise<number[]>;
   readGameSave(index: number): Promise<{ sve: Uint8Array; map: Uint8Array }>;
+  /** Zapamiętane wygładzanie (menu View → Smoothing). */
+  getSmoothing(): Promise<Smoothing>;
+  /** Wywoływane po zmianie wygładzania w menu. */
+  onSmoothing(callback: (mode: Smoothing) => void): void;
 }
 
 import { UI_OPTIONAL_FILES, UI_REQUIRED_FILES } from '@civ-remake/ui/files';

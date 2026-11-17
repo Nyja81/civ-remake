@@ -1,11 +1,16 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { OPTIONAL_FILES, REQUIRED_FILES, type LoadResult } from './api';
+import { OPTIONAL_FILES, REQUIRED_FILES, type LoadResult, type Smoothing } from './api';
 
 const configPath = () => join(app.getPath('userData'), 'config.json');
 
-function readConfig(): { gameDir?: string } {
+interface Config {
+  gameDir?: string;
+  smoothing?: Smoothing;
+}
+
+function readConfig(): Config {
   try {
     return JSON.parse(readFileSync(configPath(), 'utf8'));
   } catch {
@@ -13,7 +18,7 @@ function readConfig(): { gameDir?: string } {
   }
 }
 
-function saveConfig(config: { gameDir?: string }): void {
+function saveConfig(config: Config): void {
   mkdirSync(app.getPath('userData'), { recursive: true });
   writeFileSync(configPath(), JSON.stringify(config, null, 2));
 }
@@ -110,7 +115,48 @@ ipcMain.handle('gamesaves:read', (_e, index: number) => {
   return { sve: new Uint8Array(readFileSync(files.sve)), map: new Uint8Array(readFileSync(files.map)) };
 });
 
+const SMOOTHING_LABELS: [Smoothing, string][] = [
+  ['none', 'None (original pixels)'],
+  ['light', 'Light'],
+  ['strong', 'Strong'],
+];
+
+const smoothingOf = (): Smoothing => readConfig().smoothing ?? 'light';
+
+ipcMain.handle('smoothing:get', () => smoothingOf());
+
+/** Menu aplikacji: View → Smoothing (zapamiętywane w config.json), pełny ekran. */
+function buildMenu(): void {
+  const current = smoothingOf();
+  const view: MenuItemConstructorOptions = {
+    label: 'View',
+    submenu: [
+      {
+        label: 'Smoothing',
+        submenu: SMOOTHING_LABELS.map(([mode, label]) => ({
+          label,
+          type: 'radio' as const,
+          checked: mode === current,
+          click: () => {
+            saveConfig({ ...readConfig(), smoothing: mode });
+            for (const w of BrowserWindow.getAllWindows()) w.webContents.send('smoothing', mode);
+          },
+        })),
+      },
+      { type: 'separator' },
+      { role: 'togglefullscreen' },
+    ],
+  };
+  const template: MenuItemConstructorOptions[] = [
+    ...(process.platform === 'darwin' ? [{ role: 'appMenu' as const }] : [{ role: 'fileMenu' as const }]),
+    view,
+    { role: 'windowMenu' },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 void app.whenReady().then(() => {
+  buildMenu();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
