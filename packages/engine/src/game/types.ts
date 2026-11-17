@@ -82,6 +82,8 @@ export interface Player {
   taxRate: number;
   scienceRate: number;
   researchProgress: number;
+  /** Punkty cywilizacji liczone co turę (Score). */
+  score: number;
   /** Badana technologia albo -1. */
   researching: number;
   /** Bitowa mapa odkrytych technologii (72 bity). */
@@ -204,6 +206,8 @@ export interface GameState {
   cityNames: string[];
   cityNameTaken: boolean[];
   techFirstDiscoveredBy: number[];
+  /** Wyrównanie kosztu badań co 50 tur (Var_d2de). */
+  techCatchUp: number;
   globalWarming: number;
   pollutedSquares: number;
   /** 0 = gra trwa. */
