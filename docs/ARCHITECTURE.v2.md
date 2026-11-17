@@ -34,7 +34,7 @@ a nie źródłem kodu ani zasobów.
 | 5 | Interfejs — ekran 320×200 jak w oryginale, wygładzany 4× | `packages/ui`, `apps/desktop` | ekrany startowe, menu, okna, ekran gry z mapą, rozkazami, oknem miasta, zapisem (scalone do `main`) |
 | 5a | Grafiki oryginału — dekoder `.PIC`, czcionki `FONTS.CV`, reguły rysowania mapy | `packages/gfx` | teren, ulepszenia, mgła, miasta, jednostki, minimapa (`mapView.ts`) |
 | 6 | Pakiet zastępczy grafiki — wektorowy (SVG) i Freeciv „trident” | `packages/art`, `tools/tileset` | próbki |
-| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support/<aplikacja>/saves` | `apps/desktop` | paczka 0.2.0 (arm64, niepodpisana) |
+| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support/<aplikacja>/saves` | `apps/desktop` | paczka 0.3.0 (arm64, niepodpisana) |
 | 8 | Wzorzec i testy porównawcze — tylko dla dewelopera | `packages/oracle` | odczyt tabel z CIV.EXE |
 
 ### Zasady projektowe silnika
@@ -84,7 +84,7 @@ a nie źródłem kodu ani zasobów.
 | 4 | Technologie, ustroje, zadowolenie, cuda | w dużej części: odkrycia i wybór badań, ustroje i rewolucja, efekty cudów w gospodarce; brak: encyklopedia, część cudów (statek, Manhattan) |
 | 5 | Walka, barbarzyńcy | walka i powstania barbarzyńców gotowe; brak: atak jądrowy, klęski w miastach, globalne ocieplenie |
 | 6 | Przeciwnik komputerowy | **gotowe w silniku**: strategie kontynentów, cele jednostek, ruchy jednostek i barbarzyńców, wybór produkcji, ustroje komputera; brak: GoTo oryginału, działania dyplomatów i karawan komputera |
-| 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | do zrobienia (silnik zgłasza kontakt jako zdarzenie) |
+| 7 | Dyplomacja, statek kosmiczny, koniec gry, punktacja | **gotowe**: punktacja (`score.ts`), koniec gry (podbój, statek, koniec panowania), statek kosmiczny (`spaceship.ts` + okno); brak: rozmowy z władcami (MeetWithKing), dyplomacja komputer–komputer, Hall of Fame |
 | 8 | Widok miasta, pałac, doradcy, dźwięk | ekrany startowe, menu, ekran gry i uproszczone okno miasta gotowe; pełne okno miasta, Civilopedia, doradcy, pałac, intro, dźwięk — do zrobienia |
 
 ### Odstępstwa od układu oryginału (świadome)
@@ -106,7 +106,7 @@ Znalezione i poprawione u nas: ocena jednostek w SelectCityProduction (×16·(ko
 ## Otwarte kwestie
 
 - Technologie startowe: wzorzec nie przyznaje żadnych (komunikat *INIT wymienia tylko drogi) — sprawdzić w oryginale (DOSBox).
-- Tabele przepisane ze wzorca (przekształcenia terenu, nazwy miast) — dodać do `npm run extract`.
+- Tabele przepisane ze wzorca (przekształcenia terenu, nazwy miast, plan i części statku kosmicznego) — dodać do `npm run extract`.
 - Generator losowy wzorca to MT19937 (nie rand() z MS C) — zgodność ziarna z oryginałem niesprawdzona.
 - Znaczenie pola `unknown1` w tabeli terenu (`terrainChangeId` to wartość piksela terenu na mapie oryginału).
 - Sposób, w jaki gra wyprowadza zakresy z `rand()`.

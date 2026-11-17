@@ -195,3 +195,14 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Testy: 80 (12 pominiętych bez `CIV1_DIR`); test gospodarki sprawdza maksymalny rozmiar miasta (komputer teraz atakuje).
 - Do zrobienia w etapie 6: GoTo oryginału, karawany i dyplomaci komputera.
 
+### 2026-11-17 — etap 7: punktacja, koniec gry, statek kosmiczny; paczka 0.3.0
+- `score.ts`: `civilizationScore` wg ShowCivilizationScorePopup; `turn.ts`: koniec gry (podbój, przylot statku, rok 2100 − 20·poziom),
+  zdarzenie `gameEnd` z wynikiem i informacją, czy można grać dalej (*FAME).
+- `spaceship.ts`: plan 15×12, obliczenia okna statku, części komputera i człowieka, decyzja komputera o starcie, start, utrata
+  statku przy zdobyciu stolicy; kalendarz co rok po starcie statku.
+- UI: `screens/reports.ts` (DrawReportScreen, CIVILIZATION SCORE), `screens/spaceship.ts` (plan z DOCKER.PIC, LAUNCH,
+  WORLD → SpaceShips); `showDialog` przyjmuje maskę nieaktywnych opcji. DOCKER.PIC na liście plików opcjonalnych.
+- Zapis: brakujące pola gracza i stanu ze starszych zapisów uzupełniane wartościami początkowymi.
+- Paczka 0.3.0 (arm64, niepodpisana). Testy: 89 (12 pominiętych bez `CIV1_DIR`).
+- Do zrobienia: MeetWithKing (rozmowy z władcami) i dyplomacja komputer–komputer, Hall of Fame, GoTo oryginału.
+
