@@ -16,7 +16,7 @@ a nie źródłem kodu ani zasobów.
 | Sterowanie | mysz + klawiatura; bez dotyku |
 | Tryb gry | jeden gracz; bez gry wieloosobowej |
 | Zasady | 1:1 z oryginałem; ewentualne poprawki tylko jako przełączane opcje |
-| Grafika | zmiana 2026-11-17: zestaw „trident” z projektu Freeciv (GPL-2.0+), widok z góry jak w oryginale, wygładzany 4× (hq4x + lekkie zmiękczenie); własny pakiet wektorowy `packages/art` zostaje jako alternatywa |
+| Grafika | decyzja ostateczna 2026-11-17: **oryginalne grafiki**, wczytywane z kopii gry właściciela licencji i wygładzane u niego na komputerze (hq4x + lekkie zmiękczenie, 4×). Bez plików oryginału gra używa pakietu zastępczego: zestawu „trident” z Freeciv (GPL-2.0+) albo własnego pakietu wektorowego `packages/art` |
 | Język gry | angielski |
 | Język kodu i dokumentacji | identyfikatory po angielsku, komentarze i dokumentacja po polsku |
 | Repozytorium | prywatne `Nyja81/civ-remake` |
@@ -64,7 +64,8 @@ a nie źródłem kodu ani zasobów.
 - Pliki oryginału (EXE, grafiki, teksty, zapisy) **nigdy** nie trafiają do repozytorium
   (`.gitignore`); narzędzia czytają je z folderu wskazanego zmienną `CIV1_DIR`.
 - Liczby i reguły gry odtwarzamy jako fakty. Grafika, teksty encyklopedii i dźwięk są własne —
-  grafika zachowuje układ i czytelność oryginału, ale nie jest kopią jego rysunków.
+  oryginalne grafiki nie są kopiowane ani przerysowywane: gra czyta je z kopii gracza w chwili uruchomienia,
+  a wygładzone wersje powstają i zostają wyłącznie na jego komputerze. Zrzutów z oryginalną grafiką nie umieszczamy w repozytorium.
 - Grafiki Freeciv są na licencji GPL-2.0-or-later: przy jakimkolwiek udostępnieniu gry trzeba zachować licencję i autorów
   oraz udostępnić je na tych samych warunkach. Pakiet grafiki pozostaje wymienny i oddzielony od kodu.
 - Nazwa gry nie może zawierać „Civilization”, jeśli projekt miałby wyjść poza użytek prywatny.

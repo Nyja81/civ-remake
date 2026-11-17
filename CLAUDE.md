@@ -22,7 +22,8 @@ Nie dotyczy kodu — ten wersjonuje Git.
 - Tabele w `packages/engine/src/data/{techs,units,terrain}.ts` są **generowane** (`npm run extract`) — nie edytuj ich ręcznie.
 - Silnik (`packages/engine`) nie importuje niczego z interfejsu ani z `packages/oracle`.
 - Identyfikatory po angielsku; komentarze i dokumentacja po polsku; teksty w grze po angielsku.
-- Grafika i teksty w grze są własne — nie kopiujemy rysunków ani opisów z oryginału.
+- Grafika: oryginalna, wczytywana z kopii gry Damiana (`CIV1_DIR`) i wygładzana lokalnie; do repozytorium nie trafiają
+  ani pliki oryginału, ani zrzuty z nimi. Teksty encyklopedii piszemy własne.
 
 ## Polecenia
 
@@ -62,4 +63,13 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   Uruchomienie: `FREECIV_DATA=/sciezka/freeciv/data python3 tools/tileset/preview.py` (wymaga `pip install pillow hqx numpy`).
 - Próbka: `docs/samples/freeciv-trident-preview.png`. Pliki Freeciv nie są jeszcze w repozytorium.
 - Do zrobienia: przeniesienie składania kafli do TypeScriptu (warstwa interfejsu), atlas wygładzonych kafli.
+
+### 2026-11-17 — decyzja: oryginalne grafiki, wygładzone
+- Damian chce dokładnie grafik oryginału, tylko w wyższej rozdzielczości i wygładzonych — bez zamienników.
+- `tools/original-gfx/` (prototyp, Python + Pillow + numpy + hqx): dekoder `.PIC` (LZW + RLE), odczyt czcionek `FONTS.CV`,
+  rysowanie mapy według reguł oryginału (ocean z ćwiartek 8×8, maski sąsiadów terenu, rzeki i ujścia, zasoby,
+  miasto, jednostki z podmianą kolorów gracza), wygładzanie 4×.
+  Uruchomienie: `python3 tools/original-gfx/preview.py /sciezka/do/gry wynik.png`.
+- Zestaw Freeciv i pakiet wektorowy zostają jako pakiety zastępcze.
+- Do zrobienia: przeniesienie dekodera i reguł rysowania do TypeScriptu, wygładzanie atlasu kafli zamiast gotowej klatki.
 
