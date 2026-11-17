@@ -644,3 +644,18 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   przylot statku bez animacji lotu — utwór 3 (34 przy zwycięstwie człowieka) przy komunikacie; przegrana (ARCH.PIC, 35) — ekranu
   jeszcze nie ma; tempo intro i historii świata liczone zegarem komputera (60/s), nie licznikiem sterownika; PlayTune(0) przy wyjściu
   z programu pominięte.
+
+### 2026-11-17 — technologie i osadnicy na start (F5_0000_0fe6), długie gry testowe, ikona
+- Ustalenie (z raportu gałęzi faces-svesave: oryginał na Chieftainie wymienia w *INIT technologie startowe): StartGameMenu woła po
+  InitPlayerData funkcję F5_0000_0fe6, którą nowsza wersja wzorca ma wykomentowaną. Port w `players.ts` — `balanceStartPositions`:
+  ocena startu (odległość do najbliższego obcego osadnika na kontynencie, rzeki/łąki wokół, wielkość kontynentu / 50),
+  słabsze starty dostają drugiego osadnika (różnica > 3) i technologie (F0_1ade_1584 = `selectNextResearch`) za resztę różnicy.
+  Tekst diagnostyczny funkcji (bufor DS:0xba06) i jej wynik — nieużywane w oryginale, pominięte. Testy dostosowane (drugi osadnik).
+- Długie gry testowe: `tools/stress/engineGame.ts` (małpa za człowieka — w 75% rozkazy AIEngine, reszta losowa; niezmienniki stanu
+  po każdej turze, co 50 tur zapis/odczyt JSON i zapis .SVE) i `tools/stress/run.mjs` (wiele gier w osobnych procesach z limitem
+  czasu); `packages/ui/test/monkey.stress.test.ts` (losowe klawisze i kliknięcia na ekranie gry, `MONKEY=1`, z CIV1_DIR na plikach gry).
+  Wynik przed zmianą startu: 200 gier × do 500 tur — bez wyjątków i zawieszeń; 12 gier małpy na ekranie (do roku 2100) — bez błędów.
+  Jedyne zgłoszenie niezmienników to cecha oryginału: odrodzona cywilizacja (InitPlayerData) dostaje osadników zwykle na polu właśnie
+  zdobytego i zniszczonego miasta, gdzie stoi zdobywca — oryginał nie sprawdza zajętości pola (tolerowane w niezmiennikach).
+- Ikona aplikacji: własny rysunek (pikselowy glob w złotym wieńcu) — `tools/icon/make_icon.py` → `apps/desktop/assets/icon.{png,icns}`.
+  `tools/package-mac.sh`: paczka na Maca (esbuild → packager z ikoną → rcodesign ad hoc → zip).

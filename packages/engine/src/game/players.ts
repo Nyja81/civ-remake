@@ -11,8 +11,8 @@ import { UNITS } from '../data/units';
 import { generateWorld, Terrain, DEFAULT_WORLD, type World, type WorldOptions } from '../world/generate';
 import { mscRandom, type RandomSource } from '../world/random';
 import { emptyCity } from './cities';
-import { cellIndex, createGameMap, distance, terrainAt } from './map';
-import { researchFinished, TECH_COUNT } from './techs';
+import { cellIndex, createGameMap, distance, DIRECTIONS, terrainAt } from './map';
+import { researchFinished, selectNextResearch, TECH_COUNT } from './techs';
 import { EARTH_START } from '../data/ruleTables';
 import { Government, NO_UNIT, type GameState, type Player } from './types';
 import { cellHasHut, createUnit, deleteUnit, emptyUnit, nearestCity, setCellOwner } from './units';
@@ -92,12 +92,72 @@ export function newGame(options: NewGameOptions): GameState {
     hp.nationPlural = pluralOf(options.nation);
   }
   for (let i = 0; i < MAX_PLAYERS; i++) initPlayer(state, i);
+  balanceStartPositions(state);
   hp.taxRate = 5;
   hp.scienceRate = 5;
   if (options.difficulty === 0) hp.gold = 50;
   for (let i = 0; i < MAX_PLAYERS; i++) if (state.players[i]!.nation >= 8) state.playerIdentity |= 1 << i;
   if (options.leaderName) hp.leader = options.leaderName;
   return state;
+}
+
+/**
+ * StartGameMenu F5_0000_0fe6 (wywołanie zaraz po InitPlayerData wszystkich graczy; nowsza wersja wzorca ma je wykomentowane):
+ * ocena miejsc startu i wyrównanie szans. Ocena cywilizacji (pierwsza jednostka gracza 1–7):
+ * - odległość do najbliższego obcego osadnika na tym samym kontynencie (F0_2dc4_0289): < 10 → 0, < 20 → +1, dalej → +2,
+ *   sama na kontynencie → +4;
+ * - 9 pól (środek i sąsiedzi): ponad 1 rzeka → +2, w przeciwnym razie co najmniej 3 łąki → +1;
+ * - wielkość kontynentu / 50 (F0_2aea_195d): 0–1 → 0, 2–3 → +1, ≥ 4 → +2.
+ * Cywilizacja, której do najlepszej oceny brakuje więcej niż 3, dostaje drugiego osadnika (+3 do oceny), a za każdy
+ * pozostały punkt różnicy — technologię wybraną jak w turze 0 (F0_1ade_1584 = `selectNextResearch`). Funkcja buduje też
+ * tekst diagnostyczny (bufor DS:0xba06) i zwraca gracza z najlepszą oceną — oryginał nie używa ani jednego, ani drugiego.
+ */
+export function balanceStartPositions(state: GameState): void {
+  const first = (p: number) => state.players[p]!.units[0]!;
+  const groupOf = (x: number, y: number) => state.map.group[cellIndex(x, y)]!;
+  const groupSize = (x: number, y: number) => {
+    const g = groupOf(x, y);
+    const list = terrainAt(state.map, x, y) === Terrain.Water ? state.map.oceans : state.map.continents;
+    return list[g]?.size ?? 0;
+  };
+  const scores: number[] = new Array(MAX_PLAYERS).fill(0);
+  let best = 0;
+  for (let p = 1; p < MAX_PLAYERS; p++) {
+    const u = first(p);
+    if (u.type === NO_UNIT) continue;
+    let score = 0;
+    let nearest = 999;
+    for (let q = 1; q < MAX_PLAYERS; q++) {
+      const o = first(q);
+      if (q === p || o.type === NO_UNIT || groupOf(o.x, o.y) !== groupOf(u.x, u.y)) continue;
+      nearest = Math.min(nearest, distance(u.x, u.y, o.x, o.y));
+    }
+    if (nearest >= 10) score += nearest < 20 ? 1 : nearest !== 999 ? 2 : 4;
+    let rivers = 0;
+    let grassland = 0;
+    for (let k = 0; k <= 8; k++) {
+      const [dx, dy] = DIRECTIONS[k]!;
+      const t = terrainAt(state.map, u.x + dx, u.y + dy);
+      if (t === Terrain.River) rivers++;
+      if (t === Terrain.Grassland) grassland++;
+    }
+    if (rivers > 1) score += 2;
+    else if (grassland >= 3) score += 1;
+    const size = Math.trunc(groupSize(u.x, u.y) / 50);
+    if (size === 2 || size === 3) score += 1;
+    else if (size >= 4) score += 2;
+    best = Math.max(best, score);
+    scores[p] = score;
+  }
+  for (let p = 1; p < MAX_PLAYERS; p++) {
+    const u = first(p);
+    if (u.type === NO_UNIT) continue;
+    if (best - scores[p]! > 3) {
+      scores[p]! += 3;
+      createUnit(state, p, 0, u.x, u.y);
+    }
+    for (let k = 0; best - scores[p]! > k; k++) selectNextResearch(state, p, 0);
+  }
 }
 
 /**

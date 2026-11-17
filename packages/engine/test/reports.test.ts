@@ -61,6 +61,7 @@ describe('raporty doradców', () => {
   it('Science: koszt odkrycia, pasek postępu i lista odkryć w kolejności numerów', () => {
     const { s } = start(41, 2);
     const p = s.players[s.humanPlayer]!;
+    p.techs.fill(false); // bez technologii startowych (F5_0000_0fe6)
     p.techs[Tech.Alphabet] = true;
     p.techs[Tech.BronzeWorking] = true;
     p.techCount = 2;
