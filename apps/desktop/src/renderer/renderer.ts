@@ -4,8 +4,9 @@
  * Gdy brakuje plików — czytelny ekran z prośbą o wskazanie folderu gry.
  */
 import { decodePic } from '@civ-remake/gfx';
-import { Gfx, GameAssets, Palette, readPaletteRange, runGameFlow, Ui } from '@civ-remake/ui';
+import { Gfx, GameAssets, Palette, readPaletteRange, runGameFlow, Ui, type UiHost } from '@civ-remake/ui';
 import type { CivApi, LoadResult } from '../api';
+import { AudioOutput } from './audio';
 import { Presenter } from './presenter';
 
 declare global {
@@ -69,15 +70,28 @@ function start(result: LoadResult): void {
   overlay.classList.add('hidden');
   const gfx = new Gfx(assets.fonts);
   const presenter = new Presenter(canvas, gfx);
-  const ui = new Ui(gfx, presenter);
+  // dźwięk: sterownik z kopii gry na emulatorze (menu View → Sound)
+  const audio = new AudioOutput(result.files);
+  const host: UiHost = {
+    present: () => presenter.present(),
+    sleep: (ms) => presenter.sleep(ms),
+    playTune: (tune, arg) => audio.playTune(tune, arg),
+    tuneCounter: () => audio.tuneCounter(),
+  };
+  const ui = new Ui(gfx, host);
+  window.civ.onSoundCard((card) => audio.setCard(card));
   presenter.attachInput(ui.input);
   applyCursor(presenter, assets);
   void window.civ.getSmoothing().then((mode) => presenter.setSmoothing(mode));
   window.civ.onSmoothing((mode) => presenter.setSmoothing(mode));
-  (window as unknown as { civUi: unknown }).civUi = { ui, presenter, assets }; // diagnostyka (konsola)
+  (window as unknown as { civUi: unknown }).civUi = { ui, presenter, assets, audio }; // diagnostyka (konsola)
   const saves = { list: () => window.civ.listSaves(), read: (n: string) => window.civ.readSave(n), write: (n: string, j: string) => window.civ.writeSave(n, j) };
   const originalSaves = { list: () => window.civ.listGameSaves(), read: (i: number) => window.civ.readGameSave(i) };
-  runGameFlow(ui, assets, { saves, originalSaves }).catch((error: unknown) => {
+  // karta dźwiękowa przed intro — muzyka napisów zaczyna się od pierwszej klatki
+  window.civ.getSoundCard().catch(() => 'none' as const).then((card) => {
+    audio.setCard(card);
+    return runGameFlow(ui, assets, { saves, originalSaves });
+  }).catch((error: unknown) => {
     console.error(error);
     showOverlay('Something went wrong', String(error), true);
   });

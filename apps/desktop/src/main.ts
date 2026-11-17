@@ -1,13 +1,14 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { OPTIONAL_FILES, REQUIRED_FILES, type LoadResult, type Smoothing } from './api';
+import { OPTIONAL_FILES, REQUIRED_FILES, type LoadResult, type Smoothing, type SoundCardChoice } from './api';
 
 const configPath = () => join(app.getPath('userData'), 'config.json');
 
 interface Config {
   gameDir?: string;
   smoothing?: Smoothing;
+  sound?: SoundCardChoice;
 }
 
 function readConfig(): Config {
@@ -46,7 +47,10 @@ function createWindow(): void {
     useContentSize: true,
     title: 'Civ Remake',
     backgroundColor: '#000000',
-    webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false },
+    // muzyka intro gra od startu, jak w oryginale — bez czekania na pierwsze kliknięcie
+    webPreferences: {
+      preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required',
+    },
   });
   void window.loadFile(join(__dirname, 'index.html'));
 }
@@ -173,9 +177,20 @@ const smoothingOf = (): Smoothing => readConfig().smoothing ?? 'light';
 
 ipcMain.handle('smoothing:get', () => smoothingOf());
 
-/** Menu aplikacji: View → Smoothing (zapamiętywane w config.json), pełny ekran. */
+const SOUND_LABELS: [SoundCardChoice, string][] = [
+  ['adlib', 'AdLib / Sound Blaster'],
+  ['speaker', 'PC Speaker'],
+  ['none', 'No Sound'],
+];
+
+const soundOf = (): SoundCardChoice => readConfig().sound ?? 'adlib';
+
+ipcMain.handle('sound:get', () => soundOf());
+
+/** Menu aplikacji: View → Smoothing i Sound (zapamiętywane w config.json), pełny ekran. */
 function buildMenu(): void {
   const current = smoothingOf();
+  const sound = soundOf();
   const view: MenuItemConstructorOptions = {
     label: 'View',
     submenu: [
@@ -188,6 +203,18 @@ function buildMenu(): void {
           click: () => {
             saveConfig({ ...readConfig(), smoothing: mode });
             for (const w of BrowserWindow.getAllWindows()) w.webContents.send('smoothing', mode);
+          },
+        })),
+      },
+      {
+        label: 'Sound',
+        submenu: SOUND_LABELS.map(([card, label]) => ({
+          label,
+          type: 'radio' as const,
+          checked: card === sound,
+          click: () => {
+            saveConfig({ ...readConfig(), sound: card });
+            for (const w of BrowserWindow.getAllWindows()) w.webContents.send('sound', card);
           },
         })),
       },

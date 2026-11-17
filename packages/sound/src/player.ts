@@ -82,8 +82,9 @@ export class SoundPlayer {
     this.pending.push([tune, arg]);
   }
 
-  /** Licznik taktów sterownika od ostatniego PlayTune (punkt wejścia 5). */
+  /** Licznik taktów sterownika od ostatniego PlayTune (punkt wejścia 5); 0, gdy PlayTune czeka na wykonanie. */
   counter(): number {
+    if (this.pending.length) return 0;
     return this.driver.call(DRIVER_ENTRY.counter);
   }
 
