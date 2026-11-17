@@ -27,7 +27,7 @@ describe('gospodarka miast', () => {
   });
 
   it('miasto rośnie, produkuje i gracz zbiera złoto przez 60 tur', () => {
-    const { s, city } = foundCapital(32);
+    const { s, city } = foundCapital(34); // ziarno, przy którym komputer nie zdobywa stolicy w 60 turach
     const h = s.humanPlayer;
     s.players[h]!.researching = researchOptions(s)[0] ?? -1;
     let maxSize = 0;
