@@ -6,7 +6,9 @@ import {
 import type { UiEvent } from '../src/input';
 import { Palette } from '../src/palette';
 import { PaletteCycles } from '../src/paletteCycle';
-import { showCityView, civilDisorderAnimation, invadersAnimation, loveOurLeaderAnimation, hasCityViewGraphics } from '../src/screens/cityView';
+import {
+  showCityView, civilDisorderAnimation, foundNewCityAnimation, invadersAnimation, loveOurLeaderAnimation, hasCityViewGraphics, hasFoundCityGraphics,
+} from '../src/screens/cityView';
 import { drawCityWindow, showCityWindow } from '../src/screens/cityWindow';
 import { GameScreen } from '../src/screens/gameScreen';
 import { showWorldHistory } from '../src/screens/intro';
@@ -223,5 +225,67 @@ describe('cykle palety i historia świata', () => {
     const r = makeUi(files);
     await drive(r.ui, [key('x')], () => showWorldHistory(r.ui, r.assets));
     expect(r.ui.input.size).toBe(0);
+  });
+});
+
+describe('animacja założenia miasta (F22_0000_0eaf)', () => {
+  /** SETTLERS.PIC: osadnik i w pasie y = 16i + 1 kolorem 90 + i (47×15 od x = 1). */
+  const settlers = () => ({ 'SETTLERS.PIC': pic((x, y) => (x >= 1 && x < 48 && (y - 1) % 16 < 15 && y < 64 ? 90 + ((y - 1) >> 4) : 0)) });
+
+  it('bez SETTLERS.PIC — pomijana', async () => {
+    const { ui, assets, state, city } = setup(cityViewFiles());
+    expect(hasFoundCityGraphics(assets)).toBe(false);
+    await foundNewCityAnimation(ui, assets, state, city);
+    expect(ui.gfx.screen.getPixel(160, 100)).not.toBe(5);
+  });
+
+  it('marsz przez wzgórze; klawisz przerywa i pomija panoramę (czarny ekran, paleta gry)', async () => {
+    const { ui, assets, state, city } = setup({ ...cityViewFiles(), ...settlers() });
+    const palette = new Palette();
+    palette.setColor(1, 1, 2, 3);
+    await drive(ui, [key('x')], () => foundNewCityAnimation(ui, assets, state, city, { palette }), 200);
+    // krok i, na którym klawisz przerwał marsz: osadnik j w (13j + i, (10j & 15) + 120), rysunek (j + i) & 3 — na ekranie 1
+    const s1 = ui.gfx.screens[1];
+    let i = 80;
+    while (s1.getPixel(i, 121) === 5) i++;
+    expect(i).toBeLessThan(120);
+    expect(s1.getPixel(i, 121)).toBe(90 + (i & 3));
+    expect(s1.getPixel(i + 13, 131)).toBe(90 + ((i + 1) & 3));
+    expect(s1.getPixel(i + 39, 135)).toBe(90 + ((i + 3) & 3)); // j = 3: (39, 30 & 15 = 14)
+    expect(s1.getPixel(300, 125)).toBe(5); // wzgórze
+    expect(ui.gfx.screen.getPixel(160, 100)).toBe(0);
+    expect(ui.gfx.palette.rgb[3]).toBe(1);
+  });
+
+  it('kliknięcie przerywa marsz, potem panorama z rozjaśnieniem (−3) czeka na klawisz', async () => {
+    const { ui, assets, state, city } = setup({ ...cityViewFiles(), ...settlers() });
+    const palette = new Palette();
+    // dwa wygaszenia palety (20 + 30 kroków zegara) — dłuższy limit bezczynności scenariusza
+    await drive(ui, [click(5, 5), key('x')], () => foundNewCityAnimation(ui, assets, state, city, { palette }), 200);
+    const colors = new Set<number>();
+    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) colors.add(ui.gfx.screens[1].getPixel(x, y));
+    expect(colors.has(30)).toBe(true); // domy panoramy na ekranie 1
+    expect(ui.gfx.screen.getPixel(160, 100)).toBe(0);
+  });
+
+  it('założenie miasta przez człowieka przy włączonych animacjach: nazwa, marsz, okno miasta', async () => {
+    const { ui, assets } = makeUi({ ...syntheticFiles(), ...cityViewFiles(), ...settlers() });
+    ui.gfx.patternAvailable = true;
+    ui.gfx.loadPic(2, 0, 0, assets.pic('SP299.PIC'));
+    const state = newGame({ seed: 51, difficulty: 1, civilizations: 5, nation: 1 });
+    advanceToHuman(state);
+    state.events.length = 0;
+    state.settings.animations = true;
+    const used: string[] = [];
+    const pic = assets.pic.bind(assets);
+    assets.pic = (name: string) => (used.push(name.toUpperCase()), pic(name));
+    const screen = new GameScreen(ui, assets, state);
+    screen.redrawAll();
+    unitOrder(state, state.humanPlayer, 0, 'build');
+    expect(state.events.some((e) => e.kind === 'cityFounded')).toBe(true);
+    // Enter: nazwa; klawisz: przerwanie marszu (bez panoramy); Esc: okno miasta
+    // (bez animacji „x” zamknęłoby okno miasta, a Esc zostałby nieużyty — drive zgłosiłby błąd)
+    await drive(ui, [key('Enter'), key('x'), key('Escape')], () => screen.processEvents(), 200);
+    expect(used).toContain('SETTLERS.PIC');
   });
 });

@@ -26,7 +26,7 @@ import { Palette, readPaletteRange } from '../palette';
 import { PaletteCycles } from '../paletteCycle';
 import { Surface } from '../surface';
 import { yearToString } from '../text';
-import type { Ui } from '../ui';
+import { TIMER_TICK_MS, type Ui } from '../ui';
 
 /**
  * Prostokąty cudów na WONDERS.PIC / WONDERS2.PIC (x1, y1, x2, y2) — tablica w danych CIV.EXE przepisana ze wzorca
@@ -380,3 +380,58 @@ export function paletteWith(base: Palette, file: Uint8Array): Palette {
   if (range) p.apply(range);
   return p;
 }
+
+/** Pliki potrzebne animacji założenia miasta (bez nich animacja jest pomijana, jak przy braku dyskietki z grafiką). */
+export function hasFoundCityGraphics(assets: GameAssets): boolean {
+  return assets.has('SETTLERS.PIC') && assets.has('HILL.PIC');
+}
+
+/**
+ * Animations.F22_0000_0eaf_FoundNewCity (dosłowne tłumaczenie, `Overlay_22.cs` z ec23ac3): czterech osadników z SETTLERS.PIC
+ * (47×15 z (1, 16i + 1)) idzie przez wzgórze HILL.PIC — 40 kroków od x = 80, osadnik j w (13j + i, (10j & 15) + 120),
+ * rysunek (j + i) & 3, co krok pas y 120–159 odtwarzany z kopii na ekranie 1 i przenoszony na ekran 0, 10 jednostek zegara
+ * na krok; napis „<miasto> founded: <rok>.” czcionką 6 w (160, 4) kolorem 0. Klawisz albo przycisk myszy przerywa marsz.
+ * Potem wygaszenie palety do czerni (10) i — gdy nie naciśnięto klawisza (kbhit) — panorama miasta z rozjaśnieniem (−3);
+ * po klawiszu czarny ekran i paleta gry.
+ */
+export async function foundNewCityAnimation(ui: Ui, assets: GameAssets, state: GameState, cityId: number,
+  options: CityViewOptions = {}): Promise<void> {
+  if (!hasFoundCityGraphics(assets)) return;
+  const gfx = ui.gfx;
+  gfx.loadPic(1, 0, 0, assets.pic('SETTLERS.PIC'));
+  const settlers = Array.from({ length: 4 }, (_, i) => gfx.cut(1, 1, i * 16 + 1, 47, 15));
+  gfx.loadPic(1, 0, 0, assets.pic('HILL.PIC'));
+  gfx.fillRect(0, 0, 320, 200, 0);
+  gfx.setPaletteFromFile(assets.file('HILL.PIC'));
+  gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+  const savedFont = gfx.fontId;
+  gfx.fontId = 6;
+  gfx.drawCenteredString(`${cityName(state, cityId)} founded: ${yearToString(state.year)}.`, 160, 4, 0);
+  gfx.fontId = savedFont;
+  gfx.copy(1, 0, 120, 320, 40, 1, 0, 0);
+  ui.input.clear();
+  let key = false;
+  for (let i = 80; i < 120; i++) {
+    gfx.copy(1, 0, 0, 320, 40, 1, 0, 120);
+    for (let j = 0; j < 4; j++) gfx.drawBitmap(settlers[(j + i) & 3]!, 13 * j + i, ((10 * j) & 0xf) + 120, 1);
+    gfx.copy(1, 0, 120, 320, 40, 0, 0, 120);
+    ui.present();
+    // ResetWaitTimer … GetTimerValue() < 10, potem kbhit() albo przycisk myszy
+    const e = await ui.waitEvent(10 * TIMER_TICK_MS);
+    if (e && (e.type === 'key' || e.type === 'mousedown')) {
+      key = e.type === 'key';
+      break;
+    }
+  }
+  // Odstępstwo: oryginał zostawia klawisz w buforze (kbhit); tu jest zużyty — skutek (bez panoramy) ten sam.
+  ui.input.clear();
+  await ui.fadePalette([0, 0, 0], 10);
+  if (!key) {
+    await showCityView(ui, assets, state, cityId, -3, null, options);
+  } else {
+    gfx.fillRect(0, 0, 320, 200, 0);
+    if (options.palette) gfx.setPalette(options.palette);
+    ui.present();
+  }
+}
+

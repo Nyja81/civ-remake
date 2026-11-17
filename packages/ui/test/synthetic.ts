@@ -203,11 +203,11 @@ export function plainUi(): Ui {
  * Przebieg scenariusza: kolejne zdarzenia podaje dopiero wtedy, gdy ekran czeka na wejście
  * (ekrany czyszczą kolejkę przed pokazaniem menu, jak oryginał).
  */
-export async function drive<T>(ui: Ui, events: readonly import('../src/input').UiEvent[], run: () => Promise<T>): Promise<T> {
+export async function drive<T>(ui: Ui, events: readonly import('../src/input').UiEvent[], run: () => Promise<T>, maxIdle = 50): Promise<T> {
   let done = false;
   const pending = run().finally(() => (done = true));
   const queue = [...events];
-  for (let idle = 0; !done && idle < 50; ) {
+  for (let idle = 0; !done && idle < maxIdle; ) {
     await new Promise((r) => setTimeout(r, 0));
     if (done) break;
     if (ui.input.size === 0 && ui.input.waiting && queue.length > 0) {

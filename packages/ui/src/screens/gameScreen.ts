@@ -34,7 +34,7 @@ import { resolveUnitAction, type UnitActionHooks } from './unitActions';
 import { showCityWindow } from './cityWindow';
 import { showCivilopedia, showCivilopediaTopic, Topic } from './civilopedia';
 import { displayGameReplay, displayHailTheConqueror } from './replay';
-import { civilDisorderAnimation, invadersAnimation, loveOurLeaderAnimation, showCityView } from './cityView';
+import { civilDisorderAnimation, foundNewCityAnimation, invadersAnimation, loveOurLeaderAnimation, showCityView } from './cityView';
 import { drawMiniPalace, showPalaceUpgrade, showPalaceView } from './palace';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
@@ -334,8 +334,11 @@ export class GameScreen {
         if (text) await showDialog(this.ui, text, 60, 60);
       } else if (ev.kind === 'cityFounded' && typeof ev.city === 'number') {
         await this.cityNameDialog(ev.city);
-        // GameEngine (FoundNewCity): okno nowego miasta, potem mapa z wygaszeniem
+        // GameEngine (FoundNewCity): przy włączonych animacjach F22_0000_0eaf, potem okno nowego miasta i mapa z wygaszeniem
         if (this.state.cities[ev.city]?.owner === this.human) {
+          if (this.state.settings.animations) {
+            await foundNewCityAnimation(this.ui, this.assets, this.state, ev.city, { palette: this.gamePalette });
+          }
           await this.cityDialog(ev.city);
           await this.redrawMapWithBlankingEffect();
         }
