@@ -1,0 +1,16 @@
+node_modules/
+dist/
+out/
+*.log
+.DS_Store
+
+# Pliki oryginalnej gry NIGDY nie trafiają do repozytorium.
+# Trzymaj je poza repo i wskazuj zmienną CIV1_DIR.
+original/
+*.EXE
+*.PIC
+*.PAL
+*.SVE
+*.MAP
+*.CVL
+*.img
