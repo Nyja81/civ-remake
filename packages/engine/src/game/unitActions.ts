@@ -32,12 +32,10 @@ import { CITY_OFFSETS, cellIndex, distance, isValid, wrapX } from './map';
 import { playerHasTech, researchFinished } from './techs';
 import { CityStatus, Diplomacy, Improvement, NO_UNIT, type GameState } from './types';
 import { createUnit, deleteUnit, setCellOwner, unitsAt } from './units';
+import { CARAVAN_GOODS } from '../data/names';
 
 const s16 = (v: number) => (v << 16) >> 16;
 const trunc = Math.trunc;
-
-/** Towary karawany wg numeru jednostki & 7 (tablica wskaźników DS:0x1972). */
-export const CARAVAN_GOODS = ['Silk', 'Silver', 'Wine', 'Copper', 'Gems', 'Dye', 'Salt', 'Spice'] as const;
 
 /** Menu dyplomaty (DS:0x51b4); opcje 0–5. */
 export const DIPLOMAT_ACTIONS = ['Establish Embassy', 'Investigate City', 'Steal Technology', 'Industrial Sabotage', 'Incite a Revolt', 'Meet with King'] as const;

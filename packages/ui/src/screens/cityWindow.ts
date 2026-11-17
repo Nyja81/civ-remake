@@ -30,6 +30,7 @@ import { showCivilopediaTopic, Topic } from './civilopedia';
 import type { Palette } from '../palette';
 import type { Ui } from '../ui';
 import { showCityView } from './cityView';
+import { CITY_MAP_OFFSETS } from '../data/screenTables';
 
 export interface CityWindowContext {
   readonly ui: Ui;
@@ -486,8 +487,7 @@ function drawWonderOrImprovement(ctx: CityWindowContext, id: number, x: number, 
   else ctx.ui.gfx.copy(2, Math.trunc(n / 5) * 19 + 161, (n % 5) * 10 + 50, 18, 10, 0, x, y);
 }
 
-/** Przesunięcia punktów 2×2 mapy świata w kratce 3×3 dla parzystości pola (cityMapOffsets). */
-const CITY_MAP_OFFSETS = [[0, -1], [2, 0], [0, 1], [1, 2]] as const;
+/** Przesunięcia punktów 2×2 mapy świata w kratce 3×3 dla parzystości pola — CITY_MAP_OFFSETS z CIV.EXE (DS:0x280c/0x2810). */
 
 /** F0_1d12_72b7_DrawCityWorldMap: mapa świata (zakładka MAP) wyśrodkowana na stolicy człowieka (XStart). */
 function drawCityWorldMap(ctx: CityWindowContext): void {

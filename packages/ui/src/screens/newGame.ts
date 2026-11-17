@@ -34,7 +34,6 @@ export interface NewGameSettings {
 }
 
 export const DIFFICULTY_MENU = 'Difficulty Level...\n Chieftain (easiest)\n Warlord\n Prince\n King\n Emperor (toughest)\n';
-export const DIFFICULTY_NAMES = ['Chieftain', 'Warlord', 'Prince', 'King', 'Emperor'] as const;
 
 /** Naród w liczbie mnogiej: gdy tabela nie ma osobnej nazwy, oryginał dodaje 's' do przymiotnika. */
 export const nationPlural = (id: number) => NATIONS[id]!.plural || NATIONS[id]!.adjective + 's';

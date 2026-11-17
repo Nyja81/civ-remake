@@ -116,6 +116,29 @@ describe('raport historyka', () => {
     await drive(ui, [enter()], () => screen.processEvents());
     expect(corners).toContain(3);
   });
+
+  it('napisy jak w CIV.EXE: „… completes his epic history:”, „The X Civilizations in the World”, „Civilization of the …”', async () => {
+    const { ui, state, screen } = setup();
+    const texts: string[] = [];
+    const g = ui.gfx;
+    const centered = g.drawCenteredString.bind(g);
+    const plain = g.drawString.bind(g);
+    g.drawCenteredString = (t: string, ...rest: Parameters<typeof centered> extends [string, ...infer R] ? R : never) => {
+      texts.push(t);
+      return centered(t, ...rest);
+    };
+    g.drawString = (t: string, ...rest: Parameters<typeof plain> extends [string, ...infer R] ? R : never) => {
+      texts.push(t);
+      return plain(t, ...rest);
+    };
+    const report = playerHistoryReport(state);
+    state.events.push({ kind: 'historyReport', report });
+    await drive(ui, [enter()], () => screen.processEvents());
+    expect(texts.some((t) => /^(Herodotus|Pliny|Toynbee|Gibbon) completes his epic history:$/.test(t))).toBe(true);
+    expect(texts.some((t) => /^'The [A-Z ]+ Civilizations in the World'$/.test(t))).toBe(true);
+    const first = report.entries.find((e) => e.shown)!;
+    expect(texts).toContain(`${first.rank + 1}. The ${['Glorious', 'Great', 'Fine', 'Mediocre', 'Puny', 'Pathetic', 'Hopeless'][first.rank]} Civilization of the ${state.players[first.player]!.nationPlural}.`);
+  });
 });
 
 describe('pomocnicze', () => {

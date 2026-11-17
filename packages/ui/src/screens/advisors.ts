@@ -9,7 +9,7 @@
  * (LoadGovernmentImage kopiuje je na ekran 2 w (160, 140)); bez pliku GOVT portret jest pomijany.
  */
 import {
-  attitudeReport, BUILDINGS, cityStatusReport, Diplomacy, continentStatistics, demographicsReport, HISTORIANS, HISTORY_GRADES, HISTORY_TYPES,
+  attitudeReport, BUILDINGS, cityStatusReport, Diplomacy, continentStatistics, demographicsReport, GOVERNMENT_NAMES, HISTORIANS, HISTORY_GRADES, HISTORY_TEXTS, HISTORY_TYPES, LEADER_TITLES,
   improvementDef, intelligenceDetail, intelligenceReport, militaryLossesReport, militaryReport, palaceLevelFromScore, playerHasTech, powerGraph, scienceReport,
   Tech, techName, topFiveCities, tradeReport, turnToYear, UNITS, wonderName, wondersOfTheWorld, worldMapReport,
   type DemographicsKey, type GameState, type HistoryReport, type ReportCity,
@@ -21,11 +21,9 @@ import type { Gfx } from '../gfx';
 import { isKey, type UiEvent } from '../input';
 import { yearToString } from '../text';
 import type { Ui } from '../ui';
-import { drawReportScreen, LEADER_TITLES, showScoreScreen } from './reports';
+import { drawReportScreen, showScoreScreen } from './reports';
 import { drawMiniPalace } from './palace';
 
-/** Array_1966_GovernmentNames */
-export const GOVERNMENT_NAMES_1966 = ['Anarchy', 'Despotism', 'Monarchy', 'Communist', 'Republic', 'Democratic'] as const;
 
 /** Raporty menu ADVISORS (kolejność opcji) i WORLD (bez SpaceShips). */
 export type AdvisorReport = 'cityStatus' | 'military' | 'intelligence' | 'attitude' | 'trade' | 'science';
@@ -233,7 +231,7 @@ export async function showIntelligence(ui: Ui, assets: GameAssets, state: GameSt
       continue;
     }
     g.drawStringWithShadow(`${p.nationPlural}: ${p.leader}`, 8, y, 15);
-    const gov = GOVERNMENT_NAMES_1966[p.government] ?? '';
+    const gov = GOVERNMENT_NAMES[p.government] ?? '';
     g.drawString(state.difficulty <= 1 ? `${gov}, ${p.gold}$, ${p.unitCount} units.` : `${gov}, ${p.gold}$`, 160, y, color);
     y += 8;
     let x = 16;
@@ -287,7 +285,7 @@ export async function showIntelligenceDetail(ui: Ui, assets: GameAssets, state: 
   y += 4;
   g.drawString(`Capital:${white} ${cityNameOf(state, d.capital)}`, 16, y, 9);
   y += 8;
-  g.drawString(`Government:${white} ${GOVERNMENT_NAMES_1966[p.government] ?? ''}`, 16, y, 9);
+  g.drawString(`Government:${white} ${GOVERNMENT_NAMES[p.government] ?? ''}`, 16, y, 9);
   y += 8;
   g.drawString(`Treasury:${white} ${p.gold}$`, 16, y, 9);
   y += 8;
@@ -538,8 +536,9 @@ export async function showHistoryReport(ui: Ui, state: GameState, report: Histor
   const g = ui.gfx;
   saveScreen(g);
   g.fillRect(0, 0, 320, 200, 3);
-  g.drawCenteredString(`${HISTORIANS[report.historian]} completes his epic history on`, 160, 4, 15);
-  g.drawCenteredString(`'The ${HISTORY_TYPES[report.type]} Leaders in the World'.`, 160, 12, 15);
+  // napisy z CIV.EXE (DS:0x44b6–0x4513): „Herodotus completes his epic history:”, „'The WEALTHIEST Civilizations in the World'”
+  g.drawCenteredString(`${HISTORIANS[report.historian]}${HISTORY_TEXTS.completes}`, 160, 4, 15);
+  g.drawCenteredString(`${HISTORY_TEXTS.the}${HISTORY_TYPES[report.type]}${HISTORY_TEXTS.civilizations}`, 160, 12, 15);
   let y = 32;
   for (const e of report.entries) {
     if (!e.shown) continue;
@@ -548,7 +547,8 @@ export async function showHistoryReport(ui: Ui, state: GameState, report: Histor
     const p = state.players[e.player]!;
     if (assets) drawMiniPalace(g, assets, state, e.player, palaceLevelFromScore(p.score), 128, y - 13);
     g.drawRectangle(8, y, 303, 15, PLAYER_COLORS[e.player]!);
-    g.drawString(`${e.rank + 1}. The ${HISTORY_GRADES[e.rank]} ${p.leader} of the ${p.nationPlural}.`, 40, y + 5, 15);
+    // „1. The Glorious Civilization of the Romans.” (itoa(ranga + 1) + DS:0x44f6 + ocena + DS:0x44fd + naród + DS:0x4513)
+    g.drawString(`${e.rank + 1}${HISTORY_TEXTS.dotThe}${HISTORY_GRADES[e.rank]}${HISTORY_TEXTS.civilizationOf}${p.nationPlural}${HISTORY_TEXTS.dot}`, 40, y + 5, 15);
     y += 24;
   }
   ui.input.clear();

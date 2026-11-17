@@ -1,7 +1,10 @@
+// PLIK GENEROWANY — nie edytuj ręcznie. Źródło: tablica nazw miast (segment 0x3604) w CIV.EXE (te same dane w wersjach 474.01 i 475.05).
+// Odtworzenie: CIV1_DIR=... npm run extract
+
 /**
  * Nazwy miast: 16 na każdą z 14 nacji (w kolejności nacji 1–7, 9–15) i 32 zapasowe (224–255).
- * ŹRÓDŁO: tablica CityNames z OpenCivOne (MIT), odpowiadająca tablicy w CIV.EXE.
- * DO ZROBIENIA: dodać do `npm run extract` i porównać z CIV.EXE (przepisane z wzorca).
+ * W CIV.EXE każda zajmuje 13 bajtów i jest dopełniona spacjami do 12 znaków; oryginał obcina spacje przy zakładaniu
+ * miasta (CreateCity), więc tu są już obcięte.
  */
 export const CITY_NAMES: readonly string[] = [
   "Rome", "Caesarea", "Carthage", "Nicopolis", "Byzantium", "Brundisium", "Syracuse", "Antioch",

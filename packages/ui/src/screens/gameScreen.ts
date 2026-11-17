@@ -11,7 +11,7 @@
  * (unitMove, unitOrder, nextUnit, endHumanTurn) i pokazuje zdarzenia jako okna.
  */
 import {
-  advanceToHuman, aiRequestMeeting, palaceOf, envoyMeeting, meetWithKing, type KingKeywords, type KingMeeting, BUILDINGS, civilizationScore, hallOfFameEntry, type HallOfFameEntry, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
+  advanceToHuman, aiRequestMeeting, palaceOf, envoyMeeting, meetWithKing, type KingKeywords, type KingMeeting, BUILDINGS, civilizationScore, GOVERNMENT_NAMES, hallOfFameEntry, type HallOfFameEntry, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
   MovementType, nextUnit, NO_UNIT, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
   TERRAIN, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameEvent, type GameState, type MoveResult, type Order,
 } from '@civ-remake/engine';
@@ -90,8 +90,6 @@ export interface GameScreenOptions {
   readonly writeReplay?: (text: string) => Promise<void>;
 }
 
-/** Nazwy ustrojów jak w oryginale (Array_1966_GovernmentNames). */
-export const GOVERNMENT_TITLES = ['Anarchy', 'Despotism', 'Monarchy', 'Communist', 'Republic', 'Democratic'] as const;
 
 export class GameScreen {
   viewX = 0;
@@ -549,7 +547,7 @@ export class GameScreen {
   async governmentDialog(options: readonly number[]): Promise<void> {
     if (options.length === 0) return;
     let text = 'Select type of government:\n';
-    for (const g of options) text += ` ${GOVERNMENT_TITLES[g] ?? '?'}\n`;
+    for (const g of options) text += ` ${GOVERNMENT_NAMES[g] ?? '?'}\n`;
     let index = -1;
     while (index === -1) index = await showDialog(this.ui, text, 100, 64);
     setGovernment(this.state, this.human, options[index]!);
