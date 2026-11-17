@@ -395,32 +395,69 @@ function continueWork(state: GameState, player: number, unitId: number): void {
   unitOrder(state, player, unitId, order);
 }
 
-/** Prosty krok „idź do”: kierunek najbliżej celu (pełny algorytm GoTo oryginału — etap 6). Zwraca true, jeśli wykonano ruch. */
+/**
+ * Krok „idź do”: najkrótsza droga po polach znanych graczowi (BFS z kosztem ruchu: drogi 1, teren wg tabeli).
+ * TYMCZASOWO zamiast algorytmu GoTo oryginału (UnitGoTo, etap 6). Zwraca true, jeśli wykonano ruch.
+ */
 function gotoStep(state: GameState, player: number, unitId: number): boolean {
   const u = state.players[player]!.units[unitId]!;
-  let best = -1;
-  let bestDist = distance(u.x, u.y, u.gotoX, u.gotoY);
-  for (let d = 1; d < 9; d++) {
-    const [dx, dy] = DIRECTIONS[d]!;
-    if (!isValid(u.x + dx, u.y + dy)) continue;
-    const t = terrainAt(state.map, u.x + dx, u.y + dy);
-    const def = UNITS[u.type]!;
-    if (def.movementType === MovementType.Land && t === Terrain.Water) continue;
-    if (def.movementType === MovementType.Water && t !== Terrain.Water && !(state.map.improvements[cellIndex(u.x + dx, u.y + dy)]! & 1)) continue;
-    const dist = distance(u.x + dx, u.y + dy, u.gotoX, u.gotoY);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = d;
-    }
-  }
-  if (best === -1) {
+  const dir = gotoDirection(state, player, unitId, u.gotoX, u.gotoY);
+  if (dir <= 0) {
     u.gotoX = u.gotoY = -1;
     return false;
   }
-  const r = moveUnit(state, player, unitId, best);
+  const r = moveUnit(state, player, unitId, dir);
   afterUnitAction(state, player, unitId);
   if (r.kind !== 'moved') u.gotoX = u.gotoY = -1;
   return true;
+}
+
+/** Kierunek pierwszego kroku najtańszej drogi do (tx, ty) albo -1 (Dijkstra na siatce 80×50). */
+export function gotoDirection(state: GameState, player: number, unitId: number, tx: number, ty: number): number {
+  const u = state.players[player]!.units[unitId]!;
+  const def = UNITS[u.type]!;
+  const W = 80;
+  const start = u.y * W + u.x;
+  const goal = ty * W + ((tx % W) + W) % W;
+  if (start === goal) return 0;
+  const cost = new Float64Array(W * 50).fill(Infinity);
+  const first = new Int8Array(W * 50).fill(-1);
+  cost[start] = 0;
+  const open: number[] = [start];
+  while (open.length > 0) {
+    let bi = 0;
+    for (let k = 1; k < open.length; k++) if (cost[open[k]!]! < cost[open[bi]!]!) bi = k;
+    const cur = open.splice(bi, 1)[0]!;
+    if (cur === goal) break;
+    const cx = cur % W;
+    const cy = Math.trunc(cur / W);
+    for (let d = 1; d < 9; d++) {
+      const [dx, dy] = DIRECTIONS[d]!;
+      const ny = cy + dy;
+      if (!isValid(cx + dx, ny)) continue;
+      const nx = ((cx + dx) % W + W) % W;
+      const ni = ny * W + nx;
+      if (ni !== goal && !(state.map.explored[ni]! & (1 << player))) continue;
+      const t = state.map.terrain[ni]!;
+      const city = (state.map.improvements[ni]! & Improvement.City) !== 0;
+      if (def.movementType === MovementType.Land && t === Terrain.Water) continue;
+      if (def.movementType === MovementType.Water && t !== Terrain.Water && !city) continue;
+      const occ = state.map.occupant[ni]!;
+      if (ni !== goal && occ & 8 && (occ & 7) !== player) continue;
+      let step = 3;
+      if (def.movementType === MovementType.Land) {
+        const road = state.map.improvements[cur]! & state.map.improvements[ni]! & Improvement.Road;
+        step = road ? 1 : TERRAIN[t]!.movementCost * 3;
+      }
+      const c = cost[cur]! + step;
+      if (c < cost[ni]!) {
+        if (cost[ni] === Infinity) open.push(ni);
+        cost[ni] = c;
+        first[ni] = cur === start ? d : first[cur]!;
+      }
+    }
+  }
+  return first[goal]!;
 }
 
 // ── przebieg tury ───────────────────────────────────────────────────────────────────────

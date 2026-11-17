@@ -211,3 +211,30 @@ describe('tura i kalendarz', () => {
     expect(s.year).toBe(20);
   });
 });
+
+import { gotoDirection } from '../src';
+describe('idź do', () => {
+  it('omija wodę i dochodzi do celu', () => {
+    const s = game(5);
+    advanceToHuman(s);
+    const h = s.humanPlayer;
+    const u = s.players[h]!.units[0]!;
+    // odkryj całą mapę i wybierz pole lądu na tym samym kontynencie w odległości ≥ 4
+    s.map.explored.fill(0xffff);
+    const g = s.map.group[cellIndex(u.x, u.y)];
+    let target = -1;
+    for (let i = 0; i < s.map.terrain.length; i++) {
+      const x = i % 80, y = Math.floor(i / 80);
+      if (s.map.terrain[i] !== Terrain.Water && s.map.group[i] === g && distance(u.x, u.y, x, y) >= 4 && distance(u.x, u.y, x, y) <= 8) { target = i; break; }
+    }
+    expect(target).toBeGreaterThanOrEqual(0);
+    const tx = target % 80, ty = Math.floor(target / 80);
+    for (let step = 0; step < 40 && (u.x !== tx || u.y !== ty); step++) {
+      u.movesLeft = 3;
+      const d = gotoDirection(s, h, 0, tx, ty);
+      expect(d).toBeGreaterThan(0);
+      unitMove(s, h, 0, d);
+    }
+    expect([u.x, u.y]).toEqual([tx, ty]);
+  });
+});
