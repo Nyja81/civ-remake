@@ -117,3 +117,39 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Odstępstwo od planu: mapa rysowana na zwykłym canvasie 2D (bez PixiJS i Reacta) — wystarcza na tym etapie.
 - Do zrobienia: etap 6 generatora (kontynenty/oceany), weryfikacja generatora z oryginałem, etap 2 (jednostki, ruch, mgła wojny).
 
+
+### 2026-11-17 — interfejs jak w oryginale (gałąź ui-screens)
+- Wymaganie Damiana: interfejs, menu i ekrany startowe takie same jak w oryginale, tylko lekko wygładzone i w wyższej rozdzielczości.
+- Nowy pakiet `packages/ui`: wirtualny ekran 320×200 w indeksach palety (trzy ekrany jak w oryginale, wspólna paleta z bloków M0
+  plików `.PIC`/`.PAL`), prymitywy oryginału (kopiowanie z przezroczystością, linie, prostokąty, zamiana kolorów, tekst z kodami
+  kolorów 0x80+n), czcionki `FONTS.CV` (przeniesione z prototypu Pythona), funkcje DrawTools (ramki okien, wzór tła z SP299.PIC,
+  bloki tekstu), okno menu `showMenuBox` (MenuBoxDialog: strzałki, Enter/spacja, Esc, litery, mysz, opcje nieaktywne
+  i zaznaczone, pomoc) i pole tekstowe `editBox` (EditBoxDialog). Źródło: OpenCivOne (MIT), nazwy funkcji wzorca w komentarzach.
+- Ekrany: intro z logo (z napisami na BIRTH0/1, gdy są pliki), menu główne (100,140), Customize World na CUSTOM.PIC,
+  Hall of Fame (puste miejsca), nowa gra na DIFFS.PIC (poziom, liczba cywilizacji, plemię, imię, własne plemię przez Esc),
+  tekst *INIT z KING.TXT, ekran gry (pasek menu GAME/ORDERS/ADVISORS/WORLD/CIVILOPEDIA z rozwijanymi menu, minimapa,
+  panel roku i skarbca, panel jednostki, mapa z `drawMapView` z packages/gfx).
+- Rozgrywka podpięta do silnika (`newGame`, `unitMove`, `unitOrder`, `nextUnit`, `endHumanTurn`): miganie aktywnej jednostki,
+  klawisze oryginału (strzałki i klawiatura numeryczna, Space, b, f, s, r, i, m, p, P, h, w, u, D, c, Enter = koniec tury,
+  Shift+strzałki przewijanie), klik na mapie centruje, klik w minimapę przesuwa widok, zdarzenia silnika jako okna
+  (komunikaty, porady z HELP.TXT/KING.TXT przy Instant Advice, pytania confirm, wybór badań i ustroju, nazwa miasta),
+  REVOLUTION!, uproszczone okno miasta (lista „What shall we build in …?”, zakup), Preferences zmieniające ustawienia gry.
+  Zapis z menu GAME, autozapis co 50 tur, „Load a Saved Game” — JSON silnika w `<folder danych aplikacji>/saves`
+  (na Macu `~/Library/Application Support/<aplikacja>/saves`).
+- `apps/desktop`: renderer prowadzi ekrany z `packages/ui`; klatka: paleta → RGBA → xBR 4× → blur 0.6 px → okno z zachowaniem
+  16:10; mysz przeliczana na 320×200, Alt+litera na Macu z kodu klawisza. Dawny podgląd mapy z wersji 0.1.0 zastąpiony ekranem gry.
+  Proces główny czyta pliki wymagane i opcjonalne (lista w `packages/ui/src/files.ts`) i obsługuje zapisy (IPC `saves:*`).
+- Sprawdzone: 77 testów (bez `CIV1_DIR`) na syntetycznych plikach (koder `.PIC` i czcionki w `packages/ui/test/synthetic.ts`),
+  strona renderera w Chrome bez okna na danych syntetycznych: przejście od intro przez menu, Customize World, nową grę,
+  ekran gry, menu, zapis — bez błędów w konsoli, ok. 22 ms na wygładzenie klatki.
+- **Niesprawdzone na plikach oryginału**: wygląd wszystkich ekranów (położenie obrazów DIFFS/CUSTOM/LOGO, kolory ramek, czcionki),
+  tempo intro (przyjęte 60 jednostek zegara muzyki na sekundę), kursor z TORCH.PIC, paleta gry z BACK0A.PAL + SP256.PAL,
+  teksty *INIT, *REV i porad. Testy na plikach oryginału: `CIV1_DIR=... npm test` (`packages/ui/test/original.test.ts`).
+- Odstępstwa od wzorca (do sprawdzenia z oryginałem): etykieta „CIVILOPEDIA” i „Civilopedia Text” (wzorzec: „ENCYCLOP.”,
+  „Encyclopedia Text”; Alt+C wskazuje na oryginalną nazwę); ramki `DrawShadowRectangle` dokładnie jak we wzorcu (górna i prawa
+  krawędź ciemna) — `drawMiniMap` w packages/gfx rysuje odwrotnie, ekran gry nadpisuje ją wersją wzorca; luksusy w panelu
+  = 10 − podatek − nauka (wzorzec: 10 − podatek + nauka); menu reaguje na ruch myszy w jednej osi; Esc przy poziomie = Chieftain;
+  kody kolorów nie mają szerokości przy mierzeniu napisów.
+- Do zrobienia: pełny widok miasta, Civilopedia i doradcy, okna podatków, FindCity, pomoc (HELP AVAILABLE), mini-pałac
+  i liczba mieszkańców w panelu, animowana historia świata (STORY.TXT, BIRTH2–8), cykle palety (animacje kolorów w intro i na mapie),
+  podział długiej listy produkcji na strony, odczyt Hall of Fame, porównanie wyglądu z oryginałem w DOSBoxie.
