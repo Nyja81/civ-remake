@@ -43,7 +43,7 @@ export interface NewGameOptions {
 export function emptyPlayer(): Player {
   return {
     nation: -1, leader: '', nationPlural: '', nationAdjective: '', gold: 0, government: Government.Anarchy,
-    taxRate: 0, scienceRate: 0, researchProgress: 0, researching: -1, techs: new Array<boolean>(72).fill(false),
+    taxRate: 0, scienceRate: 0, researchProgress: 0, score: 0, researching: -1, techs: new Array<boolean>(72).fill(false),
     techCount: 0, futureTechs: 0, cityCount: 0, totalCitySize: 0, settlerCount: 0, ranking: 0, contactCountdown: 0,
     xStart: 0, waiting: -1, diplomacy: new Array<number>(8).fill(0),
     units: Array.from({ length: MAX_UNITS_PER_PLAYER }, emptyUnit),
@@ -73,7 +73,7 @@ export function newGame(options: NewGameOptions): GameState {
     map, players: Array.from({ length: MAX_PLAYERS }, emptyPlayer),
     cities: Array.from({ length: MAX_CITIES }, emptyCity),
     wonderCity: new Array<number>(22).fill(-1), cityNames: [...CITY_NAMES], cityNameTaken: new Array<boolean>(256).fill(false),
-    techFirstDiscoveredBy: new Array<number>(72).fill(0), globalWarming: 0, pollutedSquares: 0, gameOver: 0,
+    techFirstDiscoveredBy: new Array<number>(72).fill(0), techCatchUp: 0, globalWarming: 0, pollutedSquares: 0, gameOver: 0,
     rng, events: [],
   };
 

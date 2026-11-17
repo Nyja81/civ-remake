@@ -19,7 +19,11 @@ import { DIRECTIONS, cellIndex, distance, isValid, terrainAt, updateVisibleCell 
 import { fullMoves, moveUnit, type MoveOptions, type MoveResult } from './movement';
 import { aiMoveUnit, aiPlayerTurnStart } from './ai';
 import { playerHasTech } from './techs';
-import { Improvement, NO_UNIT, UnitStatus, type GameState } from './types';
+import { barbarianUprising } from './barbarians';
+import { availableGovernments } from './government';
+import { playerHasWonder } from './cities';
+import { WonderId } from './buildings';
+import { Government, Improvement, NO_UNIT, UnitStatus, type GameState } from './types';
 import { cityAt, deleteUnit, exploreCell, nearestCity, unitsAt, updateUnitVisibility } from './units';
 import { PIXEL_TO_TERRAIN } from '../world/earth';
 
@@ -436,12 +440,12 @@ function playerPhase(state: GameState, player: number): void {
 /** UpdatePlayerGovernmentAndDiplomacy — część dotycząca anarchii (reszta dyplomacji: etap 7). */
 function updateGovernmentAndDiplomacy(state: GameState, player: number): void {
   const p = state.players[player]!;
-  if (p.government === 0 && (state.turn & 3) === 0) {
-    if (player === state.humanPlayer) {
-      state.events.push({ kind: 'chooseGovernment', player });
-    } else {
-      p.government = 1;
-    }
+  if (p.government !== Government.Anarchy) return;
+  if (player === state.humanPlayer && (state.turn & 3) === 0) {
+    if (p.diplomacy[0]! & 4) p.diplomacy[0]! &= ~4; // upadek demokracji: jedna tura anarchii więcej
+    else state.events.push({ kind: 'chooseGovernment', player, options: availableGovernments(state, player) });
+  } else if (player !== state.humanPlayer && (playerHasWonder(state, player, WonderId.Pyramids) || (state.turn & 3) === 0)) {
+    p.government = Government.Despotism; // komputer: wybór ustroju — etap 6
   }
 }
 
@@ -502,8 +506,9 @@ export function endHumanTurn(state: GameState): void {
 
 /** Część GameTurn po ruchach wszystkich graczy: barbarzyńcy, globalne zdarzenia, upływ czasu. */
 function endOfTurn(state: GameState): void {
-  // Pominięte do czasu kolejnych etapów: powstania barbarzyńców, globalne ocieplenie, klęski w miastach,
-  // ranking graczy, raporty, pałac, koniec gry (etapy 5–8). Zgłaszamy jedynie upływ czasu.
+  barbarianUprising(state);
+  // Pominięte do czasu kolejnych etapów: globalne ocieplenie, klęski w miastach, ranking graczy, raporty,
+  // pałac, statek kosmiczny (etapy 7–8).
   state.turn++;
   if (state.year < 1000) {
     state.year += 20;
