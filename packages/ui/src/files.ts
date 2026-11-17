@@ -1,0 +1,26 @@
+/**
+ * Lista plików oryginału potrzebnych interfejsowi — osobny moduł bez zależności,
+ * żeby proces główny aplikacji mógł go importować.
+ */
+/** Bez tych plików interfejs nie wystartuje. */
+export const UI_REQUIRED_FILES = [
+  'FONTS.CV', // czcionki
+  'LOGO.PIC', // logo na ekranie tytułowym
+  'DIFFS.PIC', // ekran wyboru poziomu trudności, przeciwników i plemienia
+  'CUSTOM.PIC', // ekran „Customize World”
+  'SP257.PIC', // arkusz jednostek, paleta gry
+  'SP299.PIC', // wzór tła okien i paneli, ikony
+  'TER257.PIC', // arkusz terenu
+  'MAP.PIC', // mapa Ziemi
+] as const;
+
+/** Pliki opcjonalne — bez nich odpowiedni fragment (intro, tekst startowy, paleta gry) jest pomijany lub uproszczony. */
+export const UI_OPTIONAL_FILES = [
+  'SP256.PAL', 'BACK0A.PAL', // paleta ekranu gry (CommonTools.LoadAndApplyDefaultColorPalette)
+  'BIRTH0.PIC', 'BIRTH1.PIC', 'CREDITS.TXT', // intro z napisami (MainIntro)
+  'KING.TXT', // tekst powitalny nowej gry (*INIT)
+  'TORCH.PIC', // kursor myszy
+  'HELP.TXT', // porady (Instant Advice)
+  'STORY.TXT', 'BIRTH2.PIC', 'BIRTH3.PIC', 'BIRTH4.PIC', 'BIRTH5.PIC', 'BIRTH6.PIC', 'BIRTH7.PIC', 'BIRTH8.PIC',
+  'BIRTH1.PAL', 'BIRTH2.PAL', 'BIRTH3.PAL', 'BIRTH4.PAL', 'BIRTH5.PAL', 'BIRTH6.PAL', 'BIRTH7.PAL', 'BIRTH8.PAL',
+] as const;
