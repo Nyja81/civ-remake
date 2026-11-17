@@ -14,6 +14,7 @@ import { hasTribalHut } from '../world/features';
 import { Terrain } from '../world/generate';
 import { DIRECTIONS, cellIndex, distance, isValid, terrainAt, wrapX } from './map';
 import { Improvement, NO_UNIT, UnitStatus, type GameState, type Unit } from './types';
+import { updateDiplomacyStatus } from './diplomacy';
 
 export const unitDef = (u: Unit) => UNITS[u.type]!;
 
@@ -223,7 +224,7 @@ export function updateUnitVisibility(state: GameState, x: number, y: number, pla
       if (!nWater || hereWater || def.movementType === MovementType.Air) unit.gotoX = unit.gotoY = -1;
       if (!(nImp & Improvement.City)) other.visibleBy |= 1 << player;
       if (def.movementType === MovementType.Land && !hereWater && !nWater && UNITS[other.type]!.movementType !== MovementType.Air) {
-        state.events.push({ kind: 'contact', player, other: otherPlayer, x, y });
+        updateDiplomacyStatus(state, player, otherPlayer, x, y);
       }
     }
   }
