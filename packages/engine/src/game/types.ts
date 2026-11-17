@@ -88,6 +88,11 @@ export interface Player {
   researching: number;
   /** Bitowa mapa odkrytych technologii (72 bity). */
   techs: boolean[];
+  /**
+   * TechnologyAcquiredFrom (72 wartości): skąd gracz ma technologię — -2 Wielka Biblioteka, -1 brak, 0 własne odkrycie
+   * (także chata), 1–7 gracz, od którego ją przejęto. Pole opcjonalne: tworzone przy pierwszym odkryciu (starsze zapisy go nie mają).
+   */
+  techSource?: number[];
   techCount: number;
   futureTechs: number;
   /** Statek kosmiczny: rok przylotu (-1 — nie wystartował), szansa sukcesu w %, liczba kolonistów (tys.). */

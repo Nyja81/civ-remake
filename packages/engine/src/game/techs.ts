@@ -42,8 +42,11 @@ export function gradeTech(state: GameState, player: number, tech: number): numbe
 export function researchFinished(state: GameState, player: number, source: number, tech: number): void {
   if (playerHasTech(state, player, tech)) return;
   const p = state.players[player]!;
-  if (tech !== FUTURE_TECH) p.techs[tech] = true;
-  else p.futureTechs++;
+  if (tech !== FUTURE_TECH) {
+    p.techs[tech] = true;
+    // TechnologyAcquiredFrom[tech] = playerID2 (encyklopedia: „(Discovered)”, „(from Great Library)”, „(Taken from …)”)
+    (p.techSource ??= new Array<number>(72).fill(-1))[tech] = source;
+  } else p.futureTechs++;
   if (state.turn === 0) return;
   p.techCount++;
   const name = tech === FUTURE_TECH ? 'Future Technology' : TECHS[tech]!.name;

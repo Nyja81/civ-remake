@@ -28,6 +28,7 @@ import type { GameAssets } from '../assets';
 import { editBox } from '../editBox';
 import type { UiEvent } from '../input';
 import { showMenuBox } from '../menuBox';
+import { showCivilopediaTopic, Topic } from './civilopedia';
 import type { Ui } from '../ui';
 
 export interface CityWindowContext {
@@ -581,7 +582,7 @@ async function handleInput(ctx: CityWindowContext, cityId: number, w: WindowStat
     }
     if (key !== 'Escape' && key !== 'Enter' && ((mx >= 230 && mx < 270) || key === 'c')) {
       city.status &= ~CityStatus.AutoProduction;
-      await productionDialog(ctx, cityId);
+      if (await productionDialog(ctx, cityId)) w.redraw = true;
       return 'stay';
     }
     const tabKeys: Record<string, number> = { i: 0, h: 1, m: 2, v: 3 };
@@ -696,12 +697,14 @@ async function buyDialog(ctx: CityWindowContext, cityId: number): Promise<void> 
 
 /**
  * GameEngine.F0_1ade_0421_SelectCityProduction (człowiek): „What shall we build in …?” w (80, 8) z pomocą.
+ * Pomoc: ekran 0 zapamiętany na ekranie 1, strona Civilopedii bez rysunku (Var_3c62 = 1), ekran odtworzony, pytanie
+ * od nowa; zwraca true (Var_6b64 = 1 — mapa do przerysowania po zamknięciu okna, bo ekran 1 jest nadpisany).
  * Za długa lista nie jest dzielona na strony („more...”) — do zrobienia.
  */
-async function productionDialog(ctx: CityWindowContext, cityId: number): Promise<void> {
+async function productionDialog(ctx: CityWindowContext, cityId: number): Promise<boolean> {
   const { state, ui } = ctx;
   const options = productionOptions(state, cityId);
-  if (options.length === 0) return;
+  if (options.length === 0) return false;
   let text = `What shall we build in ${cityNameOf(state, cityId)}?\n `;
   for (const o of options) {
     if (o.id >= 0) {
@@ -712,9 +715,22 @@ async function productionDialog(ctx: CityWindowContext, cityId: number): Promise
     }
   }
   const current = options.findIndex((o) => o.id === state.cities[cityId]!.production);
-  ui.gfx.fontId = 1;
-  const r = await showMenuBox(ui, text, 80, 8, { help: true, clearInput: true, defaultIndex: current });
-  if (r.index >= 0) setProduction(state, cityId, options[r.index]!.id);
+  let redraw = false;
+  for (;;) {
+    ui.gfx.fontId = 1;
+    const r = await showMenuBox(ui, text, 80, 8, { help: true, clearInput: true, defaultIndex: current });
+    if (r.index < 0) return redraw;
+    const id = options[r.index]!.id;
+    if (!r.help) {
+      setProduction(state, cityId, id);
+      return redraw;
+    }
+    ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
+    await showCivilopediaTopic(ctx, id >= 0 ? Topic.Unit : Topic.Improvement, Math.abs(id), { noPicture: true });
+    ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+    ui.present();
+    redraw = true;
+  }
 }
 
 /** Sprzedaż (L5740): „Do you want to sell your … for … coins?” w (128,80) czcionką 1; opcja 1 = tak. */

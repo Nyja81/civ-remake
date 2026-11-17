@@ -31,4 +31,10 @@ export const UI_OPTIONAL_FILES = [
   ...Array.from({ length: 14 }, (_, i) => `KING${String(i).padStart(2, '0')}.PAL`),
   'STORY.TXT', 'BIRTH2.PIC', 'BIRTH3.PIC', 'BIRTH4.PIC', 'BIRTH5.PIC', 'BIRTH6.PIC', 'BIRTH7.PIC', 'BIRTH8.PIC',
   'BIRTH1.PAL', 'BIRTH2.PAL', 'BIRTH3.PAL', 'BIRTH4.PAL', 'BIRTH5.PAL', 'BIRTH6.PAL', 'BIRTH7.PAL', 'BIRTH8.PAL',
+  // Civilopedia (Encyclopedia): opisy tematów BLURB0–4.TXT (bez nich — własne teksty), rysunki technologii, jednostek,
+  // terenu i budynków z paletami
+  'BLURB0.TXT', 'BLURB1.TXT', 'BLURB2.TXT', 'BLURB3.TXT', 'BLURB4.TXT',
+  ...Array.from({ length: 8 }, (_, i) => `ICONPG${i + 1}.PIC`), 'ICONPG1.PAL',
+  'ICONPGA.PIC', 'ICONPGB.PIC', 'ICONPGC.PIC', 'ICONPGD.PIC', 'ICONPGE.PIC', 'ICONPGA.PAL',
+  'ICONPGT1.PIC', 'ICONPGT2.PIC', 'CITYPIX2.PIC', 'HILL.PAL',
 ] as const;

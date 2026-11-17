@@ -336,3 +336,37 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Otwarte: odległość oryginału (max + min/2) w przeciwniku komputerowym, panorama miasta (VIEW), Civilopedia, pałac, intro (historia świata),
   dźwięk, powtórka (Replay), karawany i dyplomaci (także akcje dyplomaty człowieka), zapis `.SVE`, porównanie wyglądu z oryginałem.
 
+
+### 2026-11-17 — etap 8: Civilopedia
+- `packages/ui/src/screens/civilopedia.ts`: port Overlay 8 (Encyclopedia) sprawdzony z dosłownym tłumaczeniem asemblera
+  (`Segments/Overlay_8.cs`, commit `ec23ac3` wzorca): `showCivilopedia` (F8_0000_0000, MORE co 78 tematów, za ostatnią stroną
+  powrót na początek), `drawCivilopediaPage`/`showCivilopediaWindow` (F8_0000_0066: sortowanie wyborem ze stricmp od "a" do "zzz",
+  kolumny co 7 px po 26 tematów, szerokość 100 dla Complete i technologii, 150 dla reszty; tematy o tej samej nazwie z dalszego
+  rodzaju znikają z Complete — University, Democracy, Monarchy, Communism; obsługa jak w oryginale z myszą: klik w temat,
+  klik nad listą w 1. kolumnie = MORE, dalej = EXIT, prawy przycisk i klawisz = wyjście), `showCivilopediaTopic` (F8_0000_062a:
+  tło 253 = (61,61,61) albo 255 bez rysunku, ramka DrawRandomFoodIcons, nazwa WIELKIMI czcionką 6, nagłówek czcionką 7 w x = 204/224/160;
+  technologia: Requires, Allows z „(with …)”, jednostki i budynki z ikonami, „(Discovered)/(from Great Library)/(Taken from …)”;
+  budynek/cud: Requires, Cost, Maintenance; jednostka: Requires (+ „and Nuclear Fission”), koszt, atak, obrona, ruch, rysunek gracza 1
+  w (216,48); teren: plony z nawadnianiem/kopalnią/drogą dla terenu i wariantu z zasobem, legenda * i %, koszt ruchu, premia obrony),
+  `drawEncyclopediaImage` (F8_0000_16f7) i tablice numerów rysunków (F8_0000_16c4/1790/17c3).
+- Teksty: oryginał czyta opisy z BLURB0–4.TXT (cyfra = rodzaj tematu; klucz `*NAZWA` — opis, tylko przy włączonej opcji
+  „Civilopedia Text”, osobna strona zamykana klawiszem; `*NAZWA2` — zasady, zawsze, poza technologiami). UI czyta te pliki
+  z kopii gry (pliki opcjonalne); bez nich — własne teksty z `packages/ui/src/data/civilopediaText.ts` (wszystkie 173 tematy,
+  pisane od nowa). Rysunki: ICONPG1–8.PIC + ICONPG1.PAL (technologie), ICONPGA–E.PIC + ICONPGA.PAL (jednostki),
+  ICONPGT1–2.PIC + SP256.PAL (tereny), CITYPIX2.PIC + HILL.PAL (budynki 2–21) — nowe pliki opcjonalne; bez nich strona bez rysunku.
+- Ekran gry: menu CIVILOPEDIA (opcja 0 = Complete, dalej rodzaje 0–4), potem mapa z wygaszeniem; pomoc (F1, Alt+H, prawy przycisk)
+  w wyborze badań — strona technologii, wygaszenie i to samo pytanie. Okno miasta: pomoc w liście produkcji — strona bez rysunku
+  (Var_3c62), ekran zapamiętany na ekranie 1, okno każe potem przerysować mapę (Var_6b64).
+- Silnik: `Player.techSource` (TechnologyAcquiredFrom, pole opcjonalne, ustawiane w `researchFinished`).
+- Testy: 201 (12 pominiętych bez `CIV1_DIR`); nowe `packages/ui/test/civilopedia.test.ts` (każda lista z menu, strony Complete, każdy
+  rodzaj strony, BLURB z kopii gry, rysunki, pomoc z wyboru badań i z listy produkcji).
+- **Niepewne (do sprawdzenia z CIV.EXE)**: wzorzec po refaktoryzacji zmienił część napisów — długości napisów w segmencie danych
+  (odstępy adresów w dosłownym tłumaczeniu) nie pasują do jego wersji; przyjęte brzmienie pasuje długością, ale treść jest odtworzona:
+  tytuł listy „The Civilization Encyclopedia” (29 znaków; wzorzec „Game Encyclopedia”), „Civilization Advance” (20; „Technology Advance”),
+  „Military Unit” (13; „Unit Type”), „Maintenance: $” (14, bez dopisku po liczbie), koszt jednostki „ resources.” (11; „ shields.”),
+  „Movement Rate: ” (15; „Moves: ”); wymaganie „brak” (indeks −1): oryginał dokleja nieznany napis sprzed tabeli nazw — przyjęte „None”.
+  Lista `CIVILOPEDIA_STRINGS` w `civilopedia.ts`. Wzorzec ma też błędy logiki poprawione wg asemblera: warunek wiersza żywności terenu
+  (żywność ≠ 0 LUB nawadnianie < −1), x nagłówka 160 tylko dla cudów (nie dla technologii o numerze > 24), `*NAZWA2` czytane także dla terenu.
+- Pominięte: tryb listy bez myszy (ramka wyboru, strzałki, M, Esc/X — Var_1a3c = 0), cykle palety (Stop/StartPaletteCycleSlots).
+  Gotowe do podłączenia, niepodłączone: strona technologii po odkryciu (ResearchFinished, zdarzenie `techDiscovered`), strona cudu
+  po wieści o budowie cudu przez inną cywilizację, strona terenu po prawym kliknięciu w mapę (PlayerTurn), rozmowa z władcą (Var_3c62).

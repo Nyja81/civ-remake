@@ -31,6 +31,7 @@ import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
 import { runKingMeeting } from './king';
 import { ADVISOR_REPORTS, reportForKey, showHistoryReport, showPowerGraph, showReport, WORLD_REPORTS, type AdvisorReport, type WorldReport } from './advisors';
 import { showCityWindow } from './cityWindow';
+import { showCivilopedia, showCivilopediaTopic, Topic } from './civilopedia';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
 
@@ -427,11 +428,20 @@ export class GameScreen {
     const who = playerHasTech(this.state, this.human, Tech.Invention) ? 'scientists' : 'wise men';
     let text = `Which research field should our\n${who} be pursuing, sire?\nPick one...\n `;
     for (const t of options) text += `${TECHS[t]?.name ?? '?'}\n `;
-    this.ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
-    const r = await showMenuBox(this.ui, text, 80, 64, { help: true, clearInput: true });
-    this.ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
-    // Esc = pierwsza opcja; pomoc (Civilopedia) — kolejny etap, wtedy też przyjmujemy wybraną opcję
-    chooseResearch(this.state, options[Math.max(0, r.index)]!);
+    for (;;) {
+      this.ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
+      const r = await showMenuBox(this.ui, text, 80, 64, { help: true, clearInput: true });
+      this.ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+      // Esc = pierwsza opcja
+      const tech = options[Math.max(0, r.index)]!;
+      if (!r.help) {
+        chooseResearch(this.state, tech);
+        break;
+      }
+      // pomoc (Var_2f9c_MenuBoxHelpRequested): strona technologii w Civilopedii, mapa z wygaszeniem i znów to samo pytanie
+      await showCivilopediaTopic({ ui: this.ui, assets: this.assets, state: this.state }, Topic.Technology, tech);
+      await this.redrawMapWithBlankingEffect();
+    }
     this.ui.present();
   }
 
@@ -645,6 +655,7 @@ export class GameScreen {
     let action: string | null = null;
     let shortcut: string | null = null;
     let report: AdvisorReport | WorldReport | null = null;
+    let civilopedia: number | null = null;
     switch (index) {
       case 0: {
         // View Replay dostępne dopiero po końcu gry (SpaceshipFlags & 0x100)
@@ -672,14 +683,22 @@ export class GameScreen {
         else report = WORLD_REPORTS[r.index] ?? null;
         break;
       }
-      case 4:
-        if ((await showMenuBox(ui, CIVILOPEDIA_MENU, MENU_X[4], 8)).index >= 0) action = 'civilopedia';
+      case 4: {
+        // Menus.F0_2c84_07af_EncyclopediaMenu: opcja 0 = Complete (wszystkie tematy), dalej rodzaje 0–4
+        const r = await showMenuBox(ui, CIVILOPEDIA_MENU, MENU_X[4], 8);
+        if (r.index >= 0) civilopedia = r.index - 1;
         break;
+      }
     }
     ui.input.clear();
     gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
     ui.present();
     if (action) await showDialog(ui, 'Not available yet.\n', 100, 80);
+    if (civilopedia !== null) {
+      // Encyclopedia.ShowEncyclopediaByTopic: listy i strony tematów, na koniec mapa z wygaszeniem
+      await showCivilopedia({ ui, assets: this.assets, state: this.state }, civilopedia);
+      await this.redrawMapWithBlankingEffect();
+    }
     if (report) await this.showReport(report);
     if (shortcut === 'spaceships') {
       await spaceshipNationDialog(ui, this.assets, this.state);
