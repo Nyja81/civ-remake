@@ -29,10 +29,10 @@ a nie źródłem kodu ani zasobów.
 | 2 | Tabele danych — generowane z CIV.EXE właściciela licencji | `packages/engine/src/data` | technologie, jednostki, teren, budynki, cuda, nacje |
 | 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine` | — |
 | 4 | Komendy i zdarzenia — interfejs wysyła komendy, silnik odpowiada zdarzeniami i prośbami o decyzję | `packages/engine` | — |
-| 5 | Interfejs — mapa w PixiJS (WebGL), panele i okna w React | `apps/desktop` | — |
+| 5 | Interfejs — docelowo mapa w PixiJS (WebGL), panele w React; na razie canvas 2D | `apps/desktop` | przewijana mapa |
 | 5a | Grafiki oryginału — dekoder `.PIC`, później reguły rysowania mapy i wygładzanie | `packages/gfx` | dekoder gotowy |
 | 6 | Pakiet grafiki — rysunek wektorowy generowany kodem (SVG), składany w atlas tekstur | `packages/art` | próbki: 12 kafli terenu, 4 żetony jednostek, miasto, fragment mapy |
-| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support` | `apps/desktop` | — |
+| 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support` | `apps/desktop` | paczka 0.1.0 (arm64) |
 | 8 | Wzorzec i testy porównawcze — tylko dla dewelopera | `packages/oracle` | odczyt tabel z CIV.EXE |
 
 ### Zasady projektowe silnika
@@ -76,7 +76,7 @@ a nie źródłem kodu ani zasobów.
 | Etap | Zakres | Stan |
 |---|---|---|
 | 0 | Repozytorium, tabele danych, generator losowy, uruchomienie wzorca, odczyt i zapis `.SVE` | w toku |
-| 1 | Generator świata, mapa z nową grafiką, aplikacja na Maca | — |
+| 1 | Generator świata, mapa z grafiką oryginału, aplikacja na Maca | wersja 0.1.0: przewijana mapa (losowy świat i Ziemia); do sprawdzenia na Macu |
 | 2 | Jednostki, ruch, mgła wojny | — |
 | 3 | Miasta i ekonomia | — |
 | 4 | Technologie, ustroje, zadowolenie, cuda | — |

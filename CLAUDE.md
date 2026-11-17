@@ -33,6 +33,7 @@ npm test                          # testy silnika
 CIV1_DIR=/sciezka/do/gry npm test # dodatkowo porównanie z oryginalnym CIV.EXE
 npm run typecheck
 npm run art:preview                # próbki grafiki -> docs/samples/
+npm run desktop:build              # buduje aplikację (apps/desktop/dist)
 CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 ```
 
@@ -99,4 +100,20 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   według tabeli terenu z CIV.EXE. Plik czyta `decodePic` z `packages/gfx`; sama mapa nie trafia do repozytorium.
 - Testy: 2 w silniku + 1 na pliku oryginału (21 testów z `CIV1_DIR`).
 - Do zrobienia: wybór „Earth / losowy świat / własne ustawienia” w menu nowej gry; pozycje startowe cywilizacji na Ziemi.
+
+### 2026-11-17 — etap 1: aplikacja na Maca z przewijaną mapą (wersja 0.1.0)
+- `packages/engine/src/world/features.ts`: `hasSpecialResource()` i `hasTribalHut()` — wyliczane z położenia pola i ziarna gry
+  (wzory z OpenCivOne, MIT).
+- `packages/gfx/src/mapRenderer.ts`: `renderTerrain()` i `toRgba()` — rysowanie terenu z arkuszy oryginału według reguł oryginału.
+  Wynik identyczny z prototypem w Pythonie dla trzech ziaren (bez wariantów rzek, których prototyp nie rysuje).
+- `apps/desktop` (Electron 33, esbuild): okno z mapą 80×50, przeciąganie i strzałki, zoom kółkiem, zawijanie w poziomie,
+  „New World” (losowe ziarno), „Earth” (MAP.PIC), wybór folderu z oryginalną grą zapamiętywany w ustawieniach,
+  pasek stanu z typem terenu, zasobem i chatą. Wygładzanie: xBR 4× (`xbr-js`, MIT) + lekkie zmiękczenie —
+  wygląd bardzo bliski zatwierdzonej próbce hq4x.
+- Sprawdzone: strona gry w Chrome bez okna (zrzut ekranu z mapą Ziemi). **Niesprawdzone:** uruchomienie paczki `.app` na Macu
+  (okno wyboru folderu, podpis ad hoc z rcodesign).
+- Pakowanie (ręcznie, na Linuksie): `npm run desktop:build`, skopiowanie `apps/desktop/dist` + minimalnego `package.json`
+  do katalogu roboczego, `npx @electron/packager <katalog> "Civ Remake" --platform=darwin --arch=arm64`, `rcodesign sign`, `zip -ry`.
+- Odstępstwo od planu: mapa rysowana na zwykłym canvasie 2D (bez PixiJS i Reacta) — wystarcza na tym etapie.
+- Do zrobienia: etap 6 generatora (kontynenty/oceany), weryfikacja generatora z oryginałem, etap 2 (jednostki, ruch, mgła wojny).
 

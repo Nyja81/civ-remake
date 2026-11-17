@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'">
+<title>Civ Remake</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #10141c; color: #e6eaf2; font: 13px -apple-system, "Helvetica Neue", Arial, sans-serif; overflow: hidden; user-select: none; }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  header, footer { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #1a2030; border-bottom: 1px solid #2b3347; }
+  footer { border-bottom: 0; border-top: 1px solid #2b3347; color: #aab3c5; min-height: 18px; }
+  button { background: #2c3650; color: #e6eaf2; border: 1px solid #44507a; border-radius: 6px; padding: 5px 12px; font: inherit; cursor: pointer; }
+  button:hover { background: #38456a; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  .spacer { flex: 1; }
+  #stage { position: relative; flex: 1; min-height: 0; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+  #overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(16, 20, 28, 0.92); text-align: center; padding: 24px; }
+  #overlay.hidden { display: none; }
+  #overlay h1 { font-size: 20px; margin: 0; }
+  #overlay p { max-width: 520px; margin: 0; color: #aab3c5; line-height: 1.5; }
+  kbd { background: #2c3650; border-radius: 4px; padding: 1px 5px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button id="newWorld" disabled>New World</button>
+    <button id="earth" disabled>Earth</button>
+    <span id="info"></span>
+    <span class="spacer"></span>
+    <span id="zoom"></span>
+    <button id="folder">Game Folder…</button>
+  </header>
+  <div id="stage">
+    <canvas id="map"></canvas>
+    <div id="overlay">
+      <h1 id="overlayTitle">Loading…</h1>
+      <p id="overlayText"></p>
+      <button id="overlayButton" hidden>Choose Game Folder…</button>
+    </div>
+  </div>
+  <footer><span id="status">Drag or use arrow keys to scroll · mouse wheel to zoom · <kbd>N</kbd> new world · <kbd>E</kbd> Earth</span></footer>
+</div>
+<script src="renderer.js"></script>
+</body>
+</html>

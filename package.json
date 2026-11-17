@@ -4,13 +4,15 @@
   "version": "0.0.1",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "extract": "tsx packages/oracle/src/extract.ts",
-    "art:preview": "tsx packages/art/src/preview.ts"
+    "art:preview": "tsx packages/art/src/preview.ts",
+    "desktop:build": "npm run build -w @civ-remake/desktop"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

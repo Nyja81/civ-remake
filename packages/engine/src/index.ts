@@ -8,3 +8,4 @@ export * from './data/nations';
 export * from './world/random';
 export * from './world/generate';
 export * from './world/earth';
+export * from './world/features';
