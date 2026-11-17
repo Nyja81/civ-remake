@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { OPTIONAL_FILES, REQUIRED_FILES, type LoadResult, type Smoothing } from './api';
 
 const configPath = () => join(app.getPath('userData'), 'config.json');
@@ -72,7 +72,55 @@ function findGameFolder(folder: string, depth = 3): string | undefined {
   return undefined;
 }
 
-ipcMain.handle('game:load', () => loadGameFiles(readConfig().gameDir));
+/**
+ * Szukanie gry bez pytania gracza: folder obok aplikacji, Pobrane, Biurko, Dokumenty, katalog domowy, Aplikacje.
+ * Przeszukiwanie wszerz (płytsze foldery najpierw), do 4 poziomów, z limitem odwiedzonych folderów; pomija ukryte foldery,
+ * Library, node_modules i paczki .app (poza tymi z „civ” w nazwie — np. wersja gry z GOG).
+ */
+function autoFindGameFolder(): string | undefined {
+  const home = app.getPath('home');
+  // …/Civ Remake.app/Contents/MacOS/Civ Remake → folder, w którym leży aplikacja
+  const bundle = dirname(dirname(dirname(process.execPath)));
+  const appDir = dirname(bundle);
+  const roots = [appDir, join(home, 'Downloads'), join(home, 'Desktop'), join(home, 'Documents'), home, '/Applications', join(home, 'Applications')];
+  const seen = new Set<string>([bundle]);
+  let budget = 4000;
+  for (const root of roots) {
+    const queue: [string, number][] = [[root, 0]];
+    while (queue.length > 0 && budget > 0) {
+      const [folder, depth] = queue.shift()!;
+      if (seen.has(folder)) continue;
+      seen.add(folder);
+      budget--;
+      let names;
+      try {
+        names = readdirSync(folder, { withFileTypes: true });
+      } catch {
+        continue; // brak dostępu — pomijamy
+      }
+      const upper = new Set(names.map((d) => d.name.toUpperCase()));
+      if (REQUIRED_FILES.every((n) => upper.has(n))) return folder;
+      if (depth >= 4) continue;
+      for (const d of names) {
+        if (!d.isDirectory() || d.name.startsWith('.') || d.name === 'Library' || d.name === 'node_modules') continue;
+        if (d.name.toLowerCase().endsWith('.app') && !/civ/i.test(d.name)) continue;
+        queue.push([join(folder, d.name), depth + 1]);
+      }
+    }
+  }
+  return undefined;
+}
+
+ipcMain.handle('game:load', () => {
+  const config = readConfig();
+  const saved = loadGameFiles(config.gameDir);
+  if (saved.ok) return saved;
+  const found = autoFindGameFolder();
+  if (!found) return saved;
+  const result = loadGameFiles(found);
+  if (result.ok) saveConfig({ ...config, gameDir: found });
+  return result;
+});
 ipcMain.handle('game:choose', async () => {
   const picked = await dialog.showOpenDialog({
     title: 'Select the folder with your original game files',
@@ -82,7 +130,7 @@ ipcMain.handle('game:choose', async () => {
   const chosen = picked.filePaths[0]!;
   const folder = findGameFolder(chosen) ?? chosen;
   const result = loadGameFiles(folder);
-  if (result.ok) saveConfig({ gameDir: folder });
+  if (result.ok) saveConfig({ ...readConfig(), gameDir: folder });
   return result;
 });
 

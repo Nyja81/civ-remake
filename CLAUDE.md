@@ -518,3 +518,13 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Wygładzanie: menu aplikacji View → Smoothing — None (piksele oryginału), Light (xBR 4× bez mieszania kolorów, bez zmiękczenia;
   domyślne), Strong (dotychczasowe: xBR z mieszaniem + blur 0.6 px). Zapamiętywane w `config.json` (IPC `smoothing:get`, `smoothing`).
 - Testy: 278 (13 pominiętych bez `CIV1_DIR`), 290 z plikami gry.
+
+### 2026-11-17 — uruchamianie bez Terminala i bez wyboru folderu, paczka 0.5.2
+- Wymaganie Damiana: nic nie wpisywać w Terminalu i nie wybierać folderu z grą.
+- `apps/desktop/src/main.ts`: `autoFindGameFolder()` — przy braku zapamiętanego folderu aplikacja sama szuka gry (folder obok
+  aplikacji, Pobrane, Biurko, Dokumenty, katalog domowy, Aplikacje; wszerz do 4 poziomów, limit 4000 folderów, bez ukrytych,
+  Library, node_modules i paczek .app bez „civ” w nazwie) i zapamiętuje znaleziony folder. Okno wyboru zostaje tylko jako zapas.
+- Paczka podpisywana ad hoc w kontenerze: `rcodesign sign "Civ Remake.app"` (rcodesign 0.29.0, wydanie z GitHuba apple-platform-rs;
+  `rcodesign verify` zgłasza brak CMS — normalne przy podpisie ad hoc). Na Macu Damiana aplikacja rozpakowana bezpośrednio do
+  Pobranych (bez atrybutu kwarantanny) skryptem Pythona z zachowaniem dowiązań — `unzip` w folderze bez prawa usuwania psuje
+  dowiązania frameworków (pliki zastępcze).
