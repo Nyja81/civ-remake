@@ -11,8 +11,9 @@
  * (unitMove, unitOrder, nextUnit, endHumanTurn) i pokazuje zdarzenia jako okna.
  */
 import {
-  advanceToHuman, cellIndex, endHumanTurn, Improvement, MAP_HEIGHT, MovementType, nextUnit, NO_UNIT, playerHasTech, Tech, TERRAIN,
-  terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, wrapX, type GameState, type MoveResult, type Order,
+  advanceToHuman, BUILDINGS, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
+  MovementType, nextUnit, NO_UNIT, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
+  TERRAIN, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameState, type MoveResult, type Order,
 } from '@civ-remake/engine';
 import { drawMapView, drawMiniMap, drawUnit, prepareSprites, type MapSprites, type TextDrawer } from '@civ-remake/gfx';
 import type { GameAssets } from '../assets';
@@ -67,7 +68,14 @@ export type GameScreenResult = 'quit' | 'retire' | 'gameOver';
 export interface GameScreenOptions {
   /** Pokazuje całą mapę (tryb debugowania oryginału). */
   readonly revealAll?: boolean;
+  /** Autozapis (co 50 tur, gdy włączony w Preferences); dostaje numer tury. */
+  readonly autosave?: (state: GameState) => void | Promise<void>;
+  /** Zapis z menu GAME → Save Game. */
+  readonly save?: (state: GameState) => void | Promise<void>;
 }
+
+/** Nazwy ustrojów jak w oryginale (Array_1966_GovernmentNames). */
+export const GOVERNMENT_TITLES = ['Anarchy', 'Despotism', 'Monarchy', 'Communist', 'Republic', 'Democratic'] as const;
 
 export class GameScreen {
   viewX = 0;
@@ -159,6 +167,11 @@ export class GameScreen {
       return null;
     }
     const cell = this.cellAt(x, y);
+    const city = cell ? cityAt(this.state, cell.x, cell.y) : -1;
+    if (cell && button === 'left' && city !== -1 && this.state.cities[city]!.owner === this.human) {
+      await this.cityDialog(city);
+      return null;
+    }
     if (cell && button === 'left') {
       // PlayerTurn: kliknięcie w pole bez własnej jednostki centruje mapę (miasta i lista jednostek — kolejne etapy)
       this.drawVisibleMap(cell.x - 7, cell.y - 6);
@@ -172,8 +185,12 @@ export class GameScreen {
     const h = this.human;
     const id = this.activeUnit;
     if (id === -1) {
-      if (e.key === 'Enter') await this.endTurn();
+      if (e.key === 'Enter' || e.key === ' ') await this.endTurn();
       else if (DIRECTION_KEYS[e.key] !== undefined) this.scrollView(DIRECTION_KEYS[e.key]!);
+      return this.state.gameOver !== 0 ? 'gameOver' : null;
+    }
+    if (e.shift && DIRECTION_KEYS[e.key] !== undefined && e.key.startsWith('Arrow')) {
+      this.scrollView(DIRECTION_KEYS[e.key]!); // Shift+strzałki przewijają mapę
       return null;
     }
     if (e.key === 'c') {
@@ -216,6 +233,10 @@ export class GameScreen {
   /** Koniec tury człowieka: tury pozostałych graczy w silniku, potem pierwsza jednostka nowej tury. */
   async endTurn(): Promise<void> {
     endHumanTurn(this.state);
+    // Autozapis co 50 tur (ustawienie AutoSave w Preferences)
+    if (this.options.autosave && this.state.settings.autoSave && this.state.turn > 0 && this.state.turn % 50 === 0) {
+      await this.options.autosave(this.state);
+    }
     await this.processEvents();
     this.selectNextUnit(-1, true);
     this.redrawAll();
@@ -261,11 +282,106 @@ export class GameScreen {
         if (text) await showDialog(this.ui, text, 60, 60);
       } else if (ev.kind === 'cityFounded' && typeof ev.city === 'number') {
         await this.cityNameDialog(ev.city);
+      } else if (ev.kind === 'chooseResearch' && Array.isArray(ev.options)) {
+        await this.researchDialog(ev.options as number[]);
       } else if (ev.kind === 'chooseResearch' && typeof ev.suggested === 'number' && ev.suggested >= 0) {
-        // Okno wyboru badań (Science Advisor) — kolejny etap; na razie przyjmujemy propozycję silnika.
-        this.state.players[this.human]!.researching = ev.suggested;
+        chooseResearch(this.state, ev.suggested);
+      } else if (ev.kind === 'chooseGovernment' && Array.isArray(ev.options)) {
+        await this.governmentDialog(ev.options as number[]);
       }
     }
+  }
+
+  /** GameEngine.F0_1ade_1584_SelectNextResearchField (człowiek): wybór badań w oknie (80, 64) z pomocą. */
+  async researchDialog(options: readonly number[]): Promise<void> {
+    if (options.length === 0) return;
+    const who = playerHasTech(this.state, this.human, Tech.Invention) ? 'scientists' : 'wise men';
+    let text = `Which research field should our\n${who} be pursuing, sire?\nPick one...\n `;
+    for (const t of options) text += `${TECHS[t]?.name ?? '?'}\n `;
+    this.ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
+    const r = await showMenuBox(this.ui, text, 80, 64, { help: true, clearInput: true });
+    this.ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+    // Esc = pierwsza opcja; pomoc (Civilopedia) — kolejny etap, wtedy też przyjmujemy wybraną opcję
+    chooseResearch(this.state, options[Math.max(0, r.index)]!);
+    this.ui.present();
+  }
+
+  /** Diplomacy: „Select type of government:” po anarchii (ShowDialog w (100, 64)); Esc powtarza pytanie. */
+  async governmentDialog(options: readonly number[]): Promise<void> {
+    if (options.length === 0) return;
+    let text = 'Select type of government:\n';
+    for (const g of options) text += ` ${GOVERNMENT_TITLES[g] ?? '?'}\n`;
+    let index = -1;
+    while (index === -1) index = await showDialog(this.ui, text, 100, 64);
+    setGovernment(this.state, this.human, options[index]!);
+    this.redrawAll();
+    this.ui.present();
+  }
+
+  /** Rozkaz REVOLUTION! z menu GAME (PlayerTurn, komenda -2): pytanie *REV z KING.TXT w (64, 80). */
+  async revolutionDialog(): Promise<void> {
+    const king = this.assets.optional('KING.TXT');
+    const section = king ? textSection(king, '*REV') : null;
+    // Bez KING.TXT — własne pytanie w tym samym układzie (opcja 1 = rewolucja)
+    const text = section ? section.replace(/\^/g, '\n').replace(/([^\n])$/, '$1\n') : 'Are you sure you want\na REVOLUTION?\n No thanks.\n Yes, we need a new government.\n';
+    if ((await showDialog(this.ui, text, 64, 80)) === 1) {
+      revolution(this.state, this.human);
+      await this.processEvents();
+      await this.redrawMapWithBlankingEffect();
+    }
+  }
+
+  /**
+   * Uproszczone okno miasta (pełny widok miasta oryginału — kolejny etap): nazwa i wielkość, bieżąca produkcja,
+   * zmiana produkcji listą „What shall we build in …?” i zakup („Cost to complete …”) jak w oryginale.
+   */
+  async cityDialog(cityId: number): Promise<void> {
+    const ui = this.ui;
+    const city = this.state.cities[cityId]!;
+    for (;;) {
+      const name = this.state.cityNames[city.nameId] ?? '';
+      const item = productionName(city.production);
+      const cost = productionCostOf(city.production) * 10;
+      const text = `${name} (size ${city.size})\nBuilding: ${item} ${city.shields}/${cost}\n Change production\n Buy\n Close\n`;
+      const r = await showDialog(ui, text, 80, 64);
+      if (r === 0) await this.productionDialog(cityId);
+      else if (r === 1) await this.buyDialog(cityId);
+      else break;
+    }
+    this.redrawAll();
+    ui.present();
+  }
+
+  /** GameEngine: „What shall we build in …?” w (80, 8) z pomocą. Za długa lista jest ucinana (oryginał dzieli ją na strony). */
+  async productionDialog(cityId: number): Promise<void> {
+    const options = productionOptions(this.state, cityId);
+    if (options.length === 0) return;
+    let text = `What shall we build in ${this.state.cityNames[this.state.cities[cityId]!.nameId] ?? ''}?\n `;
+    for (const o of options) {
+      if (o.id >= 0) {
+        const u = UNITS[o.id]!;
+        text += `${o.name} (${o.turns} turns, ADM: ${u.attack}/${u.defense}/${u.moves})\n `;
+      } else {
+        text += `${o.name}${o.obsolete ? '*' : ''} (${o.turns} turns)\n `;
+      }
+    }
+    const current = options.findIndex((o) => o.id === this.state.cities[cityId]!.production);
+    const r = await showDialog2(this.ui, text, 80, 8, current);
+    if (r >= 0) setProduction(this.state, cityId, options[r]!.id);
+  }
+
+  /** CityWorker: „Cost to complete … Do you want to continue?” w (100, 80). */
+  async buyDialog(cityId: number): Promise<void> {
+    const city = this.state.cities[cityId]!;
+    const p = this.state.players[this.human]!;
+    const cost = buyCost(this.state, cityId);
+    let text = `Cost to complete\n${productionName(city.production)} is ${cost} coins\nOur treasury has ${p.gold} coins.\n`;
+    const disorder = (city.status & CityStatus.CivilDisorder) !== 0;
+    const canBuy = !disorder && p.gold >= cost;
+    if (disorder) text += 'CIVIL DISORDER\n';
+    else if (canBuy) text += 'Do you want to continue?\n Yes\n No\n';
+    const r = await showDialog(this.ui, text, 100, 80);
+    if (canBuy && r === 0) buyProduction(this.state, cityId);
   }
 
   /** Porada z HELP.TXT albo KING.TXT (pliki gracza), złamana do szerokości okna. */
@@ -442,6 +558,8 @@ export class GameScreen {
         // View Replay dostępne dopiero po końcu gry (SpaceshipFlags & 0x100)
         const r = await showMenuBox(ui, GAME_MENU, MENU_X[0], 8, { disabled: 1 << 7 });
         if (r.index === 3) await this.preferences();
+        else if (r.index === 4 && this.options.save) shortcut = 'save';
+        else if (r.index === 5) shortcut = 'revolution';
         else if (r.index === 8) result = 'retire';
         else if (r.index === 9) result = 'quit';
         else if (r.index >= 0 && r.index !== 6) action = 'game';
@@ -465,7 +583,11 @@ export class GameScreen {
     gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
     ui.present();
     if (action) await showDialog(ui, 'Not available yet.\n', 100, 80);
-    if (shortcut) return this.command({ type: 'key', key: shortcut });
+    if (shortcut === 'revolution') await this.revolutionDialog();
+    else if (shortcut === 'save') {
+      await this.options.save!(this.state);
+      await showDialog(ui, 'Game saved.\n', 100, 80);
+    } else if (shortcut) return this.command({ type: 'key', key: shortcut });
     return result;
   }
 
@@ -550,6 +672,26 @@ export function ordersFor(state: GameState, player: number, unitId: number): { t
   lines.push(' ', ` Disband Unit ${k}D`);
   keys.push('', 'D');
   return { text: lines.join('\n') + '\n', keys, disabled };
+}
+
+/** Nazwa produkcji miasta: ≥0 jednostka, -1…-24 budynek, -25…-45 cud. */
+export function productionName(id: number): string {
+  if (id >= 0) return UNITS[id]?.name ?? '';
+  return (-id <= 24 ? BUILDINGS[-id - 1] : WONDERS[-id - 25])?.name ?? '';
+}
+
+function productionCostOf(id: number): number {
+  if (id >= 0) return UNITS[id]?.cost ?? 0;
+  return (-id <= 24 ? BUILDINGS[-id - 1] : WONDERS[-id - 25])?.cost ?? 0;
+}
+
+/** ShowDialog z domyślnie zaznaczoną opcją i pomocą (lista produkcji). */
+async function showDialog2(ui: Ui, text: string, x: number, y: number, defaultIndex: number): Promise<number> {
+  ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
+  const r = await showMenuBox(ui, text, x, y, { help: true, clearInput: true, defaultIndex });
+  ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+  ui.present();
+  return r.index;
 }
 
 /** CommonTools.LoadAndApplyDefaultColorPalette: BACK0A.PAL (despotyzm, starożytność) z kolorami 0–127 z SP256.PAL. */

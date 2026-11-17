@@ -3,7 +3,7 @@
  * Menu leży na ekranie z logo w punkcie (100, 140). Wybór świata trafia do `MapChoice`;
  * samo tworzenie mapy (generateWorld / MAP.PIC) robi wywołujący.
  */
-import type { WorldOptions } from '@civ-remake/engine';
+import type { GameState, WorldOptions } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
 import { showMenuBox } from '../menuBox';
 import type { Ui } from '../ui';
@@ -14,16 +14,24 @@ export type MapChoice =
   | { readonly kind: 'earth' }
   | { readonly kind: 'custom'; readonly options: WorldOptions };
 
+/** Wynik menu głównego: nowa gra z wybraną mapą albo wczytany zapis. */
+export type MainMenuResult = MapChoice | { readonly kind: 'load'; readonly state: GameState };
+
+/** Wczytywanie zapisu (dostarcza aplikacja): null = anulowano albo brak zapisów. */
+export type SavedGameLoader = (ui: Ui) => Promise<GameState | null>;
+
 export const MAIN_MENU_TEXT = ' Start a New Game\n Load a Saved Game\n EARTH\n Customize World\n View Hall of Fame\n';
 
 /**
  * Pokazuje menu główne aż do wyboru nowej gry. `preselected` — wybór z intro (klawisze N, L, E, C).
  * Zwraca wybór mapy; po powrocie ekran 0 jest czarny, a na ekranie 2 leżą wzory z SP299.PIC (okna z tłem).
  */
-export async function showLogoAndMainGameMenu(ui: Ui, assets: GameAssets, preselected: number = GameType.None): Promise<MapChoice> {
+export async function showLogoAndMainGameMenu(
+  ui: Ui, assets: GameAssets, preselected: number = GameType.None, loadSaved?: SavedGameLoader,
+): Promise<MainMenuResult> {
   const gfx = ui.gfx;
   let selected = preselected;
-  let choice: MapChoice | null = null;
+  let choice: MainMenuResult | null = null;
 
   while (choice === null) {
     if (selected === GameType.None) {
@@ -33,12 +41,18 @@ export async function showLogoAndMainGameMenu(ui: Ui, assets: GameAssets, presel
       case GameType.NewGame:
         choice = { kind: 'random', options: { landMass: 1, temperature: 1, climate: 1, age: 1 } };
         break;
-      case GameType.LoadGame:
-        // Wczytywanie zapisów (.SVE) jeszcze nie istnieje — komunikat zamiast okna wyboru zapisu.
-        await showMenuBox(ui, 'Loading saved games\nis not available yet.\n', 80, 80, { frame: true, clearInput: true });
-        redrawLogo(ui, assets);
-        selected = GameType.None;
+      case GameType.LoadGame: {
+        // Zapisy w formacie silnika (JSON), nie .SVE oryginału; okno wyboru zapisu dostarcza aplikacja.
+        const state = loadSaved ? await loadSaved(ui) : null;
+        if (!loadSaved) await showMenuBox(ui, 'Loading saved games\nis not available.\n', 80, 80, { frame: true, clearInput: true });
+        if (state) {
+          choice = { kind: 'load', state };
+        } else {
+          redrawLogo(ui, assets);
+          selected = GameType.None;
+        }
         break;
+      }
       case GameType.Earth:
         choice = { kind: 'earth' };
         break;

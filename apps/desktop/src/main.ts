@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { OPTIONAL_FILES, REQUIRED_FILES, type LoadResult } from './api';
 
 const configPath = () => join(app.getPath('userData'), 'config.json');
@@ -56,6 +56,19 @@ ipcMain.handle('game:choose', async () => {
   const result = loadGameFiles(picked.filePaths[0]);
   if (result.ok) saveConfig({ gameDir: picked.filePaths[0] });
   return result;
+});
+
+// Zapisy gry (JSON z silnika) w folderze danych aplikacji; nazwy bez ścieżek.
+const savesDir = () => join(app.getPath('userData'), 'saves');
+const safeName = (name: string) => basename(name).replace(/[^A-Za-z0-9 _.-]/g, '_');
+ipcMain.handle('saves:list', () => {
+  if (!existsSync(savesDir())) return [];
+  return readdirSync(savesDir()).filter((f) => f.endsWith('.json')).sort();
+});
+ipcMain.handle('saves:read', (_e, name: string) => readFileSync(join(savesDir(), safeName(name)), 'utf8'));
+ipcMain.handle('saves:write', (_e, name: string, json: string) => {
+  mkdirSync(savesDir(), { recursive: true });
+  writeFileSync(join(savesDir(), safeName(name)), json);
 });
 
 void app.whenReady().then(() => {

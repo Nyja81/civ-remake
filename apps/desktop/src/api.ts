@@ -9,6 +9,10 @@ export interface CivApi {
   load(): Promise<LoadResult>;
   /** Pokazuje okno wyboru folderu, zapamiętuje wybór i wczytuje pliki. */
   choose(): Promise<LoadResult>;
+  /** Zapisy gry w folderze danych aplikacji (na Macu ~/Library/Application Support/<aplikacja>/saves). */
+  listSaves(): Promise<string[]>;
+  readSave(name: string): Promise<string>;
+  writeSave(name: string, json: string): Promise<void>;
 }
 
 import { UI_OPTIONAL_FILES, UI_REQUIRED_FILES } from '@civ-remake/ui/files';
