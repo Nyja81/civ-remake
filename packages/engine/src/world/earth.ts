@@ -7,7 +7,7 @@ import { TERRAIN } from '../data/terrain';
 import type { World } from './generate';
 
 /** Wartość piksela → typ terenu; wartości pochodzą z tabeli terenu w CIV.EXE (pole terrainChangeId). */
-const PIXEL_TO_TERRAIN = new Map<number, number>(TERRAIN.slice(0, 12).map((t) => [t.terrainChangeId, t.id]));
+export const PIXEL_TO_TERRAIN = new Map<number, number>(TERRAIN.slice(0, 12).map((t) => [t.terrainChangeId, t.id]));
 
 export function worldFromMapPixels(pixels: Uint8Array, imageWidth: number): World {
   const terrain = new Uint8Array(MAP_WIDTH * MAP_HEIGHT);
