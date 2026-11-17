@@ -493,3 +493,18 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   zamieszek i święta z nowszego wzorca (nieporównane z asemblerem); przerwanie pętli panoramy także kliknięciem (oryginał — kbhit).
 - Pominięte: animacja założenia miasta (Animations.FoundNewCity, panorama z −3 — funkcja gotowa), smutny pałac SAD.PIC przy
   przegranej przez statek kosmiczny komputera (EndGame_SpaceVictory), dźwięk (PlayTune), napis „BUILDING NEW WORLD...”.
+
+### 2026-11-17 — scalenie gałęzi, losowanie oryginału, testy na plikach gry, paczka 0.5.0
+- Do `main` scalone: `units-actions` (karawany, dyplomaci, odległość oryginału), `civilopedia`, `sve-replay` (zapis .SVE, powtórka),
+  `palace-cityview` (pałac, panorama miasta, historia świata). Test buntu dyplomaty: zdobycie miasta pokazuje teraz panoramę
+  (CityView) zamiast drugiego komunikatu — o jedno naciśnięcie klawisza mniej.
+- Losowanie zakresu jak w oryginale: `mscRandom().next(n)` = (n · rand()) >> 15 (F0_2dc4_005d). Asembler (ec23ac3) woła `rand()`
+  tylko w tej funkcji (106 wywołań), więc zmiana dotyczy całego silnika, także generatora świata. Test gospodarki — ziarno 34
+  (przy 32 komputer zdobywał stolicę).
+- Testy na plikach oryginału (kopia gry Damiana, `CIV1_DIR`): 288 przechodzi, 1 pominięty (brak CIVIL?.SVE w kopii). Test szerokości
+  napisów FONTS.CV: granica < 320 px. Zrzuty kontrolne (pałac, panorama, okno miasta, raporty, Civilopedia) obejrzane lokalnie,
+  nie trafiają do repozytorium.
+- Aplikacja: wybór folderu gry szuka plików także w podfolderach (`findGameFolder`, do 3 poziomów) — można wskazać folder DOSBoxa.
+- Paczka 0.5.0 (arm64, niepodpisana).
+- Do zrobienia: dźwięk, zapis .SVE z menu, tabele przepisane ręcznie → `npm run extract`, porównanie wyglądu z DOSBoxem,
+  animacja założenia miasta.
