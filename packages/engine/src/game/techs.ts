@@ -82,11 +82,14 @@ export function researchFinished(state: GameState, player: number, source: numbe
     addReplayData(state, ReplayKind.TechDiscovered, player, tech);
     state.events.push({ kind: 'firstDiscovery', player, tech });
   }
-  // Wielka Biblioteka (warunek przepisany dosłownie ze wzorca — do sprawdzenia w oryginale)
+  // Wielka Biblioteka (asembler 0x1ade:0x2254–0x22a9 z ec23ac3): właściciel cudu (działającego — F0_1d12_6c97) dostaje
+  // technologię znaną co najmniej dwóm cywilizacjom. Nowsza wersja wzorca ma odwrócony warunek posiadania cudu.
+  // Odstępstwo: miasto z cudem w rękach barbarzyńców (gracz 0 nigdy „nie ma” technologii) w oryginale wywoływałoby
+  // ResearchFinished bez końca (przepełnienie stosu) — pomijamy gracza 0.
   const libraryCity = state.wonderCity[5]!;
   if (libraryCity !== -1 && libraryCity < 128) {
     const owner = state.cities[libraryCity]!.owner;
-    if (!playerHasTech(state, owner, tech) && !playerHasWonder(state, owner, 5)) {
+    if (owner !== 0 && !playerHasTech(state, owner, tech) && playerHasWonder(state, owner, 5)) {
       let count = 0;
       for (let i = 1; i < 8; i++) if (playerHasTech(state, i, tech)) count++;
       if (count >= 2) researchFinished(state, owner, -2, tech);
