@@ -5,6 +5,9 @@
  * `processCity(state, id, 0)` to przeliczenie miasta na początku tury gracza (wzrost, produkcja, złoto, nauka,
  * niepokoje); `processCity(state, id, 1)` tylko liczy (okno miasta) i niczego nie zmienia poza przydziałem pól.
  *
+ * Raport trybu 1 zawiera też dane okna miasta (kroki zadowolenia, kolejność pracy pól, zanieczyszczenie). Zdarzenia
+ * z `showCity: true` odpowiadają Var_b1e8 oryginału: po komunikacie interfejs otwiera okno tego miasta.
+ *
  * Pominięte: przechowywanie ufortyfikowanych jednostek poza tablicą (FirstFortifiedCityUnits), statystyki
  * przeciwnika komputerowego (Var_e3c2/Var_db42), budowa statku kosmicznego (etap 7), okna i animacje.
  */
@@ -47,6 +50,30 @@ export interface CityReport {
   /** Mieszkańcy niepracujący na polach (specjaliści). */
   specialists: number;
   workers: number;
+  /** Żywność zjadana co turę: 2 na mieszkańca + 1 lub 2 na osadnika (size·2 + productionRatio·Var_e3c6). */
+  foodUpkeep: number;
+  /** Mnożnik kosztu produkcji i spichrza (difficultyProductionRatio: 10 dla człowieka). */
+  difficultyRatio: number;
+  /** Zanieczyszczenie (local_e0 w oknie miasta): tarcze/dzielnik − 20 + size·technologie/4. */
+  pollution: number;
+  /** Niezadowoleni „ponad miarę” (Var_6542) po ostatnim wyrównaniu — w oknie miasta mają inny kolor. */
+  extraUnhappy: number;
+  /** Kolejne stany zadowolenia do zakładki HAPPY okna miasta (po każdym AdjustHappyUnhappyCitizens). */
+  happinessSteps: HappinessStep[];
+  /** Typy pierwszych trzech jednostek bojowych w mieście (stan wojenny, ikony w zakładce HAPPY). */
+  martialLawUnits: number[];
+  /** Niezadowoleni z powodu jednostek bojowych poza miastem (republika, demokracja, Women's Suffrage). */
+  militaryUnhappy: number;
+  /** Kolejność, w jakiej mieszkańcy zostali przydzieleni do pól (indeksy CITY_OFFSETS) — kolejność rysowania zasobów. */
+  workOrder: number[];
+}
+
+/** Stan zadowolenia po jednym kroku ProcessCityState (Var_70e2, Var_70e4, Var_6542). */
+export interface HappinessStep {
+  kind: 'base' | 'luxury' | 'buildings' | 'military' | 'wonders';
+  happy: number;
+  unhappy: number;
+  extra: number;
 }
 
 const wonderCityOf = (state: GameState, wonder: number) => state.wonderCity[wonder]!;
@@ -101,6 +128,27 @@ function unitSupport(state: GameState, cityId: number): { units: number; support
 }
 
 /**
+ * Pola 5×5 wokół miasta pracowane przez sąsiednie miasta (i ich pola centralne) — tablica cityArea z początku
+ * ProcessCityState, przed doliczeniem pól z obcymi jednostkami. Indeks (dx + 2)·5 + (dy + 2); środek nigdy.
+ */
+export function cityNeighborArea(state: GameState, cityId: number): Set<number> {
+  const city = state.cities[cityId]!;
+  const area = new Set<number>();
+  state.cities.forEach((other, i) => {
+    if (other.status === -1 || i === cityId) return;
+    if (distance(city.x, city.y, other.x, other.y) >= 6) return;
+    for (let j = 0; j < 21; j++) {
+      if (!((other.workers >>> j) & 1) && j !== 20) continue;
+      const xPos = other.x + CITY_OFFSETS[j]![0];
+      const yPos = other.y + CITY_OFFSETS[j]![1];
+      if (Math.abs(xPos - city.x) <= 2 && Math.abs(yPos - city.y) <= 2) area.add((xPos - city.x + 2) * 5 + (yPos - city.y + 2));
+    }
+  });
+  area.delete(2 * 5 + 2);
+  return area;
+}
+
+/**
  * ProcessCityState. mode 0 — przeliczenie tury (zmienia stan), mode 1 — tylko obliczenia dla okna miasta.
  * Zwraca raport miasta albo null, gdy miasto przestało istnieć.
  */
@@ -115,21 +163,12 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
   // Odległość do stolicy (korupcja); 32, gdy brak pałacu
   let capitalDistance = hasBuilding(city, BuildingId.Palace) ? 0 : 32;
   if (city.shields < 0 || city.shields > 999) city.shields = 0;
-  const blocked = new Set<number>(); // pola 5×5 zajęte przez sąsiednie miasta (indeks (dx+2)*5+(dy+2))
   state.cities.forEach((other, i) => {
     if (other.status === -1 || i === cityId) return;
     const d = distance(city.x, city.y, other.x, other.y);
     if (other.owner === city.owner && hasBuilding(other, BuildingId.Palace) && d < capitalDistance) capitalDistance = d;
-    if (d < 6) {
-      for (let j = 0; j < 21; j++) {
-        if (!((other.workers >>> j) & 1) && j !== 20) continue;
-        const xPos = other.x + CITY_OFFSETS[j]![0];
-        const yPos = other.y + CITY_OFFSETS[j]![1];
-        if (Math.abs(xPos - city.x) <= 2 && Math.abs(yPos - city.y) <= 2) blocked.add((xPos - city.x + 2) * 5 + (yPos - city.y + 2));
-      }
-    }
   });
-  blocked.delete(2 * 5 + 2);
+  const blocked = cityNeighborArea(state, cityId); // pola 5×5 zajęte przez sąsiednie miasta (indeks (dx+2)*5+(dy+2))
   const productionRatio = gov <= Government.Despotism ? 1 : 2; // żywność na osadnika
   let pollutionTechs = 0;
   if (!hasBuilding(city, BuildingId.MassTransit)) {
@@ -208,9 +247,11 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     if (free[i]) city.workers &= ~(1 << i);
   }
   const totals = [0, 0, 0];
+  const workOrder: number[] = [];
   const res = (i: number, type: number) => tileResource(state, player, cityId, city.x + CITY_OFFSETS[i]![0], city.y + CITY_OFFSETS[i]![1], type);
   const work = (i: number) => {
     free[i] = 1;
+    workOrder.push(i);
     const nx = city.x + CITY_OFFSETS[i]![0];
     const ny = city.y + CITY_OFFSETS[i]![1];
     if (mode === 0) state.map.landOwner[cellIndex(nx, ny)] = city.owner;
@@ -231,7 +272,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
         }
       }
     } else {
-      if (mode === 0 && human) state.events.push({ kind: 'message', style: 'domestic', text: `Population decrease\nin ${cityName(state, cityId)}.\n` });
+      if (mode === 0 && human) state.events.push({ kind: 'message', style: 'domestic', city: cityId, showCity: true, text: `Population decrease\nin ${cityName(state, cityId)}.\n` });
       citizens = city.size + 1;
     }
     if (citizens === idle || citizens === 0) keep = true;
@@ -381,10 +422,14 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     h.extra = h.unhappy - city.size;
     h.unhappy = city.size;
   }
-  const adjust = () => adjustHappiness(h, city.size, specialistsCount);
-  adjust();
+  const steps: HappinessStep[] = [];
+  const adjust = (kind?: HappinessStep['kind']) => {
+    adjustHappiness(h, city.size, specialistsCount);
+    if (kind) steps.push({ kind, happy: h.happy, unhappy: h.unhappy, extra: h.extra });
+  };
+  adjust('base');
   h.happy = luxury >> 1;
-  adjust();
+  adjust('luxury');
   if (hasBuilding(city, BuildingId.Colosseum)) h.unhappy -= 3;
   if (playerHasTech(state, player, Tech.Religion) && hasBuilding(city, BuildingId.Cathedral)) {
     h.unhappy -= playerHasWonder(state, player, WonderId.Michelangelos) ? 6 : 4;
@@ -394,12 +439,17 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     else if (playerHasTech(state, player, Tech.CeremonialBurial)) h.unhappy--;
     if (playerHasWonder(state, player, WonderId.Oracle)) h.unhappy -= playerHasTech(state, player, Tech.Mysticism) ? 2 : 1;
   }
-  adjust();
+  adjust('buildings');
+  const martialLawUnits: number[] = [];
+  let militaryUnhappy = 0;
   if (gov <= Government.Communism) {
     // stan wojenny: do 3 jednostek bojowych w mieście uspokaja po jednym niezadowolonym
     let military = 0;
     for (const u of p.units) {
-      if (u.type !== NO_UNIT && u.x === city.x && u.y === city.y && UNITS[u.type]!.attack !== 0) military++;
+      if (u.type !== NO_UNIT && u.x === city.x && u.y === city.y && UNITS[u.type]!.attack !== 0) {
+        military++;
+        if (martialLawUnits.length < 3) martialLawUnits.push(u.type);
+      }
       if (military >= 32) break;
     }
     military = Math.min(military, 3);
@@ -407,9 +457,12 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
   } else {
     let factor = playerHasWonder(state, player, WonderId.WomensSuffrage) ? 1 : 0;
     if (gov === Government.Democracy) factor++;
-    if (factor !== 0) h.unhappy += factor * aggressiveUnits;
+    if (factor !== 0) {
+      h.unhappy += factor * aggressiveUnits;
+      militaryUnhappy = factor * aggressiveUnits;
+    }
   }
-  adjust();
+  adjust('military');
   if (playerHasWonder(state, player, WonderId.HangingGardens)) h.happy++;
   if (playerHasWonder(state, player, WonderId.CureForCancer)) h.happy++;
   if (wonderCityOf(state, WonderId.Shakespeares) === cityId) h.unhappy = 0;
@@ -417,12 +470,15 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     const bach = state.cities[state.wonderCity[WonderId.Bachs]!]!;
     if (state.map.group[cellIndex(city.x, city.y)] === state.map.group[cellIndex(bach.x, bach.y)]) h.unhappy -= 2;
   }
-  adjust();
+  adjust('wonders');
 
   const report: CityReport = {
     food: totals[0]!, shields: totals[1]!, trade: totals[2]!, corruption, luxury, tax, science,
     happy: h.happy, unhappy: h.unhappy, foodSurplus: totals[0]! - productionRatio * settlers - city.size * 2,
     unitSupport: support, specialists: specialistsCount, workers: city.size - specialistsCount,
+    foodUpkeep: city.size * 2 + productionRatio * settlers, difficultyRatio,
+    pollution: Math.trunc(totals[1]! / pollutionDivisor) - 20 + Math.trunc((city.size * pollutionTechs) / 4),
+    extraUnhappy: h.extra, happinessSteps: steps, martialLawUnits, militaryUnhappy, workOrder,
   };
   if (mode === 1) return report;
 
@@ -467,7 +523,7 @@ export function processCity(state: GameState, cityId: number, mode: 0 | 1): City
     if (balance < 0) {
       if (!(city.status & CityStatus.CivilDisorder)) {
         if (human) {
-          state.events.push({ kind: 'news', style: 'domestic', city: cityId, text: `Civil Disorder in\n${cityName(state, cityId)}! Mayor\nflees in panic.\n` });
+          state.events.push({ kind: 'news', style: 'domestic', city: cityId, showCity: true, text: `Civil Disorder in\n${cityName(state, cityId)}! Mayor\nflees in panic.\n` });
           if (state.settings.instantAdvice) state.events.push({ kind: 'advice', key: '*DISORDER' });
         }
       }
@@ -670,7 +726,7 @@ function completeProduction(state: GameState, cityId: number, ratio: number, new
         } else if (human) {
           city.shields = 0;
           if (unitId !== -1 && (city.production === 0 || city.production >= 26)) {
-            state.events.push({ kind: 'message', style: 'defense', city: cityId, text: `${cityName(state, cityId)} builds ${UNITS[city.production]!.name}.\n` });
+            state.events.push({ kind: 'message', style: 'defense', city: cityId, showCity: true, text: `${cityName(state, cityId)} builds ${UNITS[city.production]!.name}.\n` });
           }
         }
       }
@@ -690,7 +746,7 @@ function completeProduction(state: GameState, cityId: number, ratio: number, new
         city.shields -= cost;
         if (human || built > 24) {
           if (!human) state.map.explored[cellIndex(city.x, city.y)] = 0xffff;
-          state.events.push({ kind: 'built', player, city: cityId, item: built, text: `${cityName(state, cityId)} builds\n${improvementDef(built).name}.\n` });
+          state.events.push({ kind: 'built', player, city: cityId, item: built, showCity: human, text: `${cityName(state, cityId)} builds\n${improvementDef(built).name}.\n` });
           city.shields = 0;
           if (built === 1 && !human) changeProduction(state, cityId, aiSelectProduction(state, player, cityId));
         } else {

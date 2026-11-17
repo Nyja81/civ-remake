@@ -299,6 +299,16 @@ function drawCellUnit(dst: Surface, state: GameState, sprites: MapSprites, x: nu
   drawUnit(dst, state, sprites, player, show, sx, sy, stack.length > 1, clip, options.text);
 }
 
+/**
+ * MapManagement.F0_2aea_11d4_DrawCellWithUnit — pole (DrawCell) i stojąca na nim jednostka widoczna dla człowieka
+ * (bez miast). Używane m.in. w oknie miasta dla pól z obcymi jednostkami.
+ */
+export function drawCellWithUnit(dst: Surface, state: GameState, sprites: MapSprites, x: number, y: number, sx: number, sy: number,
+  text?: TextDrawer): void {
+  drawCell(dst, state, sprites, x, y, sx, sy, undefined, { text });
+  drawCellUnit(dst, state, sprites, x, y, sx, sy, { x0: 0, y0: 0, x1: dst.width, y1: dst.height }, { viewX: 0, viewY: 0, text });
+}
+
 /** DrawUnit + DrawUnitWithStatus. */
 export function drawUnit(dst: Surface, state: GameState, sprites: MapSprites, player: number, unitId: number, sx: number, sy: number,
   stacked: boolean, clip?: Clip, text?: TextDrawer): void {

@@ -30,6 +30,7 @@ import { endGameHallOfFame, type FameStore } from './hallOfFame';
 import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
 import { runKingMeeting } from './king';
 import { ADVISOR_REPORTS, reportForKey, showHistoryReport, showPowerGraph, showReport, WORLD_REPORTS, type AdvisorReport, type WorldReport } from './advisors';
+import { showCityWindow } from './cityWindow';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
 
@@ -305,11 +306,17 @@ export class GameScreen {
       if (ev.player !== undefined && ev.player !== this.human && ev.kind !== 'message' && !fromAi) continue;
       if (typeof ev.text === 'string' && ev.text) {
         await showDialog(this.ui, ev.text.endsWith('\n') ? ev.text : `${ev.text}\n`, 100, 80);
+        if (ev.showCity === true && typeof ev.city === 'number') await this.cityAfterEvent(ev.city);
       } else if (ev.kind === 'advice' && this.state.settings.instantAdvice && typeof ev.key === 'string') {
         const text = this.adviceText(ev.key);
         if (text) await showDialog(this.ui, text, 60, 60);
       } else if (ev.kind === 'cityFounded' && typeof ev.city === 'number') {
         await this.cityNameDialog(ev.city);
+        // GameEngine (FoundNewCity): okno nowego miasta, potem mapa z wygaszeniem
+        if (this.state.cities[ev.city]?.owner === this.human) {
+          await this.cityDialog(ev.city);
+          await this.redrawMapWithBlankingEffect();
+        }
       } else if (ev.kind === 'chooseResearch' && Array.isArray(ev.options)) {
         await this.researchDialog(ev.options as number[]);
       } else if (ev.kind === 'chooseResearch' && typeof ev.suggested === 'number' && ev.suggested >= 0) {
@@ -338,6 +345,19 @@ export class GameScreen {
         await this.gameEndDialog(ev.reason === 'conquest', ev.canContinue === true);
       }
     }
+  }
+
+  /**
+   * Var_b1e8 (GameEngine.F0_1ade_0006_ProcessCitiesAndAdjustTaxRates): po komunikacie o mieście człowieka (budowa,
+   * niepokoje, spadek ludności) okno miasta i mapa z wygaszeniem — raz na miasto, gdy kolejne komunikaty dotyczą tego samego.
+   */
+  private async cityAfterEvent(cityId: number): Promise<void> {
+    const next = this.state.events[this.eventsSeen];
+    if (next && next.showCity === true && next.city === cityId) return;
+    const city = this.state.cities[cityId];
+    if (!city || city.status === -1 || city.owner !== this.human) return;
+    await showCityWindow({ ui: this.ui, assets: this.assets, state: this.state, sprites: this.sprites, text: this.textDrawer }, cityId);
+    await this.redrawMapWithBlankingEffect();
   }
 
   /**
@@ -441,56 +461,18 @@ export class GameScreen {
   }
 
   /**
-   * Uproszczone okno miasta (pełny widok miasta oryginału — kolejny etap): nazwa i wielkość, bieżąca produkcja,
-   * zmiana produkcji listą „What shall we build in …?” i zakup („Cost to complete …”) jak w oryginale.
+   * GameEngine.F0_1ade_03ea_ProcessCityState1AndRefreshMap: ekran gry zapamiętany na ekranie 1, okno miasta
+   * (CityWorker.ProcessCityState w trybie 1, `screens/cityWindow.ts`), potem odtworzenie ekranu albo — gdy okno tego
+   * wymaga — przerysowanie mapy z wygaszeniem; na koniec panel skarbca (PlayerTurn: ReportHumanTaxAndPopulation).
    */
   async cityDialog(cityId: number): Promise<void> {
     const ui = this.ui;
-    const city = this.state.cities[cityId]!;
-    for (;;) {
-      const name = this.state.cityNames[city.nameId] ?? '';
-      const item = productionName(city.production);
-      const cost = productionCostOf(city.production) * 10;
-      const text = `${name} (size ${city.size})\nBuilding: ${item} ${city.shields}/${cost}\n Change production\n Buy\n Close\n`;
-      const r = await showDialog(ui, text, 80, 64);
-      if (r === 0) await this.productionDialog(cityId);
-      else if (r === 1) await this.buyDialog(cityId);
-      else break;
-    }
-    this.redrawAll();
+    ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
+    const r = await showCityWindow({ ui, assets: this.assets, state: this.state, sprites: this.sprites, text: this.textDrawer }, cityId);
+    if (r.redraw) await this.redrawMapWithBlankingEffect();
+    else ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+    this.reportTaxAndPopulation();
     ui.present();
-  }
-
-  /** GameEngine: „What shall we build in …?” w (80, 8) z pomocą. Za długa lista jest ucinana (oryginał dzieli ją na strony). */
-  async productionDialog(cityId: number): Promise<void> {
-    const options = productionOptions(this.state, cityId);
-    if (options.length === 0) return;
-    let text = `What shall we build in ${this.state.cityNames[this.state.cities[cityId]!.nameId] ?? ''}?\n `;
-    for (const o of options) {
-      if (o.id >= 0) {
-        const u = UNITS[o.id]!;
-        text += `${o.name} (${o.turns} turns, ADM: ${u.attack}/${u.defense}/${u.moves})\n `;
-      } else {
-        text += `${o.name}${o.obsolete ? '*' : ''} (${o.turns} turns)\n `;
-      }
-    }
-    const current = options.findIndex((o) => o.id === this.state.cities[cityId]!.production);
-    const r = await showDialog2(this.ui, text, 80, 8, current);
-    if (r >= 0) setProduction(this.state, cityId, options[r]!.id);
-  }
-
-  /** CityWorker: „Cost to complete … Do you want to continue?” w (100, 80). */
-  async buyDialog(cityId: number): Promise<void> {
-    const city = this.state.cities[cityId]!;
-    const p = this.state.players[this.human]!;
-    const cost = buyCost(this.state, cityId);
-    let text = `Cost to complete\n${productionName(city.production)} is ${cost} coins\nOur treasury has ${p.gold} coins.\n`;
-    const disorder = (city.status & CityStatus.CivilDisorder) !== 0;
-    const canBuy = !disorder && p.gold >= cost;
-    if (disorder) text += 'CIVIL DISORDER\n';
-    else if (canBuy) text += 'Do you want to continue?\n Yes\n No\n';
-    const r = await showDialog(this.ui, text, 100, 80);
-    if (canBuy && r === 0) buyProduction(this.state, cityId);
   }
 
   /** Porada z HELP.TXT albo KING.TXT (pliki gracza), złamana do szerokości okna. */
@@ -804,20 +786,6 @@ export function ordersFor(state: GameState, player: number, unitId: number): { t
 export function productionName(id: number): string {
   if (id >= 0) return UNITS[id]?.name ?? '';
   return (-id <= 24 ? BUILDINGS[-id - 1] : WONDERS[-id - 25])?.name ?? '';
-}
-
-function productionCostOf(id: number): number {
-  if (id >= 0) return UNITS[id]?.cost ?? 0;
-  return (-id <= 24 ? BUILDINGS[-id - 1] : WONDERS[-id - 25])?.cost ?? 0;
-}
-
-/** ShowDialog z domyślnie zaznaczoną opcją i pomocą (lista produkcji). */
-async function showDialog2(ui: Ui, text: string, x: number, y: number, defaultIndex: number): Promise<number> {
-  ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
-  const r = await showMenuBox(ui, text, x, y, { help: true, clearInput: true, defaultIndex });
-  ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
-  ui.present();
-  return r.index;
 }
 
 /** CommonTools.LoadAndApplyDefaultColorPalette: BACK0A.PAL (despotyzm, starożytność) z kolorami 0–127 z SP256.PAL. */
