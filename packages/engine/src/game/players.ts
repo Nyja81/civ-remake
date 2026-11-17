@@ -47,6 +47,10 @@ export function emptyPlayer(): Player {
     techCount: 0, futureTechs: 0, cityCount: 0, totalCitySize: 0, settlerCount: 0, ranking: 0, contactCountdown: 0,
     xStart: 0, waiting: -1, diplomacy: new Array<number>(8).fill(0),
     units: Array.from({ length: MAX_UNITS_PER_PLAYER }, emptyUnit),
+    continents: Array.from({ length: 16 }, () => ({ strategy: 0, cityCount: 0, attack: 0, defense: 0 })),
+    unitPolicies: Array.from({ length: 32 }, () => ({ x: 0, y: 0, role: -1, policy: 0 })),
+    continentPolicies: Array.from({ length: 16 }, () => ({ x: 0, y: 0, role: -1, policy: 0 })),
+    militaryPower: 0, unitCount: 0,
     activeUnits: new Array<number>(UNITS.length).fill(0), lostUnits: new Array<number>(UNITS.length).fill(0),
     unitsDestroyed: new Array<number>(8).fill(0), unitsInProduction: new Array<number>(UNITS.length).fill(0),
   };
@@ -73,7 +77,7 @@ export function newGame(options: NewGameOptions): GameState {
     map, players: Array.from({ length: MAX_PLAYERS }, emptyPlayer),
     cities: Array.from({ length: MAX_CITIES }, emptyCity),
     wonderCity: new Array<number>(22).fill(-1), cityNames: [...CITY_NAMES], cityNameTaken: new Array<boolean>(256).fill(false),
-    techFirstDiscoveredBy: new Array<number>(72).fill(0), techCatchUp: 0, globalWarming: 0, pollutionLevel: 0, pollutedSquares: 0, gameOver: 0, humanLowest: false,
+    techFirstDiscoveredBy: new Array<number>(72).fill(0), techCatchUp: 0, globalWarming: 0, pollutionLevel: 0, pollutedSquares: 0, gameOver: 0, humanLowest: false, aiFlags: 0, aiMakeContact: false,
     rng, events: [],
   };
 
@@ -117,6 +121,8 @@ export function initPlayer(state: GameState, player: number): boolean {
   p.settlerCount = 1;
   p.contactCountdown = -1;
   p.units.forEach((u) => Object.assign(u, emptyUnit()));
+  for (const c of p.continents) c.strategy = 0;
+  for (const c of p.continentPolicies) { c.role = -1; c.policy = 0; }
   for (let i = 0; i < 8; i++) {
     p.diplomacy[i] = 0;
     state.players[i]!.diplomacy[player] = 0;

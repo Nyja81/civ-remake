@@ -30,7 +30,9 @@ describe('gospodarka miast', () => {
     const { s, city } = foundCapital(32);
     const h = s.humanPlayer;
     s.players[h]!.researching = researchOptions(s)[0] ?? -1;
+    let maxSize = 0;
     for (let i = 0; i < 60; i++) {
+      maxSize = Math.max(maxSize, s.cities[city]!.size);
       for (const e of s.events) if (e.kind === 'chooseResearch') chooseResearch(s, (e.options as number[])[0]!);
       s.events.length = 0;
       for (const [id, u] of s.players[h]!.units.entries()) if (u.type !== NO_UNIT) unitOrder(s, h, id, 'sentry');
@@ -38,7 +40,8 @@ describe('gospodarka miast', () => {
     }
     const c = s.cities[city]!;
     expect(c.status).not.toBe(-1);
-    expect(c.size).toBeGreaterThan(1);
+    // miasto rosło (komputer może je potem atakować i zmniejszać — jak w oryginale)
+    expect(maxSize).toBeGreaterThan(1);
     expect(s.players[h]!.units.filter((u) => u.type !== NO_UNIT).length).toBeGreaterThan(0);
     expect(s.players[h]!.gold).toBeGreaterThan(0);
     // nauka: komputer odkrywa technologie (człowiek przy 1 handlu w stolicy ma 0 nauki — zaokrąglenie jak w oryginale)

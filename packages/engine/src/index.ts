@@ -31,3 +31,4 @@ export * from './game/catastrophes';
 export * from './game/disasters';
 export * from './game/ranking';
 export * from './game/diplomacy';
+export * from './game/ai';

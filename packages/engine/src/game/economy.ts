@@ -17,7 +17,7 @@ import { Tech, TECHS } from '../data/techs';
 import { UNITS } from '../data/units';
 import { hasSpecialResource } from '../world/features';
 import { Terrain } from '../world/generate';
-import { aiSelectProduction } from './ai';
+import { aiSelectProduction, setCityFigures } from './ai';
 import { nuclearEffects } from './catastrophes';
 import { BuildingId, WonderId, addBuilding, hasBuilding, removeBuilding } from './buildings';
 import { cityName, deleteCity, playerHasWonder, testIfPlayerDestroyed } from './cities';
@@ -811,3 +811,10 @@ export function processCities(state: GameState, player: number): void {
 }
 
 export { wrapX };
+
+// SelectCityProduction komputera korzysta z wyników ProcessCityState(…, -1): żywność, tarcze, handel, korupcja, utrzymanie.
+setCityFigures((state, cityId) => {
+  const r = processCity(state, cityId, 1);
+  if (!r) return { food: 0, shields: 0, trade: 0, corruption: 0, unitCount: 0 };
+  return { food: r.food, shields: r.shields, trade: r.trade, corruption: r.corruption, unitCount: r.unitSupport };
+});

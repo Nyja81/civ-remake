@@ -17,7 +17,7 @@ import { confirmBreakTreaty, clearPeace } from './combat';
 import { GOVERNMENT_NAMES, processCities } from './economy';
 import { DIRECTIONS, cellIndex, distance, isValid, terrainAt, updateVisibleCell } from './map';
 import { fullMoves, moveUnit, type MoveOptions, type MoveResult } from './movement';
-import { aiMoveUnit, aiPlayerTurnStart } from './ai';
+import { aiChangeGovernment, aiUnitCommand, reassignPolicies, recalculateStatsAndPolicies, setGotoResolver, type AiCommand } from './ai';
 import { playerHasTech } from './techs';
 import { barbarianUprising } from './barbarians';
 import { checkGlobalWarming } from './catastrophes';
@@ -437,7 +437,8 @@ export function gotoDirection(state: GameState, player: number, unitId: number, 
       if (!isValid(cx + dx, ny)) continue;
       const nx = ((cx + dx) % W + W) % W;
       const ni = ny * W + nx;
-      if (ni !== goal && !(state.map.explored[ni]! & (1 << player))) continue;
+      // Człowiek idzie tylko po polach odkrytych; komputer zna mapę (jak UnitGoTo dla graczy komputerowych).
+      if (ni !== goal && player === state.humanPlayer && !(state.map.explored[ni]! & (1 << player))) continue;
       const t = state.map.terrain[ni]!;
       const city = (state.map.improvements[ni]! & Improvement.City) !== 0;
       if (def.movementType === MovementType.Land && t === Terrain.Water) continue;
@@ -457,7 +458,20 @@ export function gotoDirection(state: GameState, player: number, unitId: number, 
       }
     }
   }
-  return first[goal]!;
+  if (first[goal]! !== -1 || player === state.humanPlayer) return first[goal]!;
+  // Komputer: cel nieosiągalny (np. miasto w głębi lądu dla statku) — idzie ku najbliższemu osiągalnemu polu.
+  let best = -1;
+  let bestKey = Infinity;
+  for (let i = 0; i < W * 50; i++) {
+    if (cost[i] === Infinity || i === start) continue;
+    const key = distance(i % W, Math.trunc(i / W), tx, ty) * 1000 + cost[i]!;
+    if (key < bestKey) {
+      bestKey = key;
+      best = i;
+    }
+  }
+  if (best === -1 || distance(best % W, Math.trunc(best / W), tx, ty) >= distance(u.x, u.y, tx, ty)) return -1;
+  return first[best]!;
 }
 
 // ── przebieg tury ───────────────────────────────────────────────────────────────────────
@@ -468,6 +482,8 @@ function playerPhase(state: GameState, player: number): void {
   processCities(state, player);
   if (p.gold > 30000) p.gold = 30000;
   updateGovernmentAndDiplomacy(state, player);
+  recalculateStatsAndPolicies(state, player);
+  reassignPolicies(state, player);
   if (player === state.humanPlayer) {
     if (p.cityCount === 0 && p.settlerCount === 0 && !p.units.some((u) => u.type === 0)) {
       state.gameOver = -1;
@@ -480,39 +496,103 @@ function playerPhase(state: GameState, player: number): void {
 /** UpdatePlayerGovernmentAndDiplomacy — część dotycząca anarchii (reszta dyplomacji: etap 7). */
 function updateGovernmentAndDiplomacy(state: GameState, player: number): void {
   const p = state.players[player]!;
+  anarchy(state, player);
+  // Komputer: znacznik „obalony rząd” (bit Allied w Diplomacy[0]) zgłasza zmianę po raz drugi (ChangeCurrentGovernment).
+  if (player !== state.humanPlayer && p.diplomacy[0]! & 4) aiChangeGovernment(state, player, p.government);
+}
+
+function anarchy(state: GameState, player: number): void {
+  const p = state.players[player]!;
   if (p.government !== Government.Anarchy) return;
   if (player === state.humanPlayer && (state.turn & 3) === 0) {
     if (p.diplomacy[0]! & 4) p.diplomacy[0]! &= ~4; // upadek demokracji: jedna tura anarchii więcej
     else state.events.push({ kind: 'chooseGovernment', player, options: availableGovernments(state, player) });
   } else if (player !== state.humanPlayer && (playerHasWonder(state, player, WonderId.Pyramids) || (state.turn & 3) === 0)) {
-    p.government = Government.Despotism; // komputer: wybór ustroju — etap 6
+    aiChangeGovernment(state, player, Government.Despotism);
   }
 }
 
-/** Ruchy gracza komputerowego i barbarzyńców (etap 6: przeciwnik komputerowy). */
+/** Rozkazy literowe przeciwnika komputerowego (klawisze oryginału) → rozkazy silnika. */
+const AI_ORDERS: Record<string, Order> = {
+  ' ': 'skip', b: 'build', f: 'fortify', r: 'road', i: 'irrigate', m: 'mine', p: 'pollution', P: 'pillage', u: 'unload', h: 'home',
+};
+
+/**
+ * Ruchy gracza komputerowego i barbarzyńców (pętla jednostek PlayerTurn dla gracza bez człowieka):
+ * AIEngine.MoveUnit zwraca rozkaz; rozkaz inny niż 0 kasuje „idź do”; po 5 próbach jednostka czeka do następnej tury.
+ * Kilka przejść po jednostkach — jednostki zbudzone w trakcie (np. zeszłe ze statku) ruszają w następnym przejściu.
+ */
 function computerTurn(state: GameState, player: number): void {
   resetMoves(state, player);
-  aiPlayerTurnStart(state, player);
   const p = state.players[player]!;
-  for (let id = 0; id < 128; id++) {
-    let guard = 0;
-    while (p.units[id]!.type !== NO_UNIT && p.units[id]!.movesLeft > 0 && guard++ < 8) {
-      const u = p.units[id]!;
-      if (u.status & (UnitStatus.Sentry | UnitStatus.Fortified)) break;
-      if (u.status & UnitStatus.Fortifying) {
-        u.status = (u.status & ~UnitStatus.Fortifying) | UnitStatus.Fortified;
-        u.movesLeft = 0;
-        break;
+  for (let pass = 0; pass < 3; pass++) {
+    for (let id = 0; id < 128; id++) {
+      let retries = 0;
+      while (p.units[id]!.type !== NO_UNIT && p.units[id]!.movesLeft > 0) {
+        const u = p.units[id]!;
+        if (u.status & (UnitStatus.Sentry | UnitStatus.Fortified)) break;
+        if (u.status & UnitStatus.Fortifying) {
+          u.status = (u.status & ~UnitStatus.Fortifying) | UnitStatus.Fortified;
+          u.movesLeft = 0;
+          break;
+        }
+        if (u.status & WORK) {
+          continueWork(state, player, id);
+          break;
+        }
+        let cmd: AiCommand = aiUnitCommand(state, player, id);
+        if (u.type === NO_UNIT) break;
+        if (cmd !== 0) u.gotoX = u.gotoY = -1;
+        if (++retries > 4) {
+          cmd = ' ';
+          u.gotoX = u.gotoY = -1;
+          u.gotoNextDirection = -1;
+        }
+        executeAiCommand(state, player, id, cmd);
       }
-      if (u.status & WORK) {
-        continueWork(state, player, id);
-        continue;
-      }
-      aiMoveUnit(state, player, id);
-      afterUnitAction(state, player, id);
     }
   }
 }
+
+function executeAiCommand(state: GameState, player: number, id: number, cmd: AiCommand): void {
+  const u = state.players[player]!.units[id]!;
+  if (cmd === 0) {
+    if (u.gotoX === -1) cmd = ' ';
+    else {
+      const dir = gotoDirection(state, player, id, u.gotoX, u.gotoY);
+      if (dir <= 0) {
+        u.gotoX = u.gotoY = -1;
+        cmd = ' ';
+      } else cmd = dir;
+    }
+  }
+  if (typeof cmd === 'number') {
+    const r = moveUnit(state, player, id, cmd);
+    if (u.type !== NO_UNIT) afterUnitAction(state, player, id);
+    if (r.kind !== 'moved' && u.type !== NO_UNIT) u.gotoX = u.gotoY = -1;
+    return;
+  }
+  if (cmd === 'h' && UNITS[u.type]!.movementType === MovementType.Air) {
+    // samolot wraca do najbliższego własnego miasta (GetNearestCityDirection)
+    let best = 999;
+    state.cities.forEach((c) => {
+      if (c.status === -1 || c.owner !== player) return;
+      const d = distance(u.x, u.y, c.x, c.y);
+      if (d < best) {
+        best = d;
+        u.gotoX = c.x;
+        u.gotoY = c.y;
+      }
+    });
+    if (best > 0 && best < 999) return executeAiCommand(state, player, id, 0);
+    cmd = ' ';
+  }
+  unitOrder(state, player, id, AI_ORDERS[cmd]!);
+  if (u.type !== NO_UNIT && (cmd === 'f' || cmd === 'u' || cmd === 'h')) u.movesLeft = 0;
+  if (u.type !== NO_UNIT) afterUnitAction(state, player, id);
+}
+
+setGotoResolver(gotoDirection);
 
 /** Wykonuje turę od bieżącego gracza aż do początku ruchów człowieka (albo końca gry). */
 export function advanceToHuman(state: GameState): void {

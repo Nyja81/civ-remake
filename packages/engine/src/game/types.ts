@@ -100,11 +100,33 @@ export interface Player {
   waiting: number;
   diplomacy: number[];
   units: Unit[];
+  /** Dane przeciwnika komputerowego (AIEngine): strategie kontynentów, cele jednostek, siła militarna. */
+  continents: PlayerContinent[];
+  unitPolicies: Policy[];
+  continentPolicies: Policy[];
+  militaryPower: number;
+  unitCount: number;
   /** Liczba jednostek danego typu na mapie. */
   activeUnits: number[];
   lostUnits: number[];
   unitsDestroyed: number[];
   unitsInProduction: number[];
+}
+
+/** Rola jednostki w strategii komputera (UnitStrategyTypeEnum): -1 brak, 0 osadnictwo, 1 atak, 2 obrona, 3 atak morski, 4 lotnictwo, 5 transport. */
+export interface PlayerContinent {
+  strategy: number;
+  cityCount: number;
+  attack: number;
+  defense: number;
+}
+
+/** Cel dla jednostek komputera (UnitPolicy / ContinentPolicy). */
+export interface Policy {
+  x: number;
+  y: number;
+  role: number;
+  policy: number;
 }
 
 export interface City {
@@ -212,6 +234,9 @@ export interface GameState {
   /** Poziom skutków zanieczyszczenia (PollutionEffectLevel). */
   pollutionLevel: number;
   pollutedSquares: number;
+  /** Flagi AIEngine: gracze z siłami na kontynentach człowieka (AIPlayerFlags) i chęć kontaktu (MakeContactWithPlayer). */
+  aiFlags: number;
+  aiMakeContact: boolean;
   /** Człowiek na ostatnim miejscu rankingu (Var_8078) — komputer szuka kontaktu. */
   humanLowest: boolean;
   /** 0 = gra trwa. */
