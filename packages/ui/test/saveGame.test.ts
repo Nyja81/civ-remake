@@ -88,6 +88,22 @@ describe('zapis gry w formacie oryginału (F11_0000_036a)', () => {
     expect([...store.files.keys()].length).toBe(2);
   });
 
+  it('nazwy poziomów z Array_33a2 („Lord”); lista (48, 33) bez ramki — nieparzyste Y w F0_2d05_0475', async () => {
+    const { ui, state } = setup();
+    state.difficulty = 1;
+    expect(saveSlotLine(saveSve(state).sve)).toMatch(/^ Lord /);
+    const store = memoryStore();
+    const seen: number[] = [];
+    const present = ui.present.bind(ui);
+    ui.present = () => {
+      seen.push(ui.gfx.screen.getPixel(49, 34));
+      present();
+    };
+    await drive(ui, [key('Enter'), key('Escape')], () => showSaveGameDialog(ui, state, store));
+    expect(seen).toContain(15); // białe tło okna wyboru dysku widać pod listą
+    expect(seen).not.toContain(7); // brak szarego tła ramki
+  });
+
   it('Esc przy wyborze dysku albo listy — bez zapisu', async () => {
     const { ui, state } = setup();
     const store = memoryStore();

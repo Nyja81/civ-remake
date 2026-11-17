@@ -15,8 +15,8 @@ import { GameScreen } from './gameScreen';
 import { decodeFameDta, type FameStore } from './hallOfFame';
 import { GameType, showMainGameIntro, showWorldHistory } from './intro';
 import { showLogoAndMainGameMenu, type SavedGameLoader } from './mainMenu';
-import { DIFFICULTY_NAMES, initNewGameData, showInitText, type NewGameSettings } from './newGame';
-import type { OriginalSaveStore } from './saveGame';
+import { initNewGameData, showInitText, type NewGameSettings } from './newGame';
+import { SAVE_DIFFICULTY_NAMES, setLastSaveSlot, type OriginalSaveStore } from './saveGame';
 
 /** Magazyn zapisów gry (w aplikacji: folder danych aplikacji). */
 export interface SaveStore {
@@ -64,7 +64,7 @@ export function knownTechnologies(state: GameState): string[] {
 /** Wiersz listy jak w ReadGameInfoFromFile: „poziom imię, naród/rok”. */
 function originalSaveLabel(index: number, sve: Uint8Array): string {
   const info = sveInfo(sve);
-  return `CIVIL${index}.SVE ${DIFFICULTY_NAMES[info.difficulty] ?? '?'} ${info.leader}, ${info.nation}/${yearToString(info.year)}`;
+  return `CIVIL${index}.SVE ${SAVE_DIFFICULTY_NAMES[info.difficulty] ?? '?'} ${info.leader}, ${info.nation}/${yearToString(info.year)}`;
 }
 
 type SaveChoice = { label: string; load: () => Promise<GameState> };
@@ -80,7 +80,14 @@ export function savedGameLoader(saves: SaveStore | undefined, originals?: Origin
       for (const index of await originals.list().catch(() => [] as number[])) {
         try {
           const files = await originals.read(index);
-          choices.push({ label: originalSaveLabel(index, files.sve), load: async () => resumeLoadedGame(loadSve(files.sve, files.map)) });
+          choices.push({
+            label: originalSaveLabel(index, files.sve),
+            load: async () => {
+              const state = resumeLoadedGame(loadSve(files.sve, files.map));
+              setLastSaveSlot(ui, index);
+              return state;
+            },
+          });
         } catch (error) {
           console.error(error);
         }

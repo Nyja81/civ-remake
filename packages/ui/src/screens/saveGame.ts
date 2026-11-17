@@ -12,14 +12,18 @@
  *     F11_0000_08f6 (najpierw .MAP — błąd: „Error writing map file.” w (4, 64); potem .SVE — błąd otwarcia: „File Error: …”).
  *   Wynik: „ Game has been saved.” albo czerwone pole (64, 127, 192, 34) i „ Game NOT saved.” z „ Write access denied.”
  *     (błąd 13) albo „ Disk Full.” (28), na końcu „ Press key to continue.”.
- * Teksty z danych CIV.EXE (wersja 474.01 i 475.05 — te same).
+ * Ramka okna jak w MenuBoxDialog (F0_2d05_0475): tylko przy parzystym Y — lista (48, 33) i wynik (64, 127) są bez ramki.
+ * Teksty z danych CIV.EXE (wersja 474.01 i 475.05 — te same). Wygląd sprawdzony z oryginałem 474.01 w DOSBoxie.
  */
 import { saveSve, sveInfo, type GameState } from '@civ-remake/engine';
 import { isKey } from '../input';
 import { showMenuBox } from '../menuBox';
 import { yearToString } from '../text';
 import type { Ui } from '../ui';
-import { DIFFICULTY_NAMES, drawRandomFoodIcons } from './newGame';
+import { drawRandomFoodIcons } from './newGame';
+
+/** Array_33a2 — nazwy poziomów w oknach zapisu (inne niż na ekranie wyboru poziomu: „Chief”, „Lord”). */
+export const SAVE_DIFFICULTY_NAMES = ['Chief', 'Lord', 'Prince', 'King', 'Emperor'] as const;
 
 /** Wynik zapisu plików: błąd z kodem systemowym (EACCES, EPERM, EROFS, ENOSPC…) i plikiem, przy którym wystąpił. */
 export type SaveWriteResult = { readonly ok: true } | { readonly ok: false; readonly file: 'map' | 'sve'; readonly code: string };
@@ -63,7 +67,7 @@ export function saveSlotLine(sve: Uint8Array | null): string {
   if (!sve) return ' (EMPTY)\n';
   try {
     const info = sveInfo(sve);
-    return ` ${DIFFICULTY_NAMES[info.difficulty] ?? ''} ${info.leader}, ${info.nation}/${yearToString(info.year)}\n`;
+    return ` ${SAVE_DIFFICULTY_NAMES[info.difficulty] ?? ''} ${info.leader}, ${info.nation}/${yearToString(info.year)}\n`;
   } catch {
     return ' (EMPTY)\n';
   }
@@ -116,10 +120,10 @@ export async function selectSaveDrive(ui: Ui, random: (n: number) => number): Pr
   return g.drive;
 }
 
-/** Okno tylko z tekstem, zamykane klawiszem albo kliknięciem (Var_d206 = 1). */
+/** Okno tylko z tekstem, zamykane klawiszem albo kliknięciem (Var_d206 = 1); ramka tylko przy parzystym Y. */
 async function showMessage(ui: Ui, text: string, x: number, y: number): Promise<void> {
   ui.input.clear();
-  await showMenuBox(ui, text, x, y, { noWait: true });
+  await showMenuBox(ui, text, x, y, { noWait: true, frame: (y & 1) === 0 });
   ui.present();
   await ui.waitKeyOrClick();
 }
@@ -143,7 +147,9 @@ export async function showSaveGameDialog(ui: Ui, state: GameState, store: Origin
       text += saveSlotLine(sve);
     }
     if (slot === -1) {
-      const r = await showMenuBox(ui, text, 48, 33, { clearInput: true, defaultIndex: Math.min(Math.max(g.lastSlot, 0), 3) });
+      const r = await showMenuBox(ui, text, 48, 33, {
+        frame: false, clearInput: true, defaultIndex: Math.min(Math.max(g.lastSlot, 0), 3),
+      });
       slot = r.index;
     }
     if (slot !== -1) {
@@ -160,7 +166,7 @@ export async function showSaveGameDialog(ui: Ui, state: GameState, store: Origin
 async function saveToSlot(ui: Ui, state: GameState, store: OriginalSaveStore, drive: number, slot: number): Promise<boolean> {
   const human = state.players[state.humanPlayer]!;
   const name = saveFileName(drive, slot);
-  const progress = ` ${name}\n ${DIFFICULTY_NAMES[state.difficulty] ?? ''} ${human.leader}\n ${human.nationPlural}/${yearToString(state.year)}` +
+  const progress = ` ${name}\n ${SAVE_DIFFICULTY_NAMES[state.difficulty] ?? ''} ${human.leader}\n ${human.nationPlural}/${yearToString(state.year)}` +
     '\n ... save in progress.\n';
   await showMenuBox(ui, progress, 64, 86, { noWait: true });
   ui.present();
@@ -197,6 +203,11 @@ async function saveToSlot(ui: Ui, state: GameState, store: OriginalSaveStore, dr
   text += ' Press key to continue.\n';
   await showMessage(ui, text, 64, 127);
   return errorCode === 0;
+}
+
+/** Var_e168 po wczytaniu zapisu oryginału (F11_0000_0000): lista zapisu podświetla potem to samo miejsce. */
+export function setLastSaveSlot(ui: Ui, slot: number): void {
+  globalsOf(ui).lastSlot = slot;
 }
 
 /** GameTurn (Segment_1238 L0416): miejsce autozapisu co 50 tur — 4 + ((tura / 50 − 1) % 6). */
