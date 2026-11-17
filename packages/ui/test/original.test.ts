@@ -32,7 +32,7 @@ describe.skipIf(!dir || !existsSync(dir))('interfejs na plikach oryginału', () 
       expect(f.height).toBeGreaterThan(4);
       const w = measureText(f, 'Start a New Game').width;
       expect(w).toBeGreaterThan(40);
-      expect(w).toBeLessThan(200);
+      expect(w).toBeLessThan(320); // największa czcionka oryginału daje ok. 215 px
     }
   });
 
