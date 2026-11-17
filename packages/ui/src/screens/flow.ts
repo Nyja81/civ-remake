@@ -3,12 +3,15 @@
  * intro → menu główne → ustawienia nowej gry → stan gry z silnika (newGame) → tekst powitalny → ekran gry;
  * po Retire / QUIT / końcu gry powrót do menu głównego.
  */
-import { loadGame, newGame, saveGame, TECHS, worldFromMapPixels, type GameState, type NewGameOptions } from '@civ-remake/engine';
+import {
+  emptyHallOfFame, loadGame, newGame, saveGame, TECHS, worldFromMapPixels, type GameState, type HallOfFameEntry, type NewGameOptions,
+} from '@civ-remake/engine';
 import { showMenuBox } from '../menuBox';
 import { yearToString } from '../text';
 import type { GameAssets } from '../assets';
 import type { Ui } from '../ui';
 import { GameScreen } from './gameScreen';
+import { decodeFameDta, type FameStore } from './hallOfFame';
 import { GameType, showMainGameIntro } from './intro';
 import { showLogoAndMainGameMenu, type SavedGameLoader } from './mainMenu';
 import { initNewGameData, showInitText, type NewGameSettings } from './newGame';
@@ -76,12 +79,35 @@ export function savedGameLoader(saves: SaveStore): SavedGameLoader {
 export const saveName = (state: GameState, prefix = '') =>
   `${prefix}${state.players[state.humanPlayer]!.nationAdjective} ${yearToString(state.year)}.json`;
 
+/** Tabela Hall of Fame w magazynie zapisów (plik bez rozszerzenia .json — nie pojawia się na liście zapisów). */
+export function fameStore(saves: SaveStore): FameStore {
+  return {
+    read: async () => {
+      try {
+        return JSON.parse(await saves.read('fame.dat')) as HallOfFameEntry[];
+      } catch {
+        return null;
+      }
+    },
+    write: (entries) => saves.write('fame.dat', JSON.stringify(entries)),
+  };
+}
+
+/** Tabela z magazynu albo — gdy jej jeszcze nie ma — FAME.DTA z kopii gry, albo pusta. */
+async function readFame(fame: FameStore | undefined, assets: GameAssets): Promise<HallOfFameEntry[]> {
+  const own = fame ? await fame.read() : null;
+  if (own) return own;
+  const dta = assets.optional('FAME.DTA');
+  return dta ? decodeFameDta(dta) : emptyHallOfFame();
+}
+
 export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHooks = {}): Promise<never> {
   let preselected = await showMainGameIntro(ui, assets);
   const saves = hooks.saves;
   const loader = saves ? savedGameLoader(saves) : undefined;
+  const fame = saves ? fameStore(saves) : undefined;
   for (;;) {
-    const choice = await showLogoAndMainGameMenu(ui, assets, preselected, loader);
+    const choice = await showLogoAndMainGameMenu(ui, assets, preselected, loader, () => readFame(fame, assets));
     preselected = GameType.None;
     let state: GameState;
     if (choice.kind === 'load') {
@@ -96,6 +122,8 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
     await new GameScreen(ui, assets, state, {
       autosave: saves ? (s) => saves.write(saveName(s, 'Autosave '), saveGame(s)) : undefined,
       save: saves ? (s) => saves.write(saveName(s), saveGame(s)) : undefined,
+      fame,
+      fameInitial: () => readFame(undefined, assets),
     }).run();
     // powrót do ekranu tytułowego
     ui.gfx.patternAvailable = false;

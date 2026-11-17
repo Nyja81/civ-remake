@@ -51,3 +51,24 @@ describe('punktacja i koniec gry', () => {
     expect(end!.score).toBe((550 - s.turn) * 2 + s.aiOpponents * 100 + 400);
   });
 });
+
+import { addHallOfFameEntry, emptyHallOfFame, famousPersonIndex } from '../src';
+describe('Hall of Fame', () => {
+  it('wstawianie wg wynik × (poziom + 2); słabszy wpis i tak trafia na koniec', () => {
+    const t = emptyHallOfFame();
+    const e = (score: number, d = 0) => ({ ...emptyHallOfFame()[0]!, totalScore: score, difficulty: d });
+    expect(addHallOfFameEntry(t, e(100))).toBe(0);
+    expect(addHallOfFameEntry(t, e(60, 2))).toBe(0); // 240 > 200
+    expect(t.map((x) => x.totalScore).slice(0, 3)).toEqual([60, 100, -1]);
+    for (let i = 0; i < 4; i++) addHallOfFameEntry(t, e(500));
+    expect(addHallOfFameEntry(t, e(1))).toBe(5);
+    expect(t[5]!.totalScore).toBe(1);
+  });
+
+  it('postać sławna: ostatnie i, dla którego i²/3 < ocena', () => {
+    expect(famousPersonIndex(0, 0)).toBe(-1);
+    expect(famousPersonIndex(50, 0)).toBe(0); // ocena 1: i=1 (0 < 1)
+    expect(famousPersonIndex(100, 0)).toBe(1); // ocena 2: i=2 (1 < 2)
+    expect(famousPersonIndex(100000, 4)).toBe(19);
+  });
+});

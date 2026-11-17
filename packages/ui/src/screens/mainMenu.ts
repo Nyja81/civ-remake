@@ -3,6 +3,8 @@
  * Menu leży na ekranie z logo w punkcie (100, 140). Wybór świata trafia do `MapChoice`;
  * samo tworzenie mapy (generateWorld / MAP.PIC) robi wywołujący.
  */
+import { emptyHallOfFame, type HallOfFameEntry } from '@civ-remake/engine';
+import { showHallOfFame } from './hallOfFame';
 import type { GameState, WorldOptions } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
 import { showMenuBox } from '../menuBox';
@@ -28,6 +30,7 @@ export const MAIN_MENU_TEXT = ' Start a New Game\n Load a Saved Game\n EARTH\n C
  */
 export async function showLogoAndMainGameMenu(
   ui: Ui, assets: GameAssets, preselected: number = GameType.None, loadSaved?: SavedGameLoader,
+  readFame?: () => Promise<HallOfFameEntry[]>,
 ): Promise<MainMenuResult> {
   const gfx = ui.gfx;
   let selected = preselected;
@@ -60,7 +63,8 @@ export async function showLogoAndMainGameMenu(
         choice = { kind: 'custom', options: await customizeWorld(ui, assets) };
         break;
       case GameType.HallOfFame:
-        await showHallOfFame(ui);
+        await showHallOfFame(ui, readFame ? await readFame() : emptyHallOfFame());
+        redrawLogo(ui, assets);
         selected = GameType.None;
         break;
       default:
@@ -130,19 +134,3 @@ export async function customizeWorld(ui: Ui, assets: GameAssets): Promise<WorldO
   return result;
 }
 
-/** HallOfFame.F3_0000_00d7_ShowHallOfFameWindow — na razie bez odczytu pliku z wynikami: sześć pustych miejsc. */
-export async function showHallOfFame(ui: Ui): Promise<void> {
-  const gfx = ui.gfx;
-  gfx.fillRect(0, 0, 320, 200, 15);
-  gfx.drawCenteredString('CIVILIZATION', 160, 16, 0);
-  gfx.drawCenteredString('HALL OF FAME', 160, 24, 0);
-  gfx.drawLine(80, 32, 240, 32, 14);
-  let y = 40;
-  for (let i = 0; i < 6; i++) {
-    gfx.drawString(' ---', 8, y, 0);
-    y += 26;
-  }
-  ui.present();
-  ui.input.clear();
-  await ui.waitKeyOrClick();
-}

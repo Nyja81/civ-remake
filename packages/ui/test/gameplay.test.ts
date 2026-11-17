@@ -1,6 +1,6 @@
 /** Rozgrywka na ekranie gry: okna zdarzeń silnika, miasto, zapis — na syntetycznych plikach gry. */
 import { describe, expect, it } from 'vitest';
-import { addSpaceshipPart, advanceToHuman, cityAt, isLaunched, newGame, nextUnit, saveGame, TECHS, type GameState } from '@civ-remake/engine';
+import { addSpaceshipPart, emptyHallOfFame, type HallOfFameEntry, advanceToHuman, cityAt, isLaunched, newGame, nextUnit, saveGame, TECHS, type GameState } from '@civ-remake/engine';
 import type { UiEvent } from '../src/input';
 import { savedGameLoader, saveName, type SaveStore } from '../src/screens/flow';
 import { GameScreen } from '../src/screens/gameScreen';
@@ -75,8 +75,23 @@ describe('koniec gry', () => {
     const { ui, state, screen } = setup();
     state.gameOver = 2;
     state.events.push({ kind: 'gameEnd', reason: 'conquest', canContinue: false, score: 0 });
-    await drive(ui, [key('Enter')], () => screen.processEvents());
+    // okno wyniku → postaci sławne (premia za podbój) → Hall of Fame
+    await drive(ui, [key('Enter'), key('Enter'), key('Enter')], () => screen.processEvents());
     expect(state.gameOver).toBe(2);
+  });
+
+  it('Hall of Fame: wpis zapisany w magazynie, C czyści tabelę i pokazuje sam nowy wpis', async () => {
+    let stored: HallOfFameEntry[] | null = null;
+    const fame = { read: async () => stored, write: async (e: HallOfFameEntry[]) => { stored = e.map((x) => ({ ...x })); } };
+    const { ui, state, screen } = setup(77, { fame });
+    const old = emptyHallOfFame();
+    old[0] = { ...old[0]!, totalScore: 5000, difficulty: 4, leader: 'X', nation: 'Y' };
+    stored = old;
+    state.gameOver = 2;
+    state.events.push({ kind: 'gameEnd', reason: 'conquest', canContinue: false, score: 0 });
+    await drive(ui, [key('Enter'), key('Enter'), key('c'), key('Enter')], () => screen.processEvents());
+    expect(stored![0]!.leader).toBe(state.players[state.humanPlayer]!.leader);
+    expect(stored!.filter((e) => e.totalScore > 0).length).toBe(1);
   });
 });
 

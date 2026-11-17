@@ -11,7 +11,7 @@
  * (unitMove, unitOrder, nextUnit, endHumanTurn) i pokazuje zdarzenia jako okna.
  */
 import {
-  acceptAiRequest, advanceToHuman, BUILDINGS, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
+  acceptAiRequest, advanceToHuman, BUILDINGS, civilizationScore, hallOfFameEntry, type HallOfFameEntry, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
   MovementType, nextUnit, NO_UNIT, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
   TERRAIN, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameEvent, type GameState, type MoveResult, type Order,
 } from '@civ-remake/engine';
@@ -26,6 +26,7 @@ import { Surface } from '../surface';
 import { replaceKeywords, textSection, yearToString } from '../text';
 import type { Ui } from '../ui';
 import { showScoreScreen } from './reports';
+import { endGameHallOfFame, type FameStore } from './hallOfFame';
 import { spaceshipNationDialog, spaceshipPartDialog } from './spaceship';
 
 export const MAP_VIEW = { x: 80, y: 8, columns: 15, rows: 12, cell: 16 } as const;
@@ -74,6 +75,9 @@ export interface GameScreenOptions {
   readonly autosave?: (state: GameState) => void | Promise<void>;
   /** Zapis z menu GAME → Save Game. */
   readonly save?: (state: GameState) => void | Promise<void>;
+  /** Tabela Hall of Fame (koniec gry); `fameInitial` — tabela startowa, gdy magazyn jest pusty (FAME.DTA z gry). */
+  readonly fame?: FameStore;
+  readonly fameInitial?: () => Promise<HallOfFameEntry[]>;
 }
 
 /** Nazwy ustrojów jak w oryginale (Array_1966_GovernmentNames). */
@@ -126,8 +130,8 @@ export class GameScreen {
       const e = await this.waitWithBlink();
       const result = await this.handle(e);
       if (result === 'retire') {
-        // Retire (GAME): koniec gry z oknem wyniku (EndGame)
-        await showScoreScreen(this.ui, this.assets, this.state);
+        // Retire (GAME): koniec gry z oknem wyniku i Hall of Fame (EndGame)
+        await this.endGame(await showScoreScreen(this.ui, this.assets, this.state));
       }
       if (result) return result;
     }
@@ -341,15 +345,30 @@ export class GameScreen {
    */
   async gameEndDialog(conquest: boolean, canContinue: boolean): Promise<void> {
     this.ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
-    await showScoreScreen(this.ui, this.assets, this.state, conquest);
+    const score = await showScoreScreen(this.ui, this.assets, this.state, conquest);
     this.ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
     this.ui.present();
-    if (!canContinue) return;
+    if (!canContinue) {
+      await this.endGame(score, conquest);
+      return;
+    }
     const king = this.assets.optional('KING.TXT');
     const section = king ? textSection(king, '*FAME') : null;
     // Bez KING.TXT — własne pytanie w tym samym układzie (opcja 1 = gramy dalej)
     const text = section ? section.replace(/\^/g, '\n').replace(/([^\n])$/, '$1\n') : 'Your reign is over.\n Retire.\n Keep playing.\n';
     if ((await showDialog(this.ui, text, 80, 80)) === 1) this.state.gameOver = 0;
+    else await this.endGame(score, conquest);
+  }
+
+  /** EndGame (bez wykresu potęgi i powtórki — kolejne etapy): postaci sławne i Hall of Fame. */
+  async endGame(total: number, conquest = false): Promise<void> {
+    const score = civilizationScore(this.state, this.human, conquest);
+    const entry = hallOfFameEntry(this.state, { ...score, total });
+    const initial = this.options.fameInitial ? await this.options.fameInitial() : null;
+    this.ui.gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
+    await endGameHallOfFame(this.ui, this.options.fame, initial, entry, () => this.state.rng.next(2));
+    this.ui.gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+    this.ui.present();
   }
 
   /** GameEngine.F0_1ade_1584_SelectNextResearchField (człowiek): wybór badań w oknie (80, 64) z pomocą. */
