@@ -4,7 +4,7 @@
  * po Retire / QUIT / końcu gry powrót do menu głównego.
  */
 import {
-  emptyHallOfFame, loadGame, loadSve, newGame, resumeLoadedGame, saveGame, sveInfo, TECHS, worldFromMapPixels, type GameState,
+  emptyHallOfFame, loadGame, loadSve, NATIONS, newGame, resumeLoadedGame, saveGame, sveInfo, TECHS, worldFromMapPixels, type GameState,
   type HallOfFameEntry, type NewGameOptions,
 } from '@civ-remake/engine';
 import { showMenuBox } from '../menuBox';
@@ -152,7 +152,7 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
       const seed = hooks.seed?.() ?? Math.floor(Math.random() * 32768);
       state = newGame(newGameOptions(assets, settings, seed));
       hooks.onNewGame?.(state, settings);
-      await showInitText(ui, assets, settings, knownTechnologies(state));
+      await showInitText(ui, assets, settings, knownTechnologies(state), NATIONS[settings.nationalityId]?.longTune);
     }
     await new GameScreen(ui, assets, state, {
       autosave: saves ? (s) => saves.write(saveName(s, 'Autosave '), saveGame(s)) : undefined,

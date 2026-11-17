@@ -11,6 +11,13 @@ export interface UiHost {
   present(): void;
   /** Odczekanie `ms` milisekund. */
   sleep(ms: number): Promise<void>;
+  /**
+   * PlayTune oryginału (punkt wejścia 1 sterownika dźwięku): utwór 0–44 i parametr. Brak metody = bez dźwięku
+   * (testy, aplikacja bez sterownika).
+   */
+  playTune?(tune: number, arg: number): void;
+  /** Licznik taktów sterownika od ostatniego PlayTune (punkt wejścia 5); undefined, gdy dźwięku nie ma. */
+  tuneCounter?(): number | undefined;
 }
 
 /** Jednostka zegara oryginału w CommonTools.WaitTimer (wzorzec: 12 ms na jednostkę). */
@@ -18,6 +25,11 @@ export const TIMER_TICK_MS = 12;
 
 export class Ui {
   readonly input = new InputQueue();
+  /**
+   * Ustawienie Sound (bit 0x10 GameSettingFlags, Var_19c0). Przed grą — własne (intro włącza dźwięk: F2_0000_0000 przed 0x0334),
+   * w grze ekran gry podstawia `state.settings`, więc Preferences i Alt+V zmieniają je w miejscu.
+   */
+  soundSettings: { sound: boolean } = { sound: true };
 
   constructor(
     readonly gfx: Gfx,
@@ -26,6 +38,29 @@ export class Ui {
 
   present(): void {
     this.host.present();
+  }
+
+  /** Segment_11a8.F0_11a8_046c_PlayTune — utwór tylko przy włączonym Sound. */
+  playTune(tune: number, arg = 0): void {
+    if (this.soundSettings.sound) this.host.playTune?.(tune, arg);
+  }
+
+  /**
+   * F0_11a8_0486 (menu główne): przed wyciszeniem muzyki intro czeka, aż licznik taktów sterownika przekroczy `from`
+   * albo dojdzie do granicy frazy (`from` + k·`period`). Licznik rośnie w porcjach (bufor dźwięku), więc koniec frazy
+   * rozpoznajemy po przejściu przez granicę. Bez dźwięku — od razu.
+   */
+  async waitTunePhrase(from: number, period: number, timeoutMs = 10000): Promise<void> {
+    const first = this.host.tuneCounter?.();
+    if (first === undefined || first <= from || !this.soundSettings.sound) return;
+    const phrase = (c: number) => Math.floor((c - from) / period);
+    if ((first - from) % period === 0) return;
+    const deadline = performanceNow() + timeoutMs;
+    while (performanceNow() < deadline) {
+      await this.sleep(5);
+      const c = this.host.tuneCounter?.();
+      if (c === undefined || c < first || phrase(c) !== phrase(first)) return;
+    }
   }
 
   sleep(ms: number): Promise<void> {

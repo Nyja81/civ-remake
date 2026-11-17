@@ -8,6 +8,7 @@ import { NATIONS } from '@civ-remake/engine';
 import type { GameAssets } from '../assets';
 import { playerNameDialog, tribeNameDialog } from '../editBox';
 import { showMenuBox } from '../menuBox';
+import { ANTHEM } from '../sound';
 import { adjustTextBlockWidth, replaceKeywords, textSection } from '../text';
 import type { Ui } from '../ui';
 import type { MapChoice } from './mainMenu';
@@ -129,7 +130,11 @@ export async function initNewGameData(ui: Ui, assets: GameAssets, map: MapChoice
  */
 export async function showInitText(
   ui: Ui, assets: GameAssets, settings: Pick<NewGameSettings, 'nation' | 'leaderName' | 'difficulty'>, technologies: readonly string[],
+  anthem?: number,
 ): Promise<void> {
+  // F5_0000_0000 (Overlay_5 0x0000:0x0738): długi hymn gracza z parametrem 3 przed tekstem *INIT; milknie
+  // na początku pierwszej tury (GameTurn, PlayTune(1))
+  if (anthem !== undefined) ui.playTune(anthem, ANTHEM);
   const king = assets.optional('KING.TXT');
   const section = king ? textSection(king, '*INIT') : null;
   if (section === null) return;

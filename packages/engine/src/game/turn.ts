@@ -7,6 +7,7 @@
  * wszystko do początku ruchów człowieka, interfejs wydaje rozkazy, `endHumanTurn` dokańcza turę.
  */
 import { MovementType } from '../data/enums';
+import { NATIONS } from '../data/nations';
 import { TERRAIN } from '../data/terrain';
 import { TERRAIN_MODIFICATIONS } from '../data/terrainModifications';
 import { Tech } from '../data/techs';
@@ -697,10 +698,14 @@ function checkGameEnd(state: GameState): void {
     state.events.push({ kind: 'news', text: '*** GAME OVER ***\nYour civilization\nhas conquered\nthe entire planet!\n' });
   }
   if (spaceWinner !== -1) {
-    state.events.push({ kind: 'news', text: `*** GAME OVER ***\n${state.players[spaceWinner]!.nationAdjective} spaceship\narrives at Alpha Centauri.\n` });
+    // F2_0000_0bd7 (lot statku): utwór 3, a przy zwycięstwie człowieka 34 (bez animacji lotu — dźwięk przy komunikacie)
+    state.events.push({ kind: 'news', tune: spaceWinner === state.humanPlayer ? 34 : 3, tuneAfter: 1,
+      text: `*** GAME OVER ***\n${state.players[spaceWinner]!.nationAdjective} spaceship\narrives at Alpha Centauri.\n` });
   }
   if (state.year >= endYear) {
-    state.events.push({ kind: 'news', text: `*** GAME OVER ***\n${h.leader} dynasty\nends after glorious\n6000 year reign!\n` });
+    // GameTurn (0x1238:0x0816): długi hymn z parametrem 3, PlayTune(1) po komunikacie
+    state.events.push({ kind: 'news', tune: NATIONS[h.nation]?.longTune, tuneArg: 3, tuneAfter: 1,
+      text: `*** GAME OVER ***\n${h.leader} dynasty\nends after glorious\n6000 year reign!\n` });
   }
   const reason = conquest ? 'conquest' : spaceWinner !== -1 ? 'spaceship' : 'retirement';
   state.gameOver = 2;

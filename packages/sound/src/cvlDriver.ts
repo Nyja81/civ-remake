@@ -94,7 +94,7 @@ export class CvlDriver {
       interrupt: (n, cpu) => {
         // INT 1Ah (zegar CMOS) i INT 21h (DOS) — sterowniki tylko przywracają nimi godzinę systemową.
         if (n === 0x1a) { cpu.r[1] = 0; cpu.r[2] = 0; cpu.flags &= ~1; return true; }
-        if (n === 0x21) { cpu.r[0] &= 0xff00; cpu.flags &= ~1; return true; }
+        if (n === 0x21) { cpu.r[0] = cpu.r[0]! & 0xff00; cpu.flags &= ~1; return true; }
         return n < 0x20; // wyjątki procesora i BIOS — bez skutku
       },
     };
@@ -125,9 +125,5 @@ export class CvlDriver {
       if (e instanceof CpuError) throw new Error(`Sterownik ${this.info.name}: ${e.message}`);
       throw e;
     }
-  }
-
-  get segment(): number {
-    return this.cpu.s[CS]!;
   }
 }

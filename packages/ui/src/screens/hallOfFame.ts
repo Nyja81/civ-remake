@@ -9,6 +9,7 @@ import {
 } from '@civ-remake/engine';
 import { isKey } from '../input';
 import { yearToString } from '../text';
+import { TUNE } from '../sound';
 import type { Ui } from '../ui';
 import { DIFFICULTY_NAMES } from './newGame';
 
@@ -98,6 +99,8 @@ export async function showFamousPersons(ui: Ui, score: number, difficulty: numbe
   const index = famousPersonIndex(score, difficulty);
   if (index < 0) return;
   const g = ui.gfx;
+  // F3_0000_065d: utwór 34 (0x0000:0x06c8) przed oknem, PlayTune(1) po klawiszu
+  ui.playTune(TUNE.celebration);
   g.copy(0, 0, 0, 320, 200, 1, 0, 0);
   g.fillRect(0, 0, 320, 200, 15);
   drawFoodFrame(ui, rnd);
@@ -115,6 +118,7 @@ export async function showFamousPersons(ui: Ui, score: number, difficulty: numbe
   ui.present();
   ui.input.clear();
   await ui.waitKeyOrClick();
+  ui.playTune(TUNE.stop);
   g.fontId = font;
   g.copy(1, 0, 0, 320, 200, 0, 0, 0);
 }

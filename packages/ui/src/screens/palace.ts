@@ -21,6 +21,7 @@ import { isKey, type UiEvent } from '../input';
 import { showMenuBox } from '../menuBox';
 import type { Surface } from '../surface';
 import { replaceKeywords, textSection } from '../text';
+import { ANTHEM, longTune, TUNE } from '../sound';
 import type { Ui } from '../ui';
 
 /**
@@ -252,6 +253,8 @@ export async function showPalaceUpgrade(ui: Ui, assets: GameAssets, state: GameS
   const p = palaceOf(state);
   const savedFont = gfx.fontId;
   const text = palaceText(assets, state);
+  // F17_0000_0000: długi hymn gracza z parametrem 3 (0x0000:0x0091), na końcu PlayTune(1)
+  ui.playTune(longTune(state, state.humanPlayer), ANTHEM);
   drawPalace(gfx, assets, p);
   gfx.fillRect(0, 0, 320, 200, 0);
   applyPalacePalette(gfx, assets);
@@ -284,6 +287,7 @@ export async function showPalaceUpgrade(ui: Ui, assets: GameAssets, state: GameS
     await ui.dissolve(1);
     await ui.waitKeyOrClick();
   }
+  ui.playTune(TUNE.stop);
   gfx.fontId = savedFont;
 }
 

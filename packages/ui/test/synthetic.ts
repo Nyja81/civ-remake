@@ -176,11 +176,21 @@ export function syntheticFiles(withOptional = true): Record<string, Uint8Array> 
   return files;
 }
 
-/** Gospodarz testowy: nic nie wyświetla; liczy klatki. */
+/** Gospodarz testowy: nic nie wyświetla; liczy klatki i zapisuje wywołania PlayTune. */
 export class TestHost implements UiHost {
   frames = 0;
+  /** Wywołania PlayTune (utwór, parametr) w kolejności. */
+  readonly tunes: Array<[number, number]> = [];
+  /** Licznik taktów sterownika zwracany przez tuneCounter (undefined = bez dźwięku). */
+  counter: number | undefined = undefined;
   present(): void {
     this.frames++;
+  }
+  playTune(tune: number, arg: number): void {
+    this.tunes.push([tune, arg]);
+  }
+  tuneCounter(): number | undefined {
+    return this.counter;
   }
   /** Bez czekania, ale z oddaniem sterowania pętli zdarzeń (żeby scenariusz testu mógł podać kolejne zdarzenie). */
   sleep(): Promise<void> {

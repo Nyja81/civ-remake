@@ -10,6 +10,7 @@
  */
 import type { GameAssets } from '../assets';
 import { isKey, type UiEvent } from '../input';
+import { TUNE } from '../sound';
 import { readPaletteRange } from '../palette';
 import { PaletteCycles } from '../paletteCycle';
 import { textLines } from '../text';
@@ -40,6 +41,9 @@ export async function showMainGameIntro(ui: Ui, assets: GameAssets): Promise<num
   const credits = assets.has('BIRTH0.PIC') && assets.has('BIRTH1.PIC') && assets.has('CREDITS.TXT');
   const cycles = new PaletteCycles(ui);
   let interrupt: UiEvent | null = null;
+  // F2_0000_0000: włączenie Sound (bit 0x10) i muzyka napisów (PlayTune(3) pod 0x033d); gra do menu głównego
+  ui.soundSettings.sound = true;
+  ui.playTune(TUNE.intro);
 
   if (credits) {
     gfx.loadPic(1, 0, 0, assets.pic('BIRTH0.PIC'), assets.file('BIRTH0.PIC'), true);
@@ -157,8 +161,11 @@ export const STORY_EVENT_SECONDS: readonly number[] = [
  * 45 jednostek zegara muzyki na każde 2 (3 przy wierszu dłuższym niż 19 znaków) i nie wcześniej niż czas z tablicy.
  * Klawisz albo kliknięcie kończy historię. Bez STORY.TXT — nic się nie dzieje. `speed` przyspiesza odczekania (testy).
  *
+ * Muzyka: przy pierwszym wierszu dłuższym niż 3 znaki PlayTune(1) i PlayTune(4), na końcu PlayTune(1).
+ *
  * Odstępstwa: oryginał opowiada w trakcie generowania mapy (tu mapa powstaje od razu, historia idzie przed ustawieniami
- * nowej gry, jak w StartGame po wyborze z menu); ekran na początku czyszczony do czerni; bez muzyki.
+ * nowej gry, jak w StartGame po wyborze z menu); ekran na początku czyszczony do czerni; czasy wierszy liczone zegarem
+ * komputera, nie licznikiem taktów sterownika (oba 60 na sekundę).
  */
 export async function showWorldHistory(ui: Ui, assets: GameAssets, options: { readonly speed?: number } = {}): Promise<void> {
   if (!assets.has('STORY.TXT')) return;
@@ -203,7 +210,12 @@ export async function showWorldHistory(ui: Ui, assets: GameAssets, options: { re
     ui.present();
     let pause = 0;
     if (text.length > 3) {
-      if (index === 0) start = now(); // ResetWaitTimer i początek muzyki
+      if (index === 0) {
+        // ResetWaitTimer i początek muzyki: PlayTune(1), PlayTune(4) (Overlay_7 F7_0000_17cf)
+        start = now();
+        ui.playTune(TUNE.stop);
+        ui.playTune(TUNE.worldHistory);
+      }
       pause += 2;
       index++;
     } else if (image < 9) {
@@ -215,6 +227,7 @@ export async function showWorldHistory(ui: Ui, assets: GameAssets, options: { re
     due = Math.max((STORY_EVENT_SECONDS[index] ?? 0) * 1000, elapsed + 45 * pause * INTRO_TICK_MS);
   }
   if (!aborted) await cycles.wait(180 / speed);
+  ui.playTune(TUNE.stop);
   cycles.stopAll();
   ui.input.clear();
   gfx.fillRect(0, 0, 320, 200, 0, 2);

@@ -8,4 +8,4 @@ export { CvlDriver, DRIVER_ENTRY, parseCvl, type CvlInfo, type SoundDevice } fro
 export { AdLibDevice, PcSpeakerDevice, PIT_HZ } from './devices';
 export { Opl3, OPL_RATE } from './opl3';
 export { SoundPlayer, VGA_REFRESH_HZ, type SoundCard, type SoundPlayerOptions } from './player';
-export { ANTHEM_PARAMETER, SOUND_DRIVER_FILES, TUNE } from './tunes';
+export { SOUND_DRIVER_FILES } from './tunes';
