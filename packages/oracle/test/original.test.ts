@@ -5,8 +5,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { TECHS, TERRAIN, UNITS } from '@civ-remake/engine';
-import { parseTechTable, parseTerrainTable, parseUnitTable, unpackExepack } from '../src/exeTables';
+import { BUILDINGS, NATIONS, TECHS, TERRAIN, UNITS, WONDERS } from '@civ-remake/engine';
+import {
+  parseBuildingTables, parseNationTable, parseTechTable, parseTerrainTable, parseUnitTable, unpackExepack,
+} from '../src/exeTables';
 
 const dir = process.env.CIV1_DIR;
 const exePath = dir ? join(dir, 'CIV.EXE') : '';
@@ -24,5 +26,13 @@ describe.skipIf(!exePath || !existsSync(exePath))('zgodność z oryginalnym CIV.
 
   it('tabela terenu jest identyczna', () => {
     expect(parseTerrainTable(exe())).toEqual(TERRAIN);
+  });
+
+  it('tabele budynków i cudów są identyczne', () => {
+    expect(parseBuildingTables(exe())).toEqual({ buildings: BUILDINGS, wonders: WONDERS });
+  });
+
+  it('tabela nacji jest identyczna', () => {
+    expect(parseNationTable(exe())).toEqual(NATIONS);
   });
 });

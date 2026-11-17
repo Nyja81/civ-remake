@@ -4,7 +4,9 @@
  * Służy wyłącznie do weryfikacji i generowania tabel silnika — plik EXE
  * pozostaje u właściciela licencji i nie trafia do repozytorium.
  */
-import type { TechDefinition, TerrainDefinition, UnitDefinition } from '@civ-remake/engine';
+import type {
+  BuildingDefinition, NationDefinition, TechDefinition, TerrainDefinition, UnitDefinition, WonderDefinition,
+} from '@civ-remake/engine';
 
 const UNIT_COUNT = 28;
 const UNIT_RECORD_SIZE = 34; // nazwa 12 B + 11 × int16
@@ -147,4 +149,56 @@ export function parseTechTable(exe: Uint8Array): TechDefinition[] {
     });
   }
   return techs;
+}
+
+const BUILDING_COUNT = 24;
+const WONDER_COUNT = 21;
+const BUILDING_NAME_SIZE = 24;
+const BUILDING_RECORD_SIZE = 30; // nazwa 24 B + 3 × int16
+
+/**
+ * Budynki i cuda leżą w jednej tabeli: rekord 0 („NONE”), budynki 1–24, cuda 25–45.
+ * Tuż za nią jest tabela technologii wygaszających cuda (22 × int16, indeks = identyfikator cudu).
+ */
+export function parseBuildingTables(exe: Uint8Array): { buildings: BuildingDefinition[]; wonders: WonderDefinition[] } {
+  const view = new DataView(exe.buffer, exe.byteOffset, exe.byteLength);
+  const start = findUnique(exe, 'Palace') - BUILDING_RECORD_SIZE;
+  if (readName(exe, start, BUILDING_NAME_SIZE) !== 'NONE') throw new Error('Nieoczekiwany początek tabeli budynków');
+  const record = (index: number) => {
+    const base = start + index * BUILDING_RECORD_SIZE;
+    const i16 = (n: number) => view.getInt16(base + BUILDING_NAME_SIZE + n * 2, true);
+    return { name: readName(exe, base, BUILDING_NAME_SIZE), a: i16(0), b: i16(1), c: i16(2) };
+  };
+  const obsoleteStart = start + (1 + BUILDING_COUNT + WONDER_COUNT) * BUILDING_RECORD_SIZE;
+  const buildings: BuildingDefinition[] = [];
+  for (let id = 1; id <= BUILDING_COUNT; id++) {
+    const r = record(id);
+    buildings.push({ id, name: r.name, cost: r.a, upkeep: r.b, requiredTech: r.c });
+  }
+  const wonders: WonderDefinition[] = [];
+  for (let id = 1; id <= WONDER_COUNT; id++) {
+    const r = record(BUILDING_COUNT + id);
+    wonders.push({ id, name: r.name, cost: r.a, requiredTech: r.c, obsoleteTech: view.getInt16(obsoleteStart + id * 2, true) });
+  }
+  return { buildings, wonders };
+}
+
+const NATION_COUNT = 16;
+const NATION_TEXT_SIZE = 16;
+const NATION_RECORD_SIZE = 58; // 3 × tekst 16 B + 5 × int16
+
+export function parseNationTable(exe: Uint8Array): NationDefinition[] {
+  const view = new DataView(exe.buffer, exe.byteOffset, exe.byteLength);
+  const start = findUnique(exe, 'Caesar') - NATION_RECORD_SIZE; // nacja 0 jest pusta
+  const nations: NationDefinition[] = [];
+  for (let id = 0; id < NATION_COUNT; id++) {
+    const base = start + id * NATION_RECORD_SIZE;
+    const text = (n: number) => readName(exe, base + n * NATION_TEXT_SIZE, NATION_TEXT_SIZE);
+    const i16 = (n: number) => view.getInt16(base + 3 * NATION_TEXT_SIZE + n * 2, true);
+    nations.push({
+      id, leader: text(0), plural: text(1), adjective: text(2),
+      mood: i16(0), policy: i16(1), ideology: i16(2), shortTune: i16(3), longTune: i16(4),
+    });
+  }
+  return nations;
 }

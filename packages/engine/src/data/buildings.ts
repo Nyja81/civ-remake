@@ -1,0 +1,55 @@
+// PLIK GENEROWANY — nie edytuj ręcznie. Źródło: tabela budynków i cudów w CIV.EXE (wersja 475.05).
+// Odtworzenie: CIV1_DIR=... npm run extract
+import type { BuildingDefinition, WonderDefinition } from './enums';
+import { Tech } from './techs';
+
+export const BUILDINGS: readonly BuildingDefinition[] = [
+  { id: 1, name: "Palace", cost: 20, upkeep: 5, requiredTech: Tech.Masonry },
+  { id: 2, name: "Barracks", cost: 4, upkeep: 0, requiredTech: Tech.None },
+  { id: 3, name: "Granary", cost: 6, upkeep: 1, requiredTech: Tech.Pottery },
+  { id: 4, name: "Temple", cost: 4, upkeep: 1, requiredTech: Tech.CeremonialBurial },
+  { id: 5, name: "MarketPlace", cost: 8, upkeep: 1, requiredTech: Tech.Currency },
+  { id: 6, name: "Library", cost: 8, upkeep: 1, requiredTech: Tech.Writing },
+  { id: 7, name: "Courthouse", cost: 8, upkeep: 1, requiredTech: Tech.CodeOfLaws },
+  { id: 8, name: "City Walls", cost: 12, upkeep: 2, requiredTech: Tech.Masonry },
+  { id: 9, name: "Aqueduct", cost: 12, upkeep: 2, requiredTech: Tech.Construction },
+  { id: 10, name: "Bank", cost: 12, upkeep: 3, requiredTech: Tech.Banking },
+  { id: 11, name: "Cathedral", cost: 16, upkeep: 3, requiredTech: Tech.Religion },
+  { id: 12, name: "University", cost: 16, upkeep: 3, requiredTech: Tech.University },
+  { id: 13, name: "Mass Transit", cost: 16, upkeep: 4, requiredTech: Tech.MassProduction },
+  { id: 14, name: "Colosseum", cost: 10, upkeep: 4, requiredTech: Tech.Construction },
+  { id: 15, name: "Factory", cost: 20, upkeep: 4, requiredTech: Tech.Industrialization },
+  { id: 16, name: "Mfg. Plant", cost: 32, upkeep: 6, requiredTech: Tech.Robotics },
+  { id: 17, name: "SDI Defense", cost: 20, upkeep: 4, requiredTech: Tech.SuperConductor },
+  { id: 18, name: "Recycling Cntr.", cost: 20, upkeep: 2, requiredTech: Tech.Recycling },
+  { id: 19, name: "Power Plant", cost: 16, upkeep: 4, requiredTech: Tech.Refining },
+  { id: 20, name: "Hydro Plant", cost: 24, upkeep: 4, requiredTech: Tech.Electronics },
+  { id: 21, name: "Nuclear Plant", cost: 16, upkeep: 2, requiredTech: Tech.NuclearPower },
+  { id: 22, name: "SS Structural", cost: 8, upkeep: 0, requiredTech: Tech.SpaceFlight },
+  { id: 23, name: "SS Component", cost: 16, upkeep: 0, requiredTech: Tech.Plastics },
+  { id: 24, name: "SS Module", cost: 32, upkeep: 0, requiredTech: Tech.Robotics },
+];
+
+export const WONDERS: readonly WonderDefinition[] = [
+  { id: 1, name: "Pyramids", cost: 30, requiredTech: Tech.Masonry, obsoleteTech: Tech.Communism },
+  { id: 2, name: "Hanging Gardens", cost: 30, requiredTech: Tech.Pottery, obsoleteTech: Tech.Invention },
+  { id: 3, name: "Colossus", cost: 20, requiredTech: Tech.BronzeWorking, obsoleteTech: Tech.Electricity },
+  { id: 4, name: "Lighthouse", cost: 20, requiredTech: Tech.MapMaking, obsoleteTech: Tech.Magnetism },
+  { id: 5, name: "Great Library", cost: 30, requiredTech: Tech.Literacy, obsoleteTech: Tech.University },
+  { id: 6, name: "Oracle", cost: 30, requiredTech: Tech.Mysticism, obsoleteTech: Tech.Religion },
+  { id: 7, name: "Great Wall", cost: 30, requiredTech: Tech.Masonry, obsoleteTech: Tech.Gunpowder },
+  { id: 8, name: "Magellan's Expedition", cost: 40, requiredTech: Tech.Navigation, obsoleteTech: Tech.Never },
+  { id: 9, name: "Michelangelo's Chapel", cost: 30, requiredTech: Tech.Religion, obsoleteTech: Tech.Communism },
+  { id: 10, name: "Copernicus' Observatory", cost: 30, requiredTech: Tech.Astronomy, obsoleteTech: Tech.Never },
+  { id: 11, name: "Shakespeare's Theatre", cost: 40, requiredTech: Tech.Medicine, obsoleteTech: Tech.Electronics },
+  { id: 12, name: "Isaac Newton's College", cost: 40, requiredTech: Tech.TheoryOfGravity, obsoleteTech: Tech.NuclearFission },
+  { id: 13, name: "J.S.Bach's Cathedral", cost: 40, requiredTech: Tech.Religion, obsoleteTech: Tech.Never },
+  { id: 14, name: "Darwin's Voyage", cost: 30, requiredTech: Tech.RailRoad, obsoleteTech: Tech.Never },
+  { id: 15, name: "Hoover Dam", cost: 60, requiredTech: Tech.Electronics, obsoleteTech: Tech.Never },
+  { id: 16, name: "Women's Suffrage", cost: 60, requiredTech: Tech.Industrialization, obsoleteTech: Tech.Never },
+  { id: 17, name: "Manhattan Project", cost: 60, requiredTech: Tech.NuclearFission, obsoleteTech: Tech.Never },
+  { id: 18, name: "United Nations", cost: 60, requiredTech: Tech.Communism, obsoleteTech: Tech.Never },
+  { id: 19, name: "Apollo Program", cost: 60, requiredTech: Tech.SpaceFlight, obsoleteTech: Tech.Never },
+  { id: 20, name: "SETI Program", cost: 60, requiredTech: Tech.Computers, obsoleteTech: Tech.Never },
+  { id: 21, name: "Cure for Cancer", cost: 60, requiredTech: Tech.GeneticEngineering, obsoleteTech: Tech.Never },
+];

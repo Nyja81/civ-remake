@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseTechTable, parseTerrainTable, parseUnitTable, unpackExepack } from './exeTables';
+import { parseBuildingTables, parseNationTable, parseTechTable, parseTerrainTable, parseUnitTable, unpackExepack } from './exeTables';
 
 const dir = process.env.CIV1_DIR;
 if (!dir) {
@@ -90,4 +90,39 @@ writeFileSync(
     `\n];\n`,
 );
 
-console.log(`Zapisano: ${techs.length} technologii, ${units.length} jednostek, ${terrain.length} typów terenu.`);
+const { buildings, wonders } = parseBuildingTables(exe);
+writeFileSync(
+  join(dataDir, 'buildings.ts'),
+  header('tabela budynków i cudów') +
+    `import type { BuildingDefinition, WonderDefinition } from './enums';\nimport { Tech } from './techs';\n\n` +
+    `export const BUILDINGS: readonly BuildingDefinition[] = [\n` +
+    buildings
+      .map((b) => `  { id: ${b.id}, name: ${JSON.stringify(b.name)}, cost: ${b.cost}, upkeep: ${b.upkeep}, requiredTech: ${tech(b.requiredTech)} },`)
+      .join('\n') +
+    `\n];\n\nexport const WONDERS: readonly WonderDefinition[] = [\n` +
+    wonders
+      .map((w) => `  { id: ${w.id}, name: ${JSON.stringify(w.name)}, cost: ${w.cost}, requiredTech: ${tech(w.requiredTech)}, obsoleteTech: ${tech(w.obsoleteTech)} },`)
+      .join('\n') +
+    `\n];\n`,
+);
+
+const nations = parseNationTable(exe);
+writeFileSync(
+  join(dataDir, 'nations.ts'),
+  header('tabela nacji') +
+    `import type { NationDefinition } from './enums';\n\n` +
+    `export const NATIONS: readonly NationDefinition[] = [\n` +
+    nations
+      .map(
+        (n) =>
+          `  { id: ${n.id}, leader: ${JSON.stringify(n.leader)}, plural: ${JSON.stringify(n.plural)}, adjective: ${JSON.stringify(n.adjective)}, ` +
+          `mood: ${n.mood}, policy: ${n.policy}, ideology: ${n.ideology}, shortTune: ${n.shortTune}, longTune: ${n.longTune} },`,
+      )
+      .join('\n') +
+    `\n];\n`,
+);
+
+console.log(
+  `Zapisano: ${techs.length} technologii, ${units.length} jednostek, ${terrain.length} typów terenu, ` +
+    `${buildings.length} budynków, ${wonders.length} cudów, ${nations.length} nacji.`,
+);

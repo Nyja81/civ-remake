@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MovementType, MscRand, Tech, TECHS, TERRAIN, UnitRole, UNITS } from '../src';
+import { BUILDINGS, MovementType, MscRand, NATIONS, Tech, TECHS, TERRAIN, UnitRole, UNITS, WONDERS } from '../src';
 
 describe('MscRand', () => {
   it('daje znany ciąg Microsoft C rand() dla ziarna 1', () => {
@@ -62,5 +62,21 @@ describe('tabele danych', () => {
       }
     }
     expect(known.size).toBe(TECHS.length);
+  });
+
+  it('ma 24 budynki i 21 cudów z poprawnymi technologiami', () => {
+    const techIds = new Set<number>(Object.values(Tech));
+    expect(BUILDINGS.map((b) => b.id)).toEqual(Array.from({ length: 24 }, (_, i) => i + 1));
+    expect(WONDERS.map((w) => w.id)).toEqual(Array.from({ length: 21 }, (_, i) => i + 1));
+    for (const b of BUILDINGS) expect(techIds.has(b.requiredTech), b.name).toBe(true);
+    for (const w of WONDERS) {
+      expect(techIds.has(w.requiredTech), w.name).toBe(true);
+      expect(techIds.has(w.obsoleteTech), w.name).toBe(true);
+    }
+  });
+
+  it('ma 16 nacji; miejsca 0 i 8 są puste, pozostałe mają przywódcę', () => {
+    expect(NATIONS).toHaveLength(16);
+    for (const n of NATIONS) expect(n.leader === '', `nacja ${n.id}`).toBe(n.id % 8 === 0);
   });
 });
