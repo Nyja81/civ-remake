@@ -14,11 +14,6 @@ import type { GameAssets } from '../assets';
 import { showDialog } from '../menuBox';
 import type { Ui } from '../ui';
 
-/** SpaceshipParts.Rectangle: położenie rysunku części w DOCKER.PIC wg numeru rysunku. */
-const PART_RECTS: readonly [number, number, number, number][] = [
-  [0, 16, 16, 16], [16, 16, 16, 16], [32, 16, 16, 16], [256, 48, 32, 16], [0, 80, 16, 16],
-  [192, 96, 32, 32], [224, 96, 32, 32], [288, 96, 32, 32], [0, 96, 32, 32],
-];
 
 /**
  * Rysuje plan i dane statku gracza `p`; gdy `enableLaunch` i statek nie wystartował — przycisk LAUNCH
@@ -38,12 +33,12 @@ export async function showSpaceshipScreen(ui: Ui, assets: GameAssets, state: Gam
   for (const [x, y] of SPACESHIP_CELLS) {
     const type = pl.spaceship[x * SPACESHIP_HEIGHT + y]!;
     if (type === -1 || !docker) continue;
-    const [sx, sy, w, h] = PART_RECTS[type]!;
+    const [sx, sy, w, h] = SPACESHIP_PARTS[type]!.rect;
     g.screen.blit(docker, sx, sy, w, h, x * 16 - 16, y * 16 + 8, true);
   }
   for (const [x, y, w, h] of stats.loose) g.drawRectangle(x * 16 - 16, y * 16 + 8, w * 16 - 1, h * 16 - 1, 12);
   if (stats.mass >= 80 && docker) {
-    const [sx, sy, w, h] = PART_RECTS[5]!;
+    const [sx, sy, w, h] = SPACESHIP_PARTS[5]!.rect;
     g.screen.blit(docker, sx, sy, w, h, 152, 88, true);
   }
   g.fillRect(240, 8, 80, 192, color);

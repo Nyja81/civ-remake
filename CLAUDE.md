@@ -19,7 +19,8 @@ Nie dotyczy kodu — ten wersjonuje Git.
 - **Specyfikacją jest oryginał** (DOS, wersja 475.05). Żadnej reguły nie piszemy „z pamięci”:
   każda liczba i każdy wzór muszą mieć źródło we wzorcu i test porównawczy.
 - **Pliki oryginału nigdy nie trafiają do repozytorium.** Narzędzia czytają je z `CIV1_DIR`.
-- Tabele w `packages/engine/src/data/{techs,units,terrain}.ts` są **generowane** (`npm run extract`) — nie edytuj ich ręcznie.
+- Tabele w `packages/engine/src/data/{techs,units,terrain,buildings,nations,terrainModifications,cityNames,ruleTables,names}.ts`
+  i `packages/ui/src/data/screenTables.ts` są **generowane** (`npm run extract`) — nie edytuj ich ręcznie.
 - Silnik (`packages/engine`) nie importuje niczego z interfejsu ani z `packages/oracle`.
 - Identyfikatory po angielsku; komentarze i dokumentacja po polsku; teksty w grze po angielsku.
 - Grafika: oryginalna, wczytywana z kopii gry Damiana (`CIV1_DIR`) i wygładzana lokalnie; do repozytorium nie trafiają
@@ -528,6 +529,39 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   `rcodesign verify` zgłasza brak CMS — normalne przy podpisie ad hoc). Na Macu Damiana aplikacja rozpakowana bezpośrednio do
   Pobranych (bez atrybutu kwarantanny) skryptem Pythona z zachowaniem dowiązań — `unzip` w folderze bez prawa usuwania psuje
   dowiązania frameworków (pliki zastępcze).
+
+### 2026-11-17 — tablice przepisane ze wzorca → ekstrakcja z CIV.EXE
+- `packages/oracle/src/exeData.ts`: odczyt segmentu danych (DS po podpisie biblioteki MS C) i dalekich segmentów danych CIV.EXE
+  **po treści** — tablice wskaźników do napisów (pierwszy napis + ciągłość kolejnych), tablice liczb za unikalnym napisem-kotwicą
+  (z wyrównaniem do słowa), dalekie segmenty względem tablicy nazw miast. Działa na 474.01 (kopia Damiana) i na obrazie danych
+  475.05 wzorca (`BinaryResources.bin`); `OPENCIV1_DIR=… CIV1_DIR=… npm test` porównuje wszystkie tablice obu wersji — **identyczne**.
+- `npm run extract` generuje dodatkowo: `terrainModifications.ts`, `cityNames.ts`, `ruleTables.ts` (DIRECTIONS, CITY_OFFSETS,
+  PLAYER_COLORS/DARK, TECH_AI_GRADES, PIXEL_TERRAIN, EARTH_START, SPACESHIP_CELLS, SPACESHIP_PARTS z prostokątami DOCKER.PIC),
+  `names.ts` (GOVERNMENT_NAMES z DS:0x1966, LEADER_TITLES, CARAVAN_GOODS, DIFFICULTY_TITLES, FAMOUS_PERSONS, HISTORIANS, HISTORY_*),
+  `packages/ui/src/data/screenTables.ts` (NATION_LEADER_IDS, GAME_CONCEPTS, CIVILOPEDIA_STRINGS, numery rysunków Civilopedii,
+  pałac, WONDER_RECTS, FIGURE_OFFSETS_X/Y, CITY_MAP_OFFSETS, STORY_PALETTE_CYCLES, STORY_EVENT_TICKS). Nagłówek plików generowanych:
+  „te same dane w wersjach 474.01 i 475.05”. Decyzja: krótkie napisy (nazwy, tytuły, etykiety Civilopedii) generowane do repozytorium
+  jak dotąd nazwy technologii/jednostek — to fakty i etykiety, nie treść chroniona; długie teksty (KING.TXT, BLURB, HELP, STORY) dalej
+  tylko z kopii gry w czasie działania.
+- Różnice względem dotychczasowych (przepisanych) wartości — poprawione:
+  plan statku — pole (11, 8, struktura) to wpis 43 (druga połowa), wzorzec miał je jako 16. (przesuwało kolejność struktur);
+  „Sulayman the Magnificent” (było Suleyman); tytuł „King ” ze spacją; Elżbieta I zmienia Emperor/King na „Empress”/„**Queen**”
+  (było dwa razy Empress); „'We love the <tytuł władcy>'” (było: nazwa ustroju, np. Communism) — DS:0x19b2; „<tytuł> <imię> plans
+  retirement” (było: nazwa ustroju); zmiana ustroju komputera i powtórka — nazwy z DS:0x1966 (Communist, Democratic; było Communism,
+  Democracy); raport historyka — „<historyk> completes his epic history:”, „'The WEALTHIEST Civilizations in the World'”,
+  „1. The Glorious Civilization of the Romans.” (było „… history on”, „Leaders”, imię władcy); wiersz zapisu CIVIL?.SVE i Hall of Fame —
+  krótkie nazwy poziomów Chief/Lord/Prince/King/Emperor (DS:0x33a2; było Chieftain/Warlord); tytuł listy Civilopedii
+  „ENCYCLOPAEDIA of CIVILIZATION” (było odtworzone „The Civilization Encyclopedia”), wymaganie −1 = pusty napis z DS:0x4c4 (było „None”);
+  historia świata — czasy wierszy z tablicy CIV.EXE (44 wpisy w jednostkach zegara muzyki, segment 0x3710 + 0x83) zamiast 46 czasów
+  w sekundach z nowszego wzorca. Bez zmian (zgodne z CIV.EXE): przekształcenia terenu, nazwy miast (w CIV.EXE dopełnione spacjami
+  do 12 znaków — oryginał obcina je przy zakładaniu miasta), kierunki, pola miasta, kolory, oceny technologii komputera, piksel → teren,
+  Ziemia, części statku, portrety, pojęcia gry, numery rysunków, pałac, prostokąty cudów, postacie animacji, mapka miasta, cykle palety.
+- Ślad różnic 474.01 ↔ 475.05 w kodzie (napisy obecne tylko w 475.05): przycisk RENAME okna miasta, „A City must have five population
+  units to support taxmen or scientists.”, „Bonus Score: ” — do sprawdzenia w DOSBoxie; silnik idzie za 475.05.
+- Testy: 286 bez `CIV1_DIR` (nowe `packages/engine/test/dataTables.test.ts`, napisy raportu historyka w `advisors.test.ts`),
+  z plikami gry i `OPENCIV1_DIR` — 304 (1 pominięty: brak CIVIL?.SVE).
+- Niezrobione (dane są w CIV.EXE, funkcje jeszcze nie istnieją): tablice animacji twarzy/doradców (DS:0x3a94…0x3afe), czcionka władcy
+  (segment 0x36fa), położenia twarzy w „hail”. Trwała utrata spacji w „King ” po rozmowie z Elżbietą nieodtworzona.
 
 ### 2026-11-17 — twarze władców w rozmowach, animacja założenia miasta, zapis .SVE z menu (gałąź faces-svesave)
 - Dane z CIV.EXE w czasie działania: `unpackExepack` przeniesione do `packages/gfx` (oracle je re-eksportuje), CIV.EXE i SETTLERS.PIC

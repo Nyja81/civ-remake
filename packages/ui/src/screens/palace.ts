@@ -22,20 +22,10 @@ import { showMenuBox } from '../menuBox';
 import type { Surface } from '../surface';
 import { replaceKeywords, textSection } from '../text';
 import type { Ui } from '../ui';
+import { PALACE_PIECE_WIDTHS, PALACE_PIECE_Y } from '../data/screenTables';
 
-/**
- * Tablice w danych CIV.EXE przepisane ze wzorca (do dodania do `npm run extract`): szerokości kawałków DS:0x4b2c
- * (słowa) i przesunięcia w pionie DS:0x4b36 (bajty ze znakiem, [poziom][styl][kawałek]) — odczytane z obrazu
- * segmentu danych dołączonego do wzorca (BinaryResources.bin).
- */
-export const PALACE_PIECE_WIDTHS = [48, 24, 24, 25, 25] as const;
-export const PALACE_PIECE_Y: readonly (readonly (readonly number[])[])[] = [
-  [[1, 1, 1, 1, 1], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]],
-  [[1, 0, 0, 2, 2], [1, 0, 0, 1, 1], [1, 0, 0, 2, 2]],
-  [[1, 0, 0, 2, 2], [1, 0, 0, 1, 1], [1, 0, 0, 2, 2]],
-  [[1, 3, 3, 2, 2], [1, 0, 0, 1, 1], [1, 0, 0, 2, 2]],
-  [[1, 3, 3, 2, 2], [1, 0, 0, 1, 1], [1, 0, 0, 2, 2]],
-];
+/** Szerokości kawałków (DS:0x4b2c) i przesunięcia w pionie (DS:0x4b36, [poziom][styl][kawałek]) — z CIV.EXE (data/screenTables). */
+export { PALACE_PIECE_WIDTHS, PALACE_PIECE_Y };
 const W = PALACE_PIECE_WIDTHS;
 
 /** Przesunięcie z tablicy; indeks −1 (kawałek nieustawiony) czyta bajt wcześniej, jak oryginał. */

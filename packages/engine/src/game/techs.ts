@@ -10,6 +10,7 @@ import { BuildingId } from './buildings';
 import { addReplayData, ReplayKind } from './replay';
 import { Diplomacy, type GameState } from './types';
 import { playerHasWonder } from './cities';
+import { TECH_AI_GRADES } from '../data/ruleTables';
 
 /** Numer „technologii przyszłości” (FutureTechnology5) — odkrywana wielokrotnie, bez znacznika. */
 export const FUTURE_TECH = 71;
@@ -27,12 +28,10 @@ export function canResearch(state: GameState, player: number, tech: number): boo
   return !playerHasTech(state, player, tech) && playerHasTech(state, player, def.prereq1) && playerHasTech(state, player, def.prereq2);
 }
 
-// Współczynniki wyboru technologii przez komputer (GradeTechnology).
-const GRADE_1 = [5, 4, 4, 4, 3, 6, 4, 6, 6, 6, 4, 3, 4, 3, 3, 3, 3, 6, 5, 3, 4, 3, 3, 4, 4, 5, 4, 8, 3, 3, 3, 4, 5, 4, 8, 5, 5, 6, 4, 5, 4, 6, 6, 2, 5, 4, 6, 4, 6, 4, 3, 3, 4, 4, 3, 4, 5, 2, 8, 2, 4, 2, 5, 5, 6, 4, 3, 0, 0, 0, 0, 0];
-const GRADE_2 = [0, 1, 1, 0, 2, 1, 0, -1, -1, -1, 0, 0, 0, 1, -2, 0, 1, -1, -2, 0, 0, 0, 1, -1, 1, 0, 0, -2, 1, 2, 2, -1, -1, -2, -2, -1, -1, -1, -1, -1, 1, 0, 1, 0, 1, 0, -2, 0, -2, 0, 0, 1, -1, 1, 1, 0, -1, 1, -1, 2, 1, 1, -2, -1, -1, -1, 0, 0, 0, 0, 0, 0];
-
+/** GradeTechnology (F0_1ade_2317): ideologia nacji × mnożnik + podstawa (TECH_AI_GRADES z CIV.EXE). */
 export function gradeTech(state: GameState, player: number, tech: number): number {
-  return NATIONS[state.players[player]!.nation]!.ideology * GRADE_2[tech]! + GRADE_1[tech]!;
+  const [base, factor] = TECH_AI_GRADES[tech]!;
+  return NATIONS[state.players[player]!.nation]!.ideology * factor + base;
 }
 
 /**

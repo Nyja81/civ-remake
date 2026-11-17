@@ -13,17 +13,14 @@
  *   Wynik: „ Game has been saved.” albo czerwone pole (64, 127, 192, 34) i „ Game NOT saved.” z „ Write access denied.”
  *     (błąd 13) albo „ Disk Full.” (28), na końcu „ Press key to continue.”.
  * Ramka okna jak w MenuBoxDialog (F0_2d05_0475): tylko przy parzystym Y — lista (48, 33) i wynik (64, 127) są bez ramki.
- * Teksty z danych CIV.EXE (wersja 474.01 i 475.05 — te same). Wygląd sprawdzony z oryginałem 474.01 w DOSBoxie.
+ * Nazwy poziomów z DS:0x33a2 (`DIFFICULTY_TITLES`: Chief, Lord…). Teksty z danych CIV.EXE (wersja 474.01 i 475.05 — te same). Wygląd sprawdzony z oryginałem 474.01 w DOSBoxie.
  */
-import { saveSve, sveInfo, type GameState } from '@civ-remake/engine';
+import { DIFFICULTY_TITLES, saveSve, sveInfo, type GameState } from '@civ-remake/engine';
 import { isKey } from '../input';
 import { showMenuBox } from '../menuBox';
 import { yearToString } from '../text';
 import type { Ui } from '../ui';
 import { drawRandomFoodIcons } from './newGame';
-
-/** Array_33a2 — nazwy poziomów w oknach zapisu (inne niż na ekranie wyboru poziomu: „Chief”, „Lord”). */
-export const SAVE_DIFFICULTY_NAMES = ['Chief', 'Lord', 'Prince', 'King', 'Emperor'] as const;
 
 /** Wynik zapisu plików: błąd z kodem systemowym (EACCES, EPERM, EROFS, ENOSPC…) i plikiem, przy którym wystąpił. */
 export type SaveWriteResult = { readonly ok: true } | { readonly ok: false; readonly file: 'map' | 'sve'; readonly code: string };
@@ -67,7 +64,7 @@ export function saveSlotLine(sve: Uint8Array | null): string {
   if (!sve) return ' (EMPTY)\n';
   try {
     const info = sveInfo(sve);
-    return ` ${SAVE_DIFFICULTY_NAMES[info.difficulty] ?? ''} ${info.leader}, ${info.nation}/${yearToString(info.year)}\n`;
+    return ` ${DIFFICULTY_TITLES[info.difficulty] ?? ''} ${info.leader}, ${info.nation}/${yearToString(info.year)}\n`;
   } catch {
     return ' (EMPTY)\n';
   }
@@ -166,7 +163,7 @@ export async function showSaveGameDialog(ui: Ui, state: GameState, store: Origin
 async function saveToSlot(ui: Ui, state: GameState, store: OriginalSaveStore, drive: number, slot: number): Promise<boolean> {
   const human = state.players[state.humanPlayer]!;
   const name = saveFileName(drive, slot);
-  const progress = ` ${name}\n ${SAVE_DIFFICULTY_NAMES[state.difficulty] ?? ''} ${human.leader}\n ${human.nationPlural}/${yearToString(state.year)}` +
+  const progress = ` ${name}\n ${DIFFICULTY_TITLES[state.difficulty] ?? ''} ${human.leader}\n ${human.nationPlural}/${yearToString(state.year)}` +
     '\n ... save in progress.\n';
   await showMenuBox(ui, progress, 64, 86, { noWait: true });
   ui.present();

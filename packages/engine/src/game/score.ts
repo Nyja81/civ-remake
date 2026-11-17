@@ -120,12 +120,6 @@ export function addHallOfFameEntry(entries: HallOfFameEntry[], entry: HallOfFame
   return -1;
 }
 
-export const FAMOUS_PERSONS = [
-  'Dan Quayle', 'Emperor Nero', 'Ferdinand Marcos', 'Neville Chamberlain', 'Louis the XVI', 'Kaiser Wilhelm', 'Eric the Red',
-  'Otto von Bismarck', 'Simon Bolivar', 'Vladimir Lenin', 'Charles De Gaulle', 'Cleopatra', 'Winston Churchill',
-  'Suleyman the Magnificent', 'Franklin Roosevelt', 'Shogun Tokugawa', 'Thomas Jefferson', 'King Charlemagne',
-  'Emperor Augustus', 'Solomon the Wise',
-] as const;
 
 /** ShowFamousPersonsWindow: indeks postaci dla wyniku (ostatnie i, dla którego i²/3 < ocena) albo -1. */
 export function famousPersonIndex(score: number, difficulty: number): number {

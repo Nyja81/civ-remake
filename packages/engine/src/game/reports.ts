@@ -565,9 +565,6 @@ function pollutionTechs(state: GameState, cityId: number): number {
   return [Tech.Industrialization, Tech.Automobile, Tech.MassProduction, Tech.Plastics].filter((t) => playerHasTech(state, c.owner, t)).length;
 }
 
-export const HISTORIANS = ['Herodotus', 'Pliny', 'Toynbee', 'Gibbon'] as const;
-export const HISTORY_TYPES = ['Wealthiest', 'Most Powerful', 'Most Advanced', 'Happiest', 'Largest'] as const;
-export const HISTORY_GRADES = ['Glorious', 'Great', 'Fine', 'Mediocre', 'Puny', 'Pathetic', 'Hopeless'] as const;
 
 export interface HistoryReport {
   historian: number;
