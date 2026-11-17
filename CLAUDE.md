@@ -73,3 +73,11 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Zestaw Freeciv i pakiet wektorowy zostają jako pakiety zastępcze.
 - Do zrobienia: przeniesienie dekodera i reguł rysowania do TypeScriptu, wygładzanie atlasu kafli zamiast gotowej klatki.
 
+### 2026-11-17 — etap 0: komplet tabel i dekoder grafik w TypeScripcie
+- `packages/engine/src/data`: doszły `buildings.ts` (24 budynki, 21 cudów z technologią wygaszającą) i `nations.ts` (16 nacji);
+  wszystkie tabele generowane z CIV.EXE i porównywane z nim w teście.
+- Nowy pakiet `packages/gfx`: `decodePic()` — dekoder `.PIC` (LZW + RLE, palety), zgodny z prototypem w Pythonie
+  na wszystkich 106 plikach z kopii gry.
+- Stan testów: 15 z ustawionym `CIV1_DIR` (8 bez niego).
+- Do zrobienia w etapie 0: odczyt i zapis `.SVE`, uruchomienie wykonywalnego wzorca bez okna.
+

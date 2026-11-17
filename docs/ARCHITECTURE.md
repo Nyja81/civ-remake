@@ -26,10 +26,11 @@ a nie źródłem kodu ani zasobów.
 | # | Warstwa | Pakiet | Stan |
 |---|---|---|---|
 | 1 | Silnik zasad — stan gry i reguły, bez grafiki | `packages/engine` | zaczęty |
-| 2 | Tabele danych — generowane z CIV.EXE właściciela licencji | `packages/engine/src/data` | technologie, jednostki, teren |
+| 2 | Tabele danych — generowane z CIV.EXE właściciela licencji | `packages/engine/src/data` | technologie, jednostki, teren, budynki, cuda, nacje |
 | 3 | Przeciwnik komputerowy — gra tymi samymi komendami co gracz | `packages/engine` | — |
 | 4 | Komendy i zdarzenia — interfejs wysyła komendy, silnik odpowiada zdarzeniami i prośbami o decyzję | `packages/engine` | — |
 | 5 | Interfejs — mapa w PixiJS (WebGL), panele i okna w React | `apps/desktop` | — |
+| 5a | Grafiki oryginału — dekoder `.PIC`, później reguły rysowania mapy i wygładzanie | `packages/gfx` | dekoder gotowy |
 | 6 | Pakiet grafiki — rysunek wektorowy generowany kodem (SVG), składany w atlas tekstur | `packages/art` | próbki: 12 kafli terenu, 4 żetony jednostek, miasto, fragment mapy |
 | 7 | Aplikacja na Maca — Electron, zapisy w `~/Library/Application Support` | `apps/desktop` | — |
 | 8 | Wzorzec i testy porównawcze — tylko dla dewelopera | `packages/oracle` | odczyt tabel z CIV.EXE |
@@ -88,5 +89,5 @@ a nie źródłem kodu ani zasobów.
 
 - Znaczenie pól `unknown1` i `terrainChangeId` w tabeli terenu.
 - Sposób, w jaki gra wyprowadza zakresy z `rand()`.
-- Pozostałe tabele w CIV.EXE: budynki, cuda, nacje, charaktery przywódców.
+- Pozostałe dane w CIV.EXE: nazwy miast, teksty, tablice strategii przeciwnika komputerowego.
 - Grafika: przejścia między różnymi typami terenu (na razie ostre krawędzie kafli), warianty kafli, pozostałe jednostki.
