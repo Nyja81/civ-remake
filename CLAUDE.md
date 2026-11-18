@@ -1,14 +1,14 @@
 # CLAUDE.md — civ-remake
 
 Własna, napisana od nowa gra strategiczna na Maca, zgodna zasadami z oryginałem z 1991 r.
-Projekt hobbystyczny. Notatka Obsidian: `Projekty/civ-remake.md`.
+Projekt hobbystyczny. Notatka Obsidian: `Projekty/civ-remake.v2.md` (najnowsza; poprzednia: `Projekty/civ-remake.md`).
 
 ## Zasady obowiązkowe
 
-1. **PRZED pracą** — przeczytaj `docs/ARCHITECTURE.v2.md` (najnowsza wersja) oraz notatkę `Projekty/civ-remake.md` w Obsidianie.
+1. **PRZED pracą** — przeczytaj `docs/ARCHITECTURE.v2.md` (najnowsza wersja) oraz notatkę `Projekty/civ-remake.v2.md` w Obsidianie.
 2. **PO pracy** — dopisz zmiany do sekcji „Historia zmian” poniżej.
 3. **PO pracy — AKTUALIZACJA OBSIDIAN (obowiązkowe).** Jeśli praca dodała lub zmieniła moduł,
-   pakiet, format danych, etap lub istotną decyzję — zaktualizuj `Projekty/civ-remake.md`
+   pakiet, format danych, etap lub istotną decyzję — zaktualizuj `Projekty/civ-remake.v2.md`
    (edycja w miejscu + wpis z datą w „Historia zmian (notatka Obsidian)”).
 
 Wersjonowanie dokumentów: zmiana o więcej niż ~20% treści = nowy plik (`<nazwa>.v2.md`), bez nadpisywania.
