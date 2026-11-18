@@ -155,8 +155,8 @@ describe('zapis gry w formacie oryginału (F11_0000_036a)', () => {
     const screen = new GameScreen(ui, assets, state, { originalSaves: store, autosave: () => void json.push('autosave') });
     screen.redrawAll();
     expect(GAME_MENU.split('\n')[4]).toBe(' Save Game');
-    // Alt+G → menu GAME, ↓×4 Save Game, Enter (dysk), Enter (miejsce 0), klawisz
-    const events = [key('ArrowDown'), key('ArrowDown'), key('ArrowDown'), key('ArrowDown'), key('Enter'), key('Enter'), key('Enter'), key('x')];
+    // Alt+G → menu GAME, ↓×4 Save Game, Enter; bez pytania o dysk (odstępstwo): Enter (miejsce 0), klawisz
+    const events = [key('ArrowDown'), key('ArrowDown'), key('ArrowDown'), key('ArrowDown'), key('Enter'), key('Enter'), key('x')];
     await drive(ui, events, () => screen.handle({ type: 'key', key: 'g', alt: true }));
     expect(store.files.has(0)).toBe(true);
     expectSameGame(loadSve(store.files.get(0)!.sve, store.files.get(0)!.map), state);
@@ -165,7 +165,7 @@ describe('zapis gry w formacie oryginału (F11_0000_036a)', () => {
     while ((state.turn + 1) % 50 !== 0) endHumanTurn(state);
     advanceToHuman(state);
     state.events.length = 0;
-    await drive(ui, [key('Enter'), key('x')], () => screen.endTurn(), 400);
+    await drive(ui, [key('x')], () => screen.endTurn(), 400);
     expect(state.turn % 50).toBe(0);
     expect(store.files.has(autosaveSlot(state.turn))).toBe(true);
     expect(json).toEqual(['autosave']);

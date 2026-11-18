@@ -129,12 +129,25 @@ async function showMessage(ui: Ui, text: string, x: number, y: number): Promise<
  * F11_0000_036a: zapis gry do CIVILn.SVE + CIVILn.MAP w folderze gry. `slot` = −1 — wybór z listy (GAME → Save Game),
  * inaczej autozapis do podanego miejsca. Zwraca true, gdy pliki zapisano.
  */
-export async function showSaveGameDialog(ui: Ui, state: GameState, store: OriginalSaveStore, slot = -1): Promise<boolean> {
+export async function showSaveGameDialog(
+  ui: Ui, state: GameState, store: OriginalSaveStore, slot = -1, options: { askDrive?: boolean } = {},
+): Promise<boolean> {
   const g = globalsOf(ui);
   const gfx = ui.gfx;
   let saved = false;
   gfx.copy(0, 0, 0, 320, 200, 1, 0, 0); // F0_1866_25b6
-  const drive = await selectSaveDrive(ui, (n) => state.rng.next(n));
+  // Odstępstwo na prośbę Damiana (askDrive: false): bez pytania o dysk — jedynym dyskiem jest folder gry (C:). Biały ekran
+  // z ramką z ikon zostaje (z jego losowaniem), od razu z listą miejsc.
+  let drive: number;
+  if (options.askDrive === false) {
+    gfx.fillRect(0, 0, 320, 200, 15);
+    drawRandomFoodIcons(ui, (n) => state.rng.next(n));
+    gfx.fillRect(8, 8, 304, 184, 15);
+    globalsOf(ui).drive = GAME_DRIVE;
+    drive = GAME_DRIVE;
+  } else {
+    drive = await selectSaveDrive(ui, (n) => state.rng.next(n));
+  }
   if (drive !== -1 && store.write) {
     let text = '\x8cSelect Save File...\n';
     const existing = new Set(await store.list().catch(() => [] as number[]));

@@ -94,6 +94,8 @@ const BLINK_MS = 250;
  * po chwili na kliknięcie miasta albo menu (oryginał czekał wtedy na Enter z napisem „End of Turn”).
  */
 const AUTO_END_PAUSE_MS = 1500;
+/** Odstęp dwukliku na mapie (ms). */
+const DOUBLE_CLICK_MS = 300;
 
 export interface GameScreenOptions {
   /** Pokazuje całą mapę (tryb debugowania oryginału). */
@@ -336,12 +338,20 @@ export class GameScreen {
       this.gotoMode = false;
       return this.setGotoTarget(id, cell.x, cell.y);
     }
+    // Odstępstwo na prośbę Damiana (mysz/gładzik): pojedynczy klik w pole sąsiednie do aktywnej jednostki — ruch (także do
+    // własnego miasta i na własny stos); dwuklik — okno miasta / wybór jednostki; klik w dalsze pole jak w oryginale
+    // (własne miasto — okno, własne jednostki — wybór, inne — środek mapy). Dalszy ruch: g + klik („idź do”).
     const city = cityAt(this.state, cell.x, cell.y);
-    if (city !== -1 && this.state.cities[city]!.owner === h) {
+    const ownCity = city !== -1 && this.state.cities[city]!.owner === h;
+    const own = unitsAt(this.state, h, cell.x, cell.y);
+    const dir = id !== -1 ? this.directionTo(id, cell.x, cell.y) : 0;
+    const selectable = ownCity || own.length > 0;
+    const double = selectable ? await this.secondClick(cell.x, cell.y) : false;
+    if (dir > 0 && !double) return this.moveActiveUnit(dir);
+    if (ownCity) {
       await this.cityDialog(city);
       return null;
     }
-    const own = unitsAt(this.state, h, cell.x, cell.y);
     if (own.length > 0) {
       // F0_1866_1f69_ShowUnitStackPanelList: wybór jednostki ze stosu; nieśpiąca i nieufortyfikowana staje się aktywna
       const chosen = await this.unitStackPanel(cell.x, cell.y, own);
@@ -356,17 +366,28 @@ export class GameScreen {
       this.ui.present();
       return null;
     }
-    if (id !== -1) {
-      // Odstępstwo na prośbę Damiana (mysz/gładzik): kliknięcie w pole przesuwa aktywną jednostkę — na pole sąsiednie
-      // od razu, na dalsze przez „idź do” oryginału (te same warunki celu co po klawiszu g). Oryginał centruje wtedy mapę.
-      const dir = this.directionTo(id, cell.x, cell.y);
-      if (dir > 0) return this.moveActiveUnit(dir);
-      return this.setGotoTarget(id, cell.x, cell.y);
-    }
     // PlayerTurn (0x1403:0x0cdd): kliknięcie w pole bez własnej jednostki centruje mapę
     this.drawVisibleMap(cell.x - 7, cell.y - 6);
     this.ui.present();
     return null;
+  }
+
+  /**
+   * Czy w ciągu DOUBLE_CLICK_MS przyjdzie drugi lewy klik w to samo pole (dwuklik). Drugi klik jest zużywany;
+   * inne zdarzenie wraca do kolejki i kończy czekanie.
+   */
+  private async secondClick(x: number, y: number): Promise<boolean> {
+    const deadline = Date.now() + DOUBLE_CLICK_MS;
+    for (;;) {
+      const e = await this.ui.waitEvent(Math.max(0, deadline - Date.now()));
+      if (!e) return false;
+      if (e.type === 'mousedown' && e.button === 'left') {
+        const c = this.cellAt(e.x, e.y);
+        if (c && c.x === x && c.y === y) return true;
+      }
+      this.ui.input.unshift(e);
+      return false;
+    }
   }
 
   /** Kierunek 1–8 z pola jednostki na sąsiednie (x, y) albo 0 (PlayerTurn: odległość 1, także przez szew mapy). */
@@ -552,7 +573,7 @@ export class GameScreen {
     const turn = this.state.turn;
     const original = this.state.settings.autoSave && turn > 0 && turn % 50 === 0;
     if (original && this.options.originalSaves?.write) {
-      await showSaveGameDialog(this.ui, this.state, this.options.originalSaves, autosaveSlot(turn));
+      await showSaveGameDialog(this.ui, this.state, this.options.originalSaves, autosaveSlot(turn), { askDrive: false });
     }
     // odstępstwo: cichy autozapis JSON co ustawioną liczbę tur (GAME → Autosave...)
     const every = this.options.autosaveTurns?.get() ?? 0;
@@ -1329,7 +1350,7 @@ export class GameScreen {
     }
     else if (shortcut === 'save') {
       if (this.options.originalSaves?.write) {
-        await showSaveGameDialog(ui, this.state, this.options.originalSaves);
+        await showSaveGameDialog(ui, this.state, this.options.originalSaves, -1, { askDrive: false });
         this.redrawAll();
         ui.present();
       } else {

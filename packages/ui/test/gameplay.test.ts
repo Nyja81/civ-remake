@@ -203,27 +203,42 @@ describe('mysz i koniec tury', () => {
     expect([u.x, u.y]).toEqual([target.x, target.y]);
   });
 
-  it('kliknięcie w dalsze pole wyznacza cel „idź do”', async () => {
+  it('kliknięcie w dalsze pole centruje mapę, bez ruchu jednostki', async () => {
     const { ui, state, screen } = setup();
     const h = state.humanPlayer;
-    const id = screen.activeUnit;
-    const u = state.players[h]!.units[id]!;
+    const u = state.players[h]!.units[screen.activeUnit]!;
     screen.drawVisibleMap(u.x - 7, u.y - 6);
-    // dalekie odkryte pole lądu w widoku
-    let goal: { x: number; y: number } | null = null;
-    for (let dy = -3; dy <= 3 && !goal; dy++) for (let dx = -4; dx <= 4 && !goal; dx++) {
-      const x = (u.x + dx + 80) % 80;
-      const y = u.y + dy;
-      if (Math.max(Math.abs(dx), Math.abs(dy)) < 3 || y < screen.viewY || y >= screen.viewY + 12) continue;
-      if (state.map.terrain[y * 80 + x] !== 10 && state.map.explored[y * 80 + x]! & (1 << h) && cityAt(state, x, y) === -1 &&
-        (state.map.occupant[y * 80 + x]! & 8) === 0) goal = { x, y };
-    }
-    if (!goal) return; // brak odkrytego lądu w zasięgu przy tym ziarnie
+    const goal = { x: (u.x + 5) % 80, y: u.y };
     const p = at(screen, goal.x, goal.y);
     const before = [u.x, u.y];
     await drive(ui, [], () => screen.handle(click(p.x, p.y)));
-    const moved = u.x !== before[0] || u.y !== before[1];
-    expect(moved || (u.gotoX === goal.x && u.gotoY === goal.y)).toBe(true);
+    expect([u.x, u.y]).toEqual(before);
+    expect(u.gotoX === goal.x && u.gotoY === goal.y).toBe(false);
+    expect(screen.viewX).toBe((goal.x - 7 + 80) % 80);
+  });
+
+  it('pole sąsiednie z własną jednostką: klik — ruch, dwuklik — wybór jednostki', async () => {
+    const { createUnit, UNITS } = await import('@civ-remake/engine');
+    for (const double of [false, true]) {
+      const { ui, state, screen } = setup();
+      const h = state.humanPlayer;
+      const id = screen.activeUnit;
+      const u = state.players[h]!.units[id]!;
+      const target = neighbour(state, u.x, u.y);
+      const other = createUnit(state, h, UNITS.findIndex((t) => t.name === 'Militia'), target.x, target.y);
+      screen.drawVisibleMap(u.x - 7, u.y - 6);
+      const p = at(screen, target.x, target.y);
+      // czas w testach mija od razu — drugi klik musi już czekać w kolejce
+      if (double) ui.input.push(click(p.x, p.y));
+      await drive(ui, double ? [key('Escape')] : [], () => screen.handle(click(p.x, p.y)));
+      if (double) {
+        expect([u.x, u.y]).not.toEqual([target.x, target.y]);
+        expect(ui.input.size).toBe(0);
+        expect(other).toBeGreaterThanOrEqual(0);
+      } else {
+        expect([u.x, u.y]).toEqual([target.x, target.y]);
+      }
+    }
   });
 
   it('klawisz g i kliknięcie: tryb „idź do”', async () => {
