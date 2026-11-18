@@ -687,3 +687,14 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Otwarte (szczegóły w `docs/dosbox-compare.md`): DrawVisibleMap w oryginale losuje (F0_2dc4_005d(0x100)) — przebieg tur nieporównywalny
   los w los; cykl palety wody i miganie minimapy; opisy części ekranu na Chieftainie w turze 0; strony „more...” listy produkcji;
   rozmowa z władcą, pałac, panorama z budynkami — nieporównane.
+
+### 2026-11-18 — scalenie dosbox-compare, paczka 0.6.0
+- Do `main` scalona gałąź `dosbox-compare` (porównanie z oryginałem 474.01 w DOSBoxie, generator świata przepisany z dosłownego
+  tłumaczenia — identyczne mapy na zapisach oryginału; szczegóły we wpisie gałęzi i w `docs/dosbox-compare.md`).
+- Po scaleniu: 332 testy (29 pominiętych bez `CIV1_DIR`), 356 z plikami gry; długie gry 80 × do 500 tur i 5 gier małpy na ekranie —
+  bez błędów.
+- Paczka 0.6.0 (arm64, podpis ad hoc, ikona): `tools/package-mac.sh`; na Macu Damiana rozpakowana do Pobranych (poprzednia wersja
+  przeniesiona do „_stare wersje Civ Remake”).
+- Otwarte: drugi osadnik gracza 5 przy ziarnie 24104 (F5_0000_0fe6 — przyczyna nieznana), losowania w DrawVisibleMap (przebieg tur
+  nie zgadza się los w los z oryginałem), cykl palety wody i miganie minimapy, strony „more...” listy produkcji, animacje walki
+  i wybuchu, ekran przegranej (ARCH.PIC), Roland/Tandy, „hail” z twarzą władcy, okno wczytywania oryginału z wyborem dysku.
