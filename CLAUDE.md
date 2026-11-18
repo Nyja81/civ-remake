@@ -761,3 +761,17 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Testy: 345 (29 pominiętych bez `CIV1_DIR`); nowe w `gameplay.test.ts` (klik i dwuklik na polu z jednostką, dalsze pole centruje),
   `saveGame.test.ts` dostosowany.
 
+### 2026-11-18 — pałac w zapisie .SVE, kolejność losowań walki; paczka 0.6.5
+- Zgłoszenia Damiana: po wczytaniu zapisu znika postęp budowy pałacu; rycerze przegrali atak na osadników.
+- Pałac: `loadSve` nie czytał PalaceLevels/PalaceTypes/PalaceBuildCount (pola były w `SVE_LAYOUT`, trafiały tylko do wzorca),
+  a zapis ręczny od 0.6.x idzie do CIVIL?.SVE — po wczytaniu pałac wracał do stanu początkowego. Teraz `readPalace` przy odczycie
+  i zapis pól w `saveSve`. Zapisy bez pałacu (same zera — zapisy nowej gry z wersji ≤ 0.6.4) → stan początkowy; ich pałacu nie da się
+  odzyskać. JSON (autozapisy) miał pałac od początku.
+- Walka sprawdzona z asemblerem (AttackUnit 0x29f3:0x000e–0x0362): siły (atak × 8; obrona = premia terenu × obrona × 4 / 6 ufortyfikowany
+  / 8 w fortecy / 12 mury, statki i samoloty × 8; weteran +50%; atak przy mniej niż pełnym ruchu × ruchy/3; poprawki poziomu
+  i barbarzyńców) zgodne. Poprawiona kolejność losowań: oryginał losuje najpierw obronę, potem atak (także w drugim rzucie barbarzyńców
+  w mieście) — prawdopodobieństwo bez zmian, zgadza się przebieg generatora. Rycerze (32) z osadnikami na łące (8) przegrywają w ok. 14%,
+  na wzgórzach (16) ok. 27%, na górach (24) ok. 39% — jak w oryginale.
+- Testy: nowe `packages/engine/test/combat.test.ts` (kolejność losowań, częstość przegranych), pałac w `sve.test.ts`; test „gra wczytana
+  z .SVE toczy się dalej” dopuszcza porażkę biernego człowieka. Razem 372 z plikami gry (5 pominiętych); długie gry 24 × 250 tur — bez błędów.
+

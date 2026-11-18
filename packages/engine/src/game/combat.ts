@@ -111,8 +111,18 @@ export function attackUnit(state: GameState, p1: number, id1: number, p2: number
     u1.gotoX = u1.gotoY = -1;
     return -1;
   }
-  let won = state.rng.next(attack) > state.rng.next(defense);
-  if (barbarianCityAttack && won && state.rng.next(attack) < state.rng.next(defense)) won = false;
+  // AttackUnit 0x29f3:0x030f: najpierw losowanie obrony, potem ataku (kolejność zużycia generatora jak w oryginale);
+  // barbarzyńca w mieście (0x0335) losuje drugi raz w tej samej kolejności i przegrywa, gdy atak < obrona.
+  const roll = () => {
+    const d = state.rng.next(defense);
+    return { a: state.rng.next(attack), d };
+  };
+  const first = roll();
+  let won = first.a > first.d;
+  if (barbarianCityAttack && won) {
+    const second = roll();
+    if (second.a < second.d) won = false;
+  }
 
   const players = state.players;
   players[p1]!.diplomacy[p2]! |= Diplomacy.EverFought;

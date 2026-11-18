@@ -38,13 +38,14 @@ import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { PIXEL_TO_TERRAIN } from '../world/earth';
 import { Terrain } from '../world/generate';
+import { newPalace } from './palace';
 import { mscRandom, type RandomSource } from '../world/random';
 import { constructWaterPathArray, emptyGotoCache, PATH_CELLS } from './goto';
 import { decodePicPixels, encodePicPixels } from './picCodec';
 import { emptyPlayer } from './players';
 import { REPLAY_SIZE } from './replay';
 import { base64ToBytes, bytesToBase64 } from './save';
-import { NO_UNIT, type City, type Continent, type GameMap, type GameSettings, type GameState, type Unit } from './types';
+import { NO_UNIT, type City, type Continent, type GameMap, type GameSettings, type GameState, type PalaceState, type Unit } from './types';
 
 const P = MAX_PLAYERS;
 const UNIT_TYPES = 28;
@@ -313,11 +314,25 @@ export function loadSve(sve: Uint8Array, mapFile: Uint8Array, options: LoadSveOp
     historyScores: Array.from({ length: P }, (_, i) => s16(sve, L.historyScore + i * 2)),
     peaceGraph: Array.from(sve.subarray(L.peaceGraph, L.peaceGraph + 1200)),
     replay: Array.from(sve.subarray(L.replay, L.replay + replayLength)),
+    palace: readPalace(sve),
     sveExtra: { sve: bytesToBase64(sve.subarray(0, SVE_SIZE)), map: bytesToBase64(pix) },
     rng: options.rng ?? mscRandom(mapSeed),
     events: [],
   };
   return state;
+}
+
+/**
+ * Pałac człowieka z zapisu: PalaceLevels (DS:0xd91e), PalaceTypes (DS:0xb222), PalaceBuildCount (Var_1c20).
+ * Same zera (zapisy wersji ≤ 0.6.4 bez wzorca oryginału — części 0 i 8 mają w grze zawsze −1) → stan początkowy.
+ */
+function readPalace(sve: Uint8Array): PalaceState {
+  const L = SVE_LAYOUT;
+  const levels = Array.from({ length: 12 }, (_, i) => s16(sve, L.palaceLevels + i * 2));
+  const types = Array.from({ length: 12 }, (_, i) => s16(sve, L.palaceTypes + i * 2));
+  const buildCount = s16(sve, L.palaceCount);
+  if (buildCount === 0 && levels.every((v) => v === 0) && types.every((v) => v === 0)) return newPalace();
+  return { levels, types, buildCount };
 }
 
 /**
@@ -534,6 +549,13 @@ export function saveSve(state: GameState): { sve: Uint8Array; map: Uint8Array } 
     put16(b, L.oceanSize + i * 2, state.map.oceans[i]?.size ?? 0);
     put16(b, L.buildSites + i * 2, state.map.continents[i]?.buildSiteCount ?? 0);
   }
+  // pałac człowieka (PalaceLevels, PalaceTypes, PalaceBuildCount)
+  const palace = state.palace ?? newPalace();
+  for (let i = 0; i < 12; i++) {
+    put16(b, L.palaceLevels + i * 2, palace.levels[i] ?? -1);
+    put16(b, L.palaceTypes + i * 2, palace.types[i] ?? 0);
+  }
+  put16(b, L.palaceCount, palace.buildCount);
   if (state.scoreGraph) for (let i = 0; i < 1200; i++) put8(b, L.scoreGraph + i, state.scoreGraph[i] ?? 0);
   if (state.peaceGraph) for (let i = 0; i < 1200; i++) put8(b, L.peaceGraph + i, state.peaceGraph[i] ?? 0);
 

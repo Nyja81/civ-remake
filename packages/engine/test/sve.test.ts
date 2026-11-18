@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addReplayData, advanceToHuman, base64ToBytes, bytesToBase64, chooseResearch, decodePicPixels, encodePicPixels, endHumanTurn,
-  loadGame, loadSve, newGame, NO_UNIT, REPLAY_SIZE, replayEntries, ReplayKind, resumeLoadedGame, saveGame, saveMapPixels, saveSve,
+  loadGame, loadSve, newGame, newPalace, NO_UNIT, REPLAY_SIZE, replayEntries, ReplayKind, resumeLoadedGame, saveGame, saveMapPixels, saveSve,
   setGovernment, SVE_LAYOUT, SVE_SIZE, sveInfo, unitOrder, type GameState,
 } from '../src';
 
@@ -116,12 +116,25 @@ describe('zapis .SVE/.MAP', () => {
     expect(loaded.map.continents.map((c) => c.size)).toEqual(s.map.continents.map((c) => c.size));
   });
 
+  it('pałac człowieka przechodzi przez zapis .SVE; zapis bez pałacu (same zera) daje stan początkowy', () => {
+    const s = loadGame(saveGame(playedGame()));
+    s.palace = { levels: [-1, 0, 1, 2, 3, 2, 1, 0, -1, 1, 2, 0], types: [0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1], buildCount: 7 };
+    const { sve, map } = saveSve(s);
+    expect(loadSve(sve, map).palace).toEqual(s.palace);
+    const blank = sve.slice();
+    blank.fill(0, SVE_LAYOUT.palaceLevels, SVE_LAYOUT.palaceLevels + 48);
+    blank.fill(0, SVE_LAYOUT.palaceCount, SVE_LAYOUT.palaceCount + 2);
+    expect(loadSve(blank, map).palace).toEqual(newPalace());
+  });
+
   it('gra wczytana z .SVE toczy się dalej', () => {
     const s = playedGame();
     const { sve, map } = saveSve(s);
     const loaded = resumeLoadedGame(loadSve(sve, map));
     play(loaded, 10);
-    expect(loaded.turn).toBe(s.turn + 10);
+    // człowiek tylko pomija ruchy — gra może się skończyć jego porażką
+    if (loaded.gameOver === 0) expect(loaded.turn).toBe(s.turn + 10);
+    else expect(loaded.turn).toBeGreaterThan(s.turn);
     const again = saveSve(loaded);
     expect(again.sve.length).toBe(SVE_SIZE);
   });
