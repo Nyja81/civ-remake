@@ -60,6 +60,8 @@ export class Presenter implements UiHost {
   /** Prostokąt obrazu w pikselach CSS okna. */
   private view = { x: 0, y: 0, w: SMOOTH_W, h: SMOOTH_H };
   private smoothing: Smoothing = 'light';
+  /** Klatka powiększona najbliższym sąsiadem o całkowitą krotność (ostre dopasowanie do okna). */
+  private readonly prescaled = canvas2d(1, 1);
   private cursor: { rgba: Uint8ClampedArray; width: number; height: number; hotX: number; hotY: number } | null = null;
   /** Czas ostatniego wygładzenia klatki (ms) — do diagnostyki. */
   lastFrameMs = 0;
@@ -125,10 +127,35 @@ export class Presenter implements UiHost {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, w, h);
     if (!this.hasFrame) return;
-    // Bez mieszania przy dopasowaniu do okna dla „none”, żeby piksele oryginału zostały ostre.
-    ctx.imageSmoothingEnabled = this.smoothing !== 'none';
+    const dx = this.view.x * dpr;
+    const dy = this.view.y * dpr;
+    const dw = vw * dpr;
+    const dh = vh * dpr;
+    if (this.smoothing === 'strong') {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(this.soft, dx, dy, dw, dh);
+      return;
+    }
+    // None i Light — „ostre dopasowanie”: najpierw powiększenie najbliższym sąsiadem o całkowitą krotność do rozmiaru
+    // co najmniej docelowego, potem tylko niewielkie zmniejszenie z mieszaniem. Zwykłe dopasowanie dwuliniowe 1280×800
+    // do okna (np. ×2,4 na ekranie Retina) rozmywało obraz.
+    const k = Math.max(1, Math.ceil(dw / this.soft.width));
+    let src: HTMLCanvasElement = this.soft;
+    if (k > 1) {
+      const big = this.prescaled;
+      if (big.width !== this.soft.width * k || big.height !== this.soft.height * k) {
+        big.width = this.soft.width * k;
+        big.height = this.soft.height * k;
+      }
+      const bctx = big.getContext('2d')!;
+      bctx.imageSmoothingEnabled = false;
+      bctx.drawImage(this.soft, 0, 0, big.width, big.height);
+      src = big;
+    }
+    ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(this.soft, this.view.x * dpr, this.view.y * dpr, vw * dpr, vh * dpr);
+    ctx.drawImage(src, dx, dy, dw, dh);
   }
 
   /** Punkt okna (clientX/Y) → piksel ekranu 320×200 (przycięty do ekranu). */

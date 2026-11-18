@@ -698,3 +698,18 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Otwarte: drugi osadnik gracza 5 przy ziarnie 24104 (F5_0000_0fe6 — przyczyna nieznana), losowania w DrawVisibleMap (przebieg tur
   nie zgadza się los w los z oryginałem), cykl palety wody i miganie minimapy, strony „more...” listy produkcji, animacje walki
   i wybuchu, ekran przegranej (ARCH.PIC), Roland/Tandy, „hail” z twarzą władcy, okno wczytywania oryginału z wyborem dysku.
+
+### 2026-11-18 — mysz na mapie, automatyczny koniec tury, ostrzejszy obraz; paczka 0.6.1
+- Zgłoszenia Damiana: brak ruchu myszą/gładzikiem, tura nie kończy się sama, obraz zbyt rozmyty.
+- Mysz wg PlayerTurn (0x1403:0x0861–0x0cdd): prawy przycisk na polu sąsiednim do aktywnej jednostki — ruch, na innym odkrytym
+  polu — strona terenu w Civilopedii; lewy: własne miasto → okno miasta, własne jednostki → panel stosu
+  (F0_1866_1f69_ShowUnitStackPanelList: budzenie, wybór aktywnej), tryb „idź do” (klawisz g / ORDERS → GoTo — dotąd bez klawisza)
+  → cel z warunkami oryginału (odkryte; statek — woda, lądowa — ląd, każda — miasto, samolot — wszędzie).
+  **Odstępstwo na prośbę Damiana:** lewy przycisk na innym polu przy aktywnej jednostce przesuwa ją — na pole sąsiednie od razu,
+  dalej przez „idź do” oryginału (oryginał centruje wtedy mapę; centrowanie zostaje bez aktywnej jednostki i przez minimapę).
+- Koniec tury (PlayerTurn Label748, flag5): bez „End of Turn” w Options tura kończy się sama, gdy w tej turze były jednostki,
+  a już ich brak; bez żadnej jednostki w turze — czekanie z „End of Turn” jak w oryginale (`GameScreen.autoEndTurn`).
+- Obraz: dopasowanie do okna przy None/Light — najpierw powiększenie najbliższym sąsiadem o całkowitą krotność, potem niewielkie
+  zmniejszenie z mieszaniem (dotąd dwuliniowe skalowanie 1280×800 do okna, np. ×2,4 na Retinie, rozmywało obraz). Strong bez zmian.
+- Testy: 336 (29 pominiętych bez `CIV1_DIR`), 360 z plikami gry; nowe w `gameplay.test.ts` (ruch kliknięciem, „idź do”,
+  klawisz g, koniec tury z „End of Turn” i bez); małpa na ekranie 4 gry — bez błędów. Aplikacja uruchomiona w Xvfb — intro rysuje się.

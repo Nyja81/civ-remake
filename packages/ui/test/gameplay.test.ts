@@ -175,3 +175,78 @@ describe('jednostka w mieście', () => {
     expect(cell()).not.toEqual(cityOnly);
   });
 });
+
+describe('mysz i koniec tury', () => {
+  const at = (screen: GameScreen, x: number, y: number) => ({
+    x: ((x - screen.viewX + 80) % 80) * 16 + 80 + 8,
+    y: (y - screen.viewY) * 16 + 8 + 8,
+  });
+  /** Pole sąsiednie (kierunek 3 = wschód albo inny) z lądem, bez jednostek i miast. */
+  function neighbour(state: GameState, ux: number, uy: number): { x: number; y: number } {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]] as const) {
+      const x = (ux + dx + 80) % 80;
+      const y = uy + dy;
+      if (state.map.terrain[y * 80 + x] !== 10 && (state.map.occupant[y * 80 + x]! & 8) === 0 && cityAt(state, x, y) === -1) return { x, y };
+    }
+    throw new Error('brak wolnego pola obok');
+  }
+
+  it('kliknięcie w sąsiednie pole przesuwa aktywną jednostkę (lewy i prawy przycisk)', async () => {
+    const { ui, state, screen } = setup();
+    const h = state.humanPlayer;
+    const id = screen.activeUnit;
+    const u = state.players[h]!.units[id]!;
+    screen.drawVisibleMap(u.x - 7, u.y - 6);
+    const target = neighbour(state, u.x, u.y);
+    const p = at(screen, target.x, target.y);
+    await drive(ui, [], () => screen.handle({ type: 'mousedown', x: p.x, y: p.y, button: 'right' }));
+    expect([u.x, u.y]).toEqual([target.x, target.y]);
+  });
+
+  it('kliknięcie w dalsze pole wyznacza cel „idź do”', async () => {
+    const { ui, state, screen } = setup();
+    const h = state.humanPlayer;
+    const id = screen.activeUnit;
+    const u = state.players[h]!.units[id]!;
+    screen.drawVisibleMap(u.x - 7, u.y - 6);
+    // dalekie odkryte pole lądu w widoku
+    let goal: { x: number; y: number } | null = null;
+    for (let dy = -3; dy <= 3 && !goal; dy++) for (let dx = -4; dx <= 4 && !goal; dx++) {
+      const x = (u.x + dx + 80) % 80;
+      const y = u.y + dy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 3 || y < screen.viewY || y >= screen.viewY + 12) continue;
+      if (state.map.terrain[y * 80 + x] !== 10 && state.map.explored[y * 80 + x]! & (1 << h) && cityAt(state, x, y) === -1 &&
+        (state.map.occupant[y * 80 + x]! & 8) === 0) goal = { x, y };
+    }
+    if (!goal) return; // brak odkrytego lądu w zasięgu przy tym ziarnie
+    const p = at(screen, goal.x, goal.y);
+    const before = [u.x, u.y];
+    await drive(ui, [], () => screen.handle(click(p.x, p.y)));
+    const moved = u.x !== before[0] || u.y !== before[1];
+    expect(moved || (u.gotoX === goal.x && u.gotoY === goal.y)).toBe(true);
+  });
+
+  it('klawisz g i kliknięcie: tryb „idź do”', async () => {
+    const { ui, screen } = setup();
+    await drive(ui, [], () => screen.handle(key('g')));
+    expect(screen.gotoMode).toBe(true);
+    await drive(ui, [], () => screen.handle(key('g')));
+    expect(screen.gotoMode).toBe(false);
+  });
+
+  it('bez „End of Turn” tura kończy się sama, gdy zabraknie jednostek; z tą opcją czeka', async () => {
+    for (const endOfTurn of [false, true]) {
+      const { ui, state, screen } = setup();
+      state.settings.endOfTurn = endOfTurn;
+      // jak po wybraniu jednostki w PlayerTurn (flag5)
+      (screen as unknown as { hadActiveUnit: boolean }).hadActiveUnit = true;
+      const turn = state.turn;
+      // wszystkie jednostki: spacja (bez rozkazów)
+      for (let i = 0; i < 10 && screen.activeUnit !== -1; i++) await drive(ui, [], () => screen.handle(key(' ')));
+      expect(screen.activeUnit).toBe(-1);
+      const ended = await drive(ui, [], () => screen.autoEndTurn(), 400);
+      expect(ended).toBe(!endOfTurn);
+      expect(state.turn).toBe(endOfTurn ? turn : turn + 1);
+    }
+  });
+});

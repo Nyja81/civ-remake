@@ -12,7 +12,7 @@
  */
 import {
   advanceToHuman, aiRequestMeeting, palaceOf, envoyMeeting, meetWithKing, type KingKeywords, type KingMeeting, BUILDINGS, civilizationScore, GOVERNMENT_NAMES, hallOfFameEntry, type HallOfFameEntry, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
-  MovementType, nextUnit, NO_UNIT, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
+  MovementType, nextUnit, NO_UNIT, bestDefender, DIRECTIONS, Terrain, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
   TERRAIN, TERRAIN_MODIFICATIONS, PIXEL_TO_TERRAIN, canIrrigate, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameEvent, type GameState, type MoveResult, type Order,
 } from '@civ-remake/engine';
 import { drawMapView, drawMiniMap, drawUnit, prepareSprites, type MapSprites, type TextDrawer } from '@civ-remake/gfx';
@@ -115,6 +115,13 @@ export class GameScreen {
   private adviceTurn = -1;
   /** *FIRSTPRODUCT czeka na okno nazwy miasta (kolejność F20_0000_0000). */
   private pendingFirstProduct = false;
+  /** PlayerTurn flag3 (bp-0x36): tryb „idź do” — klawisz g / ORDERS → GoTo; następne kliknięcie na mapie wskazuje cel. */
+  gotoMode = false;
+  /**
+   * PlayerTurn flag5: w tej turze była jednostka do ruchu. Gdy jej zabraknie, tura kończy się sama, chyba że w Options
+   * włączono „End of Turn” albo w turze nie było żadnej jednostki (wtedy oryginał czeka z napisem „End of Turn”).
+   */
+  private hadActiveUnit = false;
   /** Var_6b92: animacja niepokojów najwyżej raz na turę. */
   private disorderShownTurn = -1;
   /** Array_30b8 — słowa kluczowe tekstów KING.TXT, trwałe między rozmowami (początkowo jak po *INIT). */
@@ -170,6 +177,7 @@ export class GameScreen {
         await this.processEvents();
       }
       if (this.state.gameOver !== 0) return 'gameOver';
+      if (await this.autoEndTurn()) continue;
       await this.unitAdvice();
       const e = await this.waitWithBlink();
       const result = await this.handle(e);
@@ -263,17 +271,146 @@ export class GameScreen {
       return null;
     }
     const cell = this.cellAt(x, y);
-    const city = cell ? cityAt(this.state, cell.x, cell.y) : -1;
-    if (cell && button === 'left' && city !== -1 && this.state.cities[city]!.owner === this.human) {
+    if (!cell) return null;
+    const h = this.human;
+    const id = this.activeUnit;
+    if (button === 'right') {
+      // PlayerTurn (0x1403:0x0861–0x09ca): prawy przycisk na polu sąsiednim do aktywnej jednostki — ruch w tę stronę;
+      // na innym polu odkrytym — strona terenu w Civilopedii
+      if (id === -1) return null;
+      const dir = this.directionTo(id, cell.x, cell.y);
+      if (dir > 0) return this.moveActiveUnit(dir);
+      if (this.state.map.explored[cellIndex(cell.x, cell.y)]! & (1 << h)) {
+        await showCivilopediaTopic({ ui: this.ui, assets: this.assets, state: this.state }, Topic.Terrain, terrainAt(this.state.map, cell.x, cell.y));
+        await this.redrawMapWithBlankingEffect();
+      }
+      return null;
+    }
+    if (button !== 'left') return null;
+    if (this.gotoMode && id !== -1) {
+      // PlayerTurn (0x1403:0x09d9–0x0aec): w trybie „idź do” kliknięcie wskazuje cel
+      this.gotoMode = false;
+      return this.setGotoTarget(id, cell.x, cell.y);
+    }
+    const city = cityAt(this.state, cell.x, cell.y);
+    if (city !== -1 && this.state.cities[city]!.owner === h) {
       await this.cityDialog(city);
       return null;
     }
-    if (cell && button === 'left') {
-      // PlayerTurn: kliknięcie w pole bez własnej jednostki centruje mapę (miasta i lista jednostek — kolejne etapy)
-      this.drawVisibleMap(cell.x - 7, cell.y - 6);
+    const own = unitsAt(this.state, h, cell.x, cell.y);
+    if (own.length > 0) {
+      // F0_1866_1f69_ShowUnitStackPanelList: wybór jednostki ze stosu; nieśpiąca i nieufortyfikowana staje się aktywna
+      const chosen = await this.unitStackPanel(cell.x, cell.y, own);
+      const u = this.state.players[h]!.units[chosen]!;
+      if (!(u.status & (UnitStatus.Sentry | UnitStatus.Fortified))) {
+        this.activeUnit = chosen;
+        this.hadActiveUnit = true;
+        this.blinkHidden = false;
+        this.focusActiveUnit();
+      }
+      this.redrawAll();
       this.ui.present();
+      return null;
     }
+    if (id !== -1) {
+      // Odstępstwo na prośbę Damiana (mysz/gładzik): kliknięcie w pole przesuwa aktywną jednostkę — na pole sąsiednie
+      // od razu, na dalsze przez „idź do” oryginału (te same warunki celu co po klawiszu g). Oryginał centruje wtedy mapę.
+      const dir = this.directionTo(id, cell.x, cell.y);
+      if (dir > 0) return this.moveActiveUnit(dir);
+      return this.setGotoTarget(id, cell.x, cell.y);
+    }
+    // PlayerTurn (0x1403:0x0cdd): kliknięcie w pole bez własnej jednostki centruje mapę
+    this.drawVisibleMap(cell.x - 7, cell.y - 6);
+    this.ui.present();
     return null;
+  }
+
+  /** Kierunek 1–8 z pola jednostki na sąsiednie (x, y) albo 0 (PlayerTurn: odległość 1, także przez szew mapy). */
+  private directionTo(id: number, x: number, y: number): number {
+    const u = this.state.players[this.human]!.units[id]!;
+    let dx = x - u.x;
+    if (dx > 40) dx -= 80;
+    if (dx < -40) dx += 80;
+    const dy = y - u.y;
+    for (let d = 1; d <= 8; d++) if (DIRECTIONS[d]![0] === dx && DIRECTIONS[d]![1] === dy) return d;
+    return 0;
+  }
+
+  /** Ruch aktywnej jednostki w kierunku jak z klawiatury numerycznej. */
+  private moveActiveUnit(direction: number): Promise<GameScreenResult | null> {
+    const key = Object.keys(DIRECTION_KEYS).find((k) => /^[1-9]$/.test(k) && DIRECTION_KEYS[k] === direction)!;
+    return this.command({ type: 'key', key });
+  }
+
+  /**
+   * Cel „idź do” (PlayerTurn 0x1403:0x09ec–0x0ad6): pole odkryte przez człowieka i dostępne — statek na wodę, jednostka lądowa
+   * na ląd, każda do miasta, samolot wszędzie; potem pierwszy krok jak w Label151 (GetNextGoToMove), dalej co turę.
+   */
+  private async setGotoTarget(id: number, x: number, y: number): Promise<GameScreenResult | null> {
+    const h = this.human;
+    const u = this.state.players[h]!.units[id]!;
+    const water = terrainAt(this.state.map, x, y) === Terrain.Water;
+    const type = UNITS[u.type]!.movementType;
+    const valid = (this.state.map.explored[cellIndex(x, y)]! & (1 << h)) !== 0 && ((type === MovementType.Water && water) ||
+      (type === MovementType.Land && !water) || (this.state.map.visibleImprovements[cellIndex(x, y)]! & Improvement.City) !== 0 ||
+      type === MovementType.Air);
+    if (!valid) return null;
+    u.gotoX = x;
+    u.gotoY = y;
+    u.gotoNextDirection = -1;
+    // nextUnit wykonuje kroki „idź do” jednostki, dopóki ma ruchy, i wybiera następną
+    this.selectNextUnit(id - 1);
+    await this.processEvents();
+    this.redrawAll();
+    this.ui.present();
+    return this.state.gameOver !== 0 ? 'gameOver' : null;
+  }
+
+  /**
+   * F0_1866_1f69_ShowUnitStackPanelList: panel z jednostkami stosu (do 12; rysunek ze stanem, nazwa z „ (V)”, miasto macierzyste).
+   * Kliknięcie w jednostkę budzi ją (zdejmuje wartę, fortyfikację i prace; osadnikom przy pracy przywraca ruchy) i — przy
+   * więcej niż jednej — rysuje panel od nowa; inne kliknięcie albo klawisz kończy. Wynik: ostatnio wybrana jednostka,
+   * bez wyboru — najlepszy obrońca (F0_1866_1089).
+   */
+  private async unitStackPanel(x: number, y: number, ids: number[]): Promise<number> {
+    const h = this.human;
+    const p = this.state.players[h]!;
+    const list = ids.slice(0, 12);
+    let selected = bestDefender(this.state, h, x, y);
+    if (selected < 0) selected = list[0]!;
+    const gfx = this.ui.gfx;
+    const yTop = 96 - list.length * 8;
+    const WORK = UnitStatus.BuildRoad | UnitStatus.BuildIrrigation | UnitStatus.BuildMine;
+    this.ui.input.clear();
+    for (;;) {
+      // FillRectangleWithDoubleShadow(100, yTop, 120, n·16 + 5, 3)
+      const height = list.length * 16 + 5;
+      gfx.fillRect(100, yTop, 120, height, 3);
+      gfx.drawShadowRectangle(99, yTop - 1, 121, height + 1, 15, 8);
+      gfx.drawRectangle(98, yTop - 2, 123, height + 3, 0);
+      list.forEach((uid, i) => {
+        const u = p.units[uid]!;
+        const ty = yTop + 5 + i * 16;
+        drawUnit(gfx.screen, this.state, this.sprites, h, uid, 106, ty, false, undefined, this.textDrawer);
+        gfx.drawString(`${UNITS[u.type]!.name}${u.status & UnitStatus.Veteran ? ' (V)' : ''}`, 128, ty, 15);
+        const home = u.homeCity >= 0 && u.homeCity < 128 ? (this.state.cityNames[this.state.cities[u.homeCity]!.nameId] ?? '') : 'NONE';
+        gfx.drawString(home, 128, ty + 8, 14);
+      });
+      this.ui.present();
+      const e = await this.ui.input.next();
+      if (e.type === 'mouseup' || e.type === 'mousemove') continue;
+      if (e.type !== 'mousedown' || e.button !== 'left' || e.x <= 100 || e.x >= 220) break;
+      const row = Math.floor((e.y - yTop - 5) / 16);
+      if (row < 0 || row >= list.length) break;
+      selected = list[row]!;
+      const u = p.units[selected]!;
+      if (u.status & WORK) u.movesLeft = UNITS[u.type]!.moves * 3;
+      u.status &= ~(UnitStatus.Sentry | UnitStatus.Fortifying | UnitStatus.Fortified | WORK);
+      u.gotoX = u.gotoY = -1;
+      if (list.length <= 1) break;
+    }
+    this.ui.input.clear();
+    return selected;
   }
 
   /** Klawisz z kolejki PlayerTurn: ruch, rozkaz, koniec tury. */
@@ -287,6 +424,11 @@ export class GameScreen {
     }
     if (e.shift && DIRECTION_KEYS[e.key] !== undefined && e.key.startsWith('Arrow')) {
       this.scrollView(DIRECTION_KEYS[e.key]!); // Shift+strzałki przewijają mapę
+      return null;
+    }
+    if (e.key === 'g') {
+      // PlayerTurn case 'g': przełącza tryb „idź do” (oryginał zmienia też kursor myszy)
+      this.gotoMode = !this.gotoMode;
       return null;
     }
     if (e.key === 'c') {
@@ -331,8 +473,17 @@ export class GameScreen {
     return this.state.gameOver !== 0 ? 'gameOver' : null;
   }
 
+  /** PlayerTurn Label748: bez „End of Turn” w Options tura kończy się sama, gdy w tej turze były jednostki, a już ich brak. */
+  async autoEndTurn(): Promise<boolean> {
+    if (this.activeUnit !== -1 || !this.hadActiveUnit || this.state.settings.endOfTurn || this.state.gameOver !== 0) return false;
+    await this.endTurn();
+    return true;
+  }
+
   /** Koniec tury człowieka: tury pozostałych graczy w silniku, potem pierwsza jednostka nowej tury. */
   async endTurn(): Promise<void> {
+    this.gotoMode = false;
+    this.hadActiveUnit = false;
     endHumanTurn(this.state);
     // Autozapis co 50 tur (ustawienie AutoSave w Preferences): w oryginale F11_0000_036a(4 + ((tura / 50 − 1) % 6)) —
     // CIVIL4–9.SVE w folderze gry; zostaje też cichy zapis JSON silnika (pełny stan, w tym stan generatora)
@@ -351,6 +502,7 @@ export class GameScreen {
 
   private selectNextUnit(after: number, forceCenter = false): void {
     this.activeUnit = this.state.gameOver === 0 ? nextUnit(this.state, this.human, after) : -1;
+    if (this.activeUnit !== -1) this.hadActiveUnit = true;
     this.blinkHidden = false;
     if (this.activeUnit !== -1) this.focusActiveUnit(forceCenter);
   }
@@ -1066,7 +1218,7 @@ export function ordersFor(state: GameState, player: number, unitId: number): { t
     keys.push('f');
   }
   lines.push(` Wait ${k}w`, ` Sentry ${k}s`, ' GoTo');
-  keys.push('w', 's', '');
+  keys.push('w', 's', 'g');
   // Pillage: nie dla dyplomaty (26), karawany (27) i myśliwca (14)
   if (imp & Improvement.PillageMask && u.type !== 26 && u.type !== 27 && u.type !== 14) {
     lines.push(` Pillage ${k}P`);
