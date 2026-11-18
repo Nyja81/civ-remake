@@ -12,10 +12,10 @@
  */
 import {
   advanceToHuman, aiRequestMeeting, palaceOf, envoyMeeting, meetWithKing, type KingKeywords, type KingMeeting, BUILDINGS, civilizationScore, GOVERNMENT_NAMES, hallOfFameEntry, type HallOfFameEntry, buyCost, CityStatus, buyProduction, cellIndex, chooseResearch, cityAt, endHumanTurn, Improvement, MAP_HEIGHT,
-  MovementType, nextUnit, NO_UNIT, bestDefender, DIRECTIONS, Terrain, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
+  MovementType, nextUnit, NO_UNIT, bestDefender, DIRECTIONS, Terrain, setVisualHook, type VisualEvent, playerHasTech, productionOptions, revolution, setGovernment, setProduction, Tech, TECHS,
   TERRAIN, TERRAIN_MODIFICATIONS, PIXEL_TO_TERRAIN, canIrrigate, terrainAt, UNITS, UnitStatus, unitMove, unitOrder, unitsAt, WONDERS, wrapX, type GameEvent, type GameState, type MoveResult, type Order,
 } from '@civ-remake/engine';
-import { drawMapView, drawMiniMap, drawUnit, prepareSprites, type MapSprites, type TextDrawer } from '@civ-remake/gfx';
+import { drawExplosionFrame, drawMapView, drawMiniMap, drawUnit, drawUnitSprite, prepareSprites, type MapSprites, type TextDrawer } from '@civ-remake/gfx';
 import type { GameAssets } from '../assets';
 import { colorCode } from '../font';
 import { isKey, type KeyEvent, type UiEvent } from '../input';
@@ -81,6 +81,14 @@ export const ORDER_KEYS: Readonly<Record<string, Order>> = {
 
 export type GameScreenResult = 'quit' | 'retire' | 'gameOver';
 
+/** Okres migania aktywnej jednostki (ms). */
+const BLINK_MS = 250;
+/**
+ * Odstępstwo na prośbę Damiana: bez „End of Turn” w Options tura bez żadnej jednostki do ruchu też kończy się sama —
+ * po chwili na kliknięcie miasta albo menu (oryginał czekał wtedy na Enter z napisem „End of Turn”).
+ */
+const AUTO_END_PAUSE_MS = 1500;
+
 export interface GameScreenOptions {
   /** Pokazuje całą mapę (tryb debugowania oryginału). */
   readonly revealAll?: boolean;
@@ -115,6 +123,15 @@ export class GameScreen {
   private adviceTurn = -1;
   /** *FIRSTPRODUCT czeka na okno nazwy miasta (kolejność F20_0000_0000). */
   private pendingFirstProduct = false;
+  /**
+   * Animacje ruchu i walki zapamiętane w chwili, gdy oryginał by je rysował (haczyk silnika `setVisualHook`): obraz ekranu
+   * z tej chwili i numer kolejnego zdarzenia silnika — odtwarzane w kolejności razem z oknami zdarzeń.
+   */
+  private readonly animations: Animation[] = [];
+  /** Zdarzenia walki, których dźwięk zagrała już animacja. */
+  private readonly combatSoundPlayed = new Set<number>();
+  /** Jednostka ukryta przy rysowaniu obrazu do animacji (pole bez niej — DrawCell). */
+  private hideOverride: { player: number; unitId: number } | undefined;
   /** PlayerTurn flag3 (bp-0x36): tryb „idź do” — klawisz g / ORDERS → GoTo; następne kliknięcie na mapie wskazuje cel. */
   gotoMode = false;
   /**
@@ -139,6 +156,7 @@ export class GameScreen {
     // Sound (GameSettingFlags 0x10) — ustawienie gry; Preferences i Alt+V zmieniają je w miejscu
     ui.soundSettings = state.settings;
     this.kingKeywords = { US: me.nationPlural, RPLC1: me.leader };
+    setVisualHook(state, (ev) => this.captureVisual(ev));
     this.textDrawer = (dst, text, x, y, color, shadow) => {
       const s = dst instanceof Surface ? dst : (Object.assign(Object.create(Surface.prototype), dst) as Surface);
       if (shadow) s.drawText(ui.gfx.font, text, x, y + 1, 0);
@@ -177,6 +195,12 @@ export class GameScreen {
         await this.processEvents();
       }
       if (this.state.gameOver !== 0) return 'gameOver';
+      if (this.animations.length > 0) {
+        // np. kroki „idź do” wykonane przy wyborze następnej jednostki
+        await this.playAnimations(Infinity);
+        this.redrawAll();
+        this.ui.present();
+      }
       if (await this.autoEndTurn()) continue;
       await this.unitAdvice();
       const e = await this.waitWithBlink();
@@ -210,10 +234,14 @@ export class GameScreen {
     }
   }
 
-  /** Czeka na zdarzenie; w tym czasie aktywna jednostka miga (co ~0,25 s). */
+  /**
+   * Czeka na zdarzenie; w tym czasie aktywna jednostka miga (co ~0,25 s). Termin przełączenia jest stały — ruchy myszy
+   * (gładzik wysyła je bez przerwy) nie przesuwają go, więc jednostka miga także podczas ruchu kursora.
+   */
   private async waitWithBlink(): Promise<UiEvent> {
+    let next = Date.now() + BLINK_MS;
     for (;;) {
-      const e = this.activeUnit === -1 ? await this.ui.input.next() : await this.ui.waitEvent(250, true);
+      const e = this.activeUnit === -1 ? await this.ui.input.next() : await this.ui.waitEvent(Math.max(0, next - Date.now()));
       if (e && e.type !== 'mouseup' && e.type !== 'mousemove') {
         if (this.blinkHidden) {
           this.blinkHidden = false;
@@ -226,6 +254,7 @@ export class GameScreen {
         this.blinkHidden = !this.blinkHidden;
         this.drawMap();
         this.ui.present();
+        next = Date.now() + BLINK_MS;
       }
     }
   }
@@ -446,6 +475,7 @@ export class GameScreen {
       }
       // karawana, przekupienie, dyplomata w obcym mieście (screens/unitActions.ts)
       result = await resolveUnitAction(this.ui, this.state, id, direction, result, this.unitActionHooks());
+      await this.playAnimations(this.state.events.length);
     } else {
       const order = ORDER_KEYS[e.key];
       if (!order) return null;
@@ -473,9 +503,26 @@ export class GameScreen {
     return this.state.gameOver !== 0 ? 'gameOver' : null;
   }
 
-  /** PlayerTurn Label748: bez „End of Turn” w Options tura kończy się sama, gdy w tej turze były jednostki, a już ich brak. */
+  /**
+   * PlayerTurn Label748: bez „End of Turn” w Options tura kończy się sama, gdy w tej turze były jednostki, a już ich brak.
+   * Gdy w turze nie było żadnej jednostki (oryginał czekał wtedy na Enter), tura kończy się po krótkiej przerwie
+   * (AUTO_END_PAUSE_MS), chyba że gracz w tym czasie coś naciśnie — wtedy zdarzenie zostaje w kolejce i ekran je obsłuży.
+   */
   async autoEndTurn(): Promise<boolean> {
-    if (this.activeUnit !== -1 || !this.hadActiveUnit || this.state.settings.endOfTurn || this.state.gameOver !== 0) return false;
+    if (this.activeUnit !== -1 || this.state.settings.endOfTurn || this.state.gameOver !== 0) return false;
+    if (!this.hadActiveUnit) {
+      this.redrawAll();
+      this.ui.present();
+      const deadline = Date.now() + AUTO_END_PAUSE_MS;
+      for (;;) {
+        const e = await this.ui.waitEvent(Math.max(0, deadline - Date.now()));
+        if (!e) break;
+        if (e.type === 'key' || e.type === 'mousedown') {
+          this.ui.input.unshift(e); // ekran obsłuży zdarzenie, potem przerwa zaczyna się od nowa
+          return false;
+        }
+      }
+    }
     await this.endTurn();
     return true;
   }
@@ -544,11 +591,127 @@ export class GameScreen {
   async processEvents(): Promise<void> {
     const events = this.state.events;
     while (this.eventsSeen < events.length) {
+      await this.playAnimations(this.eventsSeen);
       const ev = events[this.eventsSeen++]!;
       await this.eventSound(ev);
       await this.showEvent(ev);
       if (typeof ev.tuneAfter === 'number') this.ui.playTune(ev.tuneAfter);
     }
+    if (this.animations.length > 0) {
+      await this.playAnimations(Infinity);
+      this.redrawAll();
+      this.ui.present();
+    }
+  }
+
+  // ── animacje ruchu i walki ─────────────────────────────────────────────────────────────
+
+  /** MapManagement.F0_1866_16a9_CenterMap: widok przesuwa się, gdy pole leży przy krawędzi albo poza nim. */
+  private centerMapOn(x: number, y: number): void {
+    let cx = x;
+    if (cx < 16 && this.viewX > 64) cx += 80;
+    if (cx < this.viewX + 2 || cx > this.viewX + 13 || y < this.viewY + 2 || y > this.viewY + 9) {
+      this.viewX = wrapX(cx - 8);
+      this.viewY = clamp(y - 6, 0, MAP_HEIGHT - MAP_VIEW.rows);
+    }
+  }
+
+  /** Punkt pola na ekranie albo null, gdy pole leży poza widokiem mapy. */
+  private cellOnScreen(x: number, y: number): { sx: number; sy: number } | null {
+    const col = wrapX(x - this.viewX);
+    const row = y - this.viewY;
+    if (col >= MAP_VIEW.columns || row < 0 || row >= MAP_VIEW.rows) return null;
+    return { sx: col * 16 + MAP_VIEW.x, sy: row * 16 + MAP_VIEW.y };
+  }
+
+  /**
+   * Haczyk silnika (synchronicznie, w chwili ruchu albo walki): CenterMap, obraz ekranu z polem jednostki bez niej
+   * (F0_2aea_03ba_DrawCell + następna jednostka stosu), przy walce z obrońcą narysowanym na wierzchu.
+   */
+  private captureVisual(ev: VisualEvent): void {
+    const gfx = this.ui.gfx;
+    const st = this.state;
+    if (ev.kind === 'move') {
+      const [dx, dy] = DIRECTIONS[ev.direction]!;
+      this.centerMapOn(wrapX(ev.x + dx!), ev.y + dy!);
+      const at = this.cellOnScreen(ev.x, ev.y);
+      if (!at) return;
+      this.hideOverride = { player: ev.player, unitId: ev.unitId };
+      this.redrawAll();
+      this.hideOverride = undefined;
+      // F0_1866_1d55: następna jednostka stosu (na wodzie tylko statek)
+      const rest = unitsAt(st, ev.player, ev.x, ev.y).filter((i) => i !== ev.unitId);
+      const water = terrainAt(st.map, ev.x, ev.y) === Terrain.Water;
+      const next = rest.find((i) => !water || UNITS[st.players[ev.player]!.units[i]!.type]!.movementType === MovementType.Water);
+      if (next !== undefined && (ev.player === this.human || st.players[ev.player]!.units[next]!.visibleBy & (1 << this.human))) {
+        drawUnit(gfx.screen, st, this.sprites, ev.player, next, at.sx, at.sy, rest.length > 1, undefined, this.textDrawer);
+      }
+      this.animations.push({ ev, index: st.events.length, base: gfx.screen.pixels.slice(), sx: at.sx, sy: at.sy });
+      return;
+    }
+    if (ev.attackerType === 25) return; // atak jądrowy — osobna animacja wybuchu
+    this.centerMapOn(ev.x, ev.y);
+    const at = this.cellOnScreen(ev.fromX, ev.fromY);
+    if (!at) return;
+    this.hideOverride = { player: ev.attacker, unitId: ev.attackerUnit };
+    this.redrawAll();
+    this.hideOverride = undefined;
+    const rest = unitsAt(st, ev.attacker, ev.fromX, ev.fromY).filter((i) => i !== ev.attackerUnit);
+    if (rest.length > 0) drawUnit(gfx.screen, st, this.sprites, ev.attacker, rest[0]!, at.sx, at.sy, rest.length > 1, undefined, this.textDrawer);
+    const target = this.cellOnScreen(ev.x, ev.y);
+    if (target) drawUnit(gfx.screen, st, this.sprites, ev.defender, ev.defenderUnit, target.sx, target.sy, false, undefined, this.textDrawer);
+    const base = gfx.screen.pixels.slice();
+    // F0_2aea_11d4_DrawCellWithUnit obu pól przed wybuchem: napastnik z powrotem na swoim polu
+    drawUnit(gfx.screen, st, this.sprites, ev.attacker, ev.attackerUnit, at.sx, at.sy, rest.length > 0, undefined, this.textDrawer);
+    this.animations.push({ ev, index: st.events.length, base, after: gfx.screen.pixels.slice(), sx: at.sx, sy: at.sy });
+  }
+
+  /** Odtwarza zapamiętane animacje zapisane przed zdarzeniem numer `upTo` (włącznie). */
+  private async playAnimations(upTo: number): Promise<void> {
+    while (this.animations.length > 0 && this.animations[0]!.index <= upTo) {
+      await this.playAnimation(this.animations.shift()!);
+    }
+  }
+
+  private async playAnimation(a: Animation): Promise<void> {
+    const screen = this.ui.gfx.screen;
+    const ev = a.ev;
+    if (ev.kind === 'move') {
+      // F0_1866_1d55_AnimateUnitMove: 17 kroków po 1 piksel, WaitTimer(1)
+      const [dx, dy] = DIRECTIONS[ev.direction]!;
+      for (let i = 0; i < 17; i++) {
+        screen.pixels.set(a.base);
+        drawUnitSprite(screen, this.sprites, ev.player, ev.type, a.sx + dx! * i, a.sy + dy! * i);
+        this.ui.present();
+        await this.ui.waitTimer(1);
+      }
+      screen.pixels.set(a.base);
+      return;
+    }
+    // AttackUnit (0x29f3:0x04ae–0x070b): dźwięk walki, wypad napastnika o 10 pikseli (WaitTimer 2), wybuch na polu
+    // przegranego (8 klatek, WaitTimer 4). Pole wybuchu: napastnik + 16·krok, gdy wygrał (bp-0x24 = 16), inaczej jego pole.
+    const combat = this.state.events[a.index];
+    if (combat?.kind === 'combat') {
+      this.ui.playTune(combatTune(this.state, combat));
+      this.combatSoundPlayed.add(a.index);
+    }
+    let xStep = Math.sign(ev.x - ev.fromX);
+    const yStep = Math.sign(ev.y - ev.fromY);
+    if ((ev.fromX === 0 && ev.x === 79) || (ev.x === 0 && ev.fromX === 79)) xStep = -xStep;
+    for (let i = 0; i < 11; i++) {
+      screen.pixels.set(a.base);
+      drawUnitSprite(screen, this.sprites, ev.attacker, ev.attackerType, a.sx + i * xStep, a.sy + i * yStep);
+      this.ui.present();
+      await this.ui.waitTimer(2);
+    }
+    const shift = ev.attackerWon ? 16 : 0;
+    for (let f = 0; f < 8; f++) {
+      screen.pixels.set(a.after!);
+      drawExplosionFrame(screen, this.sprites, f, a.sx + shift * xStep, a.sy + shift * yStep);
+      this.ui.present();
+      await this.ui.waitTimer(4);
+    }
+    screen.pixels.set(a.after!);
   }
 
   /**
@@ -566,7 +729,8 @@ export class GameScreen {
       await pause(NUKE_ANIMATION_TICKS);
     }
     if (ev.kind === 'combat') {
-      if (ev.seen !== true) return;
+      // dźwięk i animację walki odtworzyła już animacja z haczyka silnika; bez niej (pole poza widokiem) — sam dźwięk
+      if (ev.seen !== true || this.combatSoundPlayed.has(this.eventsSeen - 1)) return;
       this.ui.playTune(combatTune(this.state, ev));
       await pause(COMBAT_ANIMATION_TICKS);
       return;
@@ -947,11 +1111,11 @@ export class GameScreen {
   /** Same pola mapy i minimapa (bez paneli) — także przy miganiu aktywnej jednostki. */
   private drawMap(): void {
     const gfx = this.ui.gfx;
-    const hideUnit = this.blinkHidden && this.activeUnit !== -1 ? { player: this.human, unitId: this.activeUnit } : undefined;
+    const hideUnit = this.hideOverride ?? (this.blinkHidden && this.activeUnit !== -1 ? { player: this.human, unitId: this.activeUnit } : undefined);
     drawMapView(gfx.screen, this.state, this.sprites, {
       viewX: this.viewX, viewY: this.viewY, text: this.textDrawer, revealAll: this.options.revealAll, hideUnit,
     });
-    this.drawActiveUnit();
+    if (!this.hideOverride || this.hideOverride.player !== this.human || this.hideOverride.unitId !== this.activeUnit) this.drawActiveUnit();
     drawMiniMap(gfx.screen, this.state, this.viewX, this.viewY);
     // Ramka minimapy jak DrawShadowRectangle(0, 8, 79, 49, 15, 8) we wzorcu (górna i prawa krawędź 8, dolna i lewa 15),
     // tak samo jak ramki paneli; ramka widoku przerysowana na wierzchu.
@@ -1265,3 +1429,15 @@ const COMBAT_ANIMATION_TICKS = 58;
 const NUKE_ANIMATION_TICKS = 175;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** Animacja zapamiętana z haczyka silnika: obraz ekranu przed ruchem/walką i punkt pola jednostki na ekranie. */
+interface Animation {
+  readonly ev: VisualEvent;
+  /** Numer zdarzenia silnika, przed którym animacja się odbywa. */
+  readonly index: number;
+  readonly base: Uint8Array;
+  /** Walka: obraz z napastnikiem z powrotem na polu (tło wybuchu). */
+  readonly after?: Uint8Array;
+  readonly sx: number;
+  readonly sy: number;
+}

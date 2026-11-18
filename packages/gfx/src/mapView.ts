@@ -97,7 +97,21 @@ function drawSprite(dst: Surface, dx: number, dy: number, s: Sprite, clip?: Clip
   }
 }
 
-interface Clip { x0: number; y0: number; x1: number; y1: number }
+export interface Clip { x0: number; y0: number; x1: number; y1: number }
+
+/** Obszar mapy na ekranie (przycięcie animacji). */
+export const MAP_CLIP: Clip = { x0: 80, y0: 8, x1: 320, y1: 200 };
+
+/** Rysunek jednostki gracza (Array_d4ce[64 + typ + gracz·32]) w punkcie pola (sx, sy), z przycięciem. */
+export function drawUnitSprite(dst: Surface, sprites: MapSprites, player: number, type: number, sx: number, sy: number, clip: Clip = MAP_CLIP): void {
+  const s = sprites.units[player]?.[type];
+  if (s) drawSprite(dst, sx, sy, s, clip);
+}
+
+/** Klatki wybuchu (StartGameMenu: Array_d4ce[32 + i] = SP257.PIC (i·16 + 1, 97), 15×15), rysowane jak jednostka. */
+export function drawExplosionFrame(dst: Surface, sprites: MapSprites, frame: number, sx: number, sy: number, clip: Clip = MAP_CLIP): void {
+  blit(dst, sx, sy, sprites.sheets.sp, frame * 16 + 1, 97, 15, 15, true, clip);
+}
 
 export function fillRect(dst: Surface, x: number, y: number, w: number, h: number, color: number): void {
   for (let j = Math.max(0, y); j < Math.min(dst.height, y + h); j++) {

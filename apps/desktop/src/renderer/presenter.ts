@@ -2,7 +2,8 @@
  * Wyświetlanie ekranu oryginału w oknie: ekran 320×200 w indeksach palety → RGBA (paleta) → powiększenie 4× (1280×800)
  * → canvas okna, skalowany z zachowaniem proporcji 16:10 (czarne pasy). Powiększenie wg ustawienia View → Smoothing:
  * - none: piksele oryginału (najbliższy sąsiad),
- * - light (domyślne od 0.5.1): xBR 4× bez mieszania kolorów, bez zmiękczenia,
+ * - none — domyślne od 0.6.2,
+ * - light: xBR 4× bez mieszania kolorów, bez zmiękczenia,
  * - strong: xBR 4× z mieszaniem kolorów + zmiękczenie 0.6 px (wygląd do wersji 0.5.0).
  * Klatka liczy się tylko po zmianie ekranu, palety albo ustawienia.
  * Mysz: współrzędne okna przeliczane na piksele ekranu 320×200.
@@ -59,7 +60,7 @@ export class Presenter implements UiHost {
   private hasFrame = false;
   /** Prostokąt obrazu w pikselach CSS okna. */
   private view = { x: 0, y: 0, w: SMOOTH_W, h: SMOOTH_H };
-  private smoothing: Smoothing = 'light';
+  private smoothing: Smoothing = 'none';
   /** Klatka powiększona najbliższym sąsiadem o całkowitą krotność (ostre dopasowanie do okna). */
   private readonly prescaled = canvas2d(1, 1);
   private cursor: { rgba: Uint8ClampedArray; width: number; height: number; hotX: number; hotY: number } | null = null;

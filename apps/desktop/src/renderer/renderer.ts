@@ -94,7 +94,7 @@ function start(result: LoadResult): void {
   // karta dźwiękowa przed intro — muzyka napisów zaczyna się od pierwszej klatki
   window.civ.getSoundCard().catch(() => 'none' as const).then((card) => {
     audio.setCard(card);
-    return runGameFlow(ui, assets, { saves, originalSaves });
+    return runGameFlow(ui, assets, { saves, originalSaves, exit: () => window.civ.quit() });
   }).catch((error: unknown) => {
     console.error(error);
     showOverlay('Something went wrong', String(error), true);

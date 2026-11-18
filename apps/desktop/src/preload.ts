@@ -11,6 +11,7 @@ const api: CivApi = {
   readGameSave: (index: number) => ipcRenderer.invoke('gamesaves:read', index),
   writeGameSave: (index: number, sve: Uint8Array, map: Uint8Array) => ipcRenderer.invoke('gamesaves:write', index, sve, map),
   getSmoothing: () => ipcRenderer.invoke('smoothing:get'),
+  quit: () => ipcRenderer.send('app:quit'),
   onSmoothing: (callback: (mode: Smoothing) => void) => {
     ipcRenderer.on('smoothing', (_e, mode: Smoothing) => callback(mode));
   },

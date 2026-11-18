@@ -24,6 +24,12 @@ export type MainMenuResult = MapChoice | { readonly kind: 'load'; readonly state
 export type SavedGameLoader = (ui: Ui) => Promise<GameState | null>;
 
 export const MAIN_MENU_TEXT = ' Start a New Game\n Load a Saved Game\n EARTH\n Customize World\n View Hall of Fame\n';
+/**
+ * Odstępstwo na prośbę Damiana: dodatkowa opcja wyjścia z programu (oryginał kończył się przez Ctrl+Q / Quit w grze).
+ * Pokazywana tylko, gdy gospodarz umie zamknąć aplikację.
+ */
+export const MAIN_MENU_EXIT = ' Exit\n';
+export const EXIT_CHOICE = 5;
 
 /**
  * Pokazuje menu główne aż do wyboru nowej gry. `preselected` — wybór z intro (klawisze N, L, E, C).
@@ -31,7 +37,7 @@ export const MAIN_MENU_TEXT = ' Start a New Game\n Load a Saved Game\n EARTH\n C
  */
 export async function showLogoAndMainGameMenu(
   ui: Ui, assets: GameAssets, preselected: number = GameType.None, loadSaved?: SavedGameLoader,
-  readFame?: () => Promise<HallOfFameEntry[]>,
+  readFame?: () => Promise<HallOfFameEntry[]>, exitApp?: () => void,
 ): Promise<MainMenuResult> {
   const gfx = ui.gfx;
   let selected = preselected;
@@ -39,7 +45,7 @@ export async function showLogoAndMainGameMenu(
 
   while (choice === null) {
     if (selected === GameType.None) {
-      selected = (await showMenuBox(ui, MAIN_MENU_TEXT, 100, 140, { clearInput: true })).index;
+      selected = (await showMenuBox(ui, MAIN_MENU_TEXT + (exitApp ? MAIN_MENU_EXIT : ''), 100, 140, { clearInput: true })).index;
       // F0_11a8_0486 (0x11a8:0x04c2–0x04dc): muzyka intro milknie na granicy frazy — licznik taktów ≤ 5269 albo
       // (licznik − 5269) podzielny przez 288 — potem PlayTune(1)
       await ui.waitTunePhrase(5269, 288);
@@ -70,6 +76,14 @@ export async function showLogoAndMainGameMenu(
       case GameType.HallOfFame:
         await showHallOfFame(ui, readFame ? await readFame() : emptyHallOfFame());
         redrawLogo(ui, assets);
+        selected = GameType.None;
+        break;
+      case EXIT_CHOICE:
+        if (exitApp) {
+          ui.playTune(TUNE.stop);
+          exitApp();
+          await new Promise<never>(() => {}); // aplikacja się zamyka
+        }
         selected = GameType.None;
         break;
       default:

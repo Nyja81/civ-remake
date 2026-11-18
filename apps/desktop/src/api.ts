@@ -28,6 +28,8 @@ export interface CivApi {
   writeGameSave(index: number, sve: Uint8Array, map: Uint8Array): Promise<SaveWriteResult>;
   /** Zapamiętane wygładzanie (menu View → Smoothing). */
   getSmoothing(): Promise<Smoothing>;
+  /** Zamyka aplikację (Exit w menu głównym). */
+  quit(): void;
   /** Wywoływane po zmianie wygładzania w menu. */
   onSmoothing(callback: (mode: Smoothing) => void): void;
   /** Zapamiętana karta dźwiękowa (menu View → Sound). */

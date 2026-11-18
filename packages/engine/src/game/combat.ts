@@ -1,8 +1,9 @@
 /**
  * Walka. Źródło: AttackActions.F0_29f3_000e_AttackUnit, ConfirmAttackAction
  * oraz UnitManagement.GetBestDefenseUnitInStack z OpenCivOne (MIT).
- * Pominięte na razie: atak jądrowy (etap 7), animacje i dźwięki (interfejs dostaje zdarzenie „combat”).
+ * Atak jądrowy osobno (catastrophes.ts). Animację walki rysuje interfejs z haczyka `emitVisual` (visual.ts), dźwięk — ze zdarzenia „combat”.
  */
+import { emitVisual } from './visual';
 import { MovementType } from '../data/enums';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
@@ -133,6 +134,11 @@ export function attackUnit(state: GameState, p1: number, id1: number, p2: number
   // AttackUnit (przed CenterMap 0x29f3:0x03de): walkę widzi człowiek, gdy bierze w niej udział albo widzi którąś z jednostek
   const h = state.humanPlayer;
   const seen = p1 === h || p2 === h || (u1.visibleBy & (1 << h)) !== 0 || (u2.visibleBy & (1 << h)) !== 0;
+  // animacja walki (0x29f3:0x03de–0x070b) — przed skutkami, gdy obie jednostki jeszcze stoją
+  if (seen) {
+    emitVisual(state, { kind: 'combat', attacker: p1, attackerUnit: id1, attackerType: type1, defender: p2, defenderUnit: id2,
+      fromX: u1.x, fromY: u1.y, x: u2.x, y: u2.y, attackerWon: won });
+  }
   state.events.push({ kind: 'combat', player: p1, attacker: p1, defender: p2, attackerType: type1, defenderType: u2.type,
     fromX: u1.x, fromY: u1.y, x: u2.x, y: u2.y, attackerWon: won, seen });
 

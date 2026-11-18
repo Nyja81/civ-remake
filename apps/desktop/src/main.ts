@@ -194,7 +194,10 @@ const SMOOTHING_LABELS: [Smoothing, string][] = [
   ['strong', 'Strong'],
 ];
 
-const smoothingOf = (): Smoothing => readConfig().smoothing ?? 'light';
+// Domyślnie piksele oryginału bez wygładzania (decyzja Damiana 2026-11-18)
+const smoothingOf = (): Smoothing => readConfig().smoothing ?? 'none';
+
+ipcMain.on('app:quit', () => app.quit());
 
 ipcMain.handle('smoothing:get', () => smoothingOf());
 

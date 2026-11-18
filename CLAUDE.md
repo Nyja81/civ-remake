@@ -713,3 +713,22 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   zmniejszenie z mieszaniem (dotąd dwuliniowe skalowanie 1280×800 do okna, np. ×2,4 na Retinie, rozmywało obraz). Strong bez zmian.
 - Testy: 336 (29 pominiętych bez `CIV1_DIR`), 360 z plikami gry; nowe w `gameplay.test.ts` (ruch kliknięciem, „idź do”,
   klawisz g, koniec tury z „End of Turn” i bez); małpa na ekranie 4 gry — bez błędów. Aplikacja uruchomiona w Xvfb — intro rysuje się.
+
+### 2026-11-18 — animacje ruchu i walki, miganie, Exit, koniec tury bez jednostek; paczka 0.6.2
+- Zgłoszenia Damiana: brak opcji wyjścia, jednostka gotowa do ruchu nie miga, tura nie kończy się sama, brak animacji ruchu i walki,
+  domyślnie bez wygładzania.
+- Silnik `packages/engine/src/game/visual.ts`: `setVisualHook`/`emitVisual` — zdarzenia wizualne `move` (movement.ts, przed postawieniem
+  jednostki; człowiek zawsze, komputer przy widocznym ruchu i „Enemy Moves”) i `combat` (combat.ts, przed skutkami walki, gdy widoczna).
+- `gfx/mapView.ts`: `drawUnitSprite`, `drawExplosionFrame` (SP257 (i·16+1, 97) 15×15), `MAP_CLIP`.
+- UI `gameScreen.ts`: haczyk w chwili zdarzenia robi CenterMap i obraz ekranu (pole bez jednostki, następna jednostka stosu; przy walce
+  obrońca na wierzchu); odtwarzanie przed kolejnym oknem zdarzenia: ruch — 17 klatek po 1 jednostce zegara (F0_1866_1d55), walka — dźwięk,
+  11 klatek wypadu napastnika po 2 jednostki, 8 klatek wybuchu po 4 na polu przegranego (AttackUnit 0x29f3:0x04ae–0x070b; pole wybuchu
+  z bp-0x24 = 16 przy wygranej napastnika — nowszy wzorzec używa tu błędnie i), potem pokonana jednostka znika. Atak jądrowy — bez animacji.
+- Miganie aktywnej jednostki: stały termin 250 ms (ruch myszy przestał przedłużać fazę — przy gładziku jednostka nie migała).
+- Koniec tury: bez „End of Turn” i bez żadnej jednostki w turze tura kończy się po 1,5 s, chyba że gracz coś naciśnie (oryginał czeka
+  na Enter) — **odstępstwo na prośbę Damiana**. Opcja „End of Turn” włączona = czekanie na Enter (jak w oryginale).
+- Menu główne: opcja **Exit** (tylko w aplikacji — `GameFlowHooks.exit`, IPC `app:quit`); wyjście z gry z menu GAME → Quit zamyka aplikację.
+- Wygładzanie domyślnie None (`main.ts`, `presenter.ts`); zapamiętany wybór z View → Smoothing nadal ma pierwszeństwo.
+- Testy: 340 (29 pominiętych bez `CIV1_DIR`), 364 z plikami gry; nowe: animacja ruchu i walki, przerwa końca tury, Exit.
+  Małpa na ekranie (4 gry) — bez błędów; aplikacja w Xvfb: menu z Exit, wyjście zamyka program.
+

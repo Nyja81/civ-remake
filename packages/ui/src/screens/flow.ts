@@ -34,6 +34,8 @@ export interface GameFlowHooks {
   readonly originalSaves?: OriginalSaveStore;
   /** Wywoływane po utworzeniu nowej gry (np. dla diagnostyki albo zapisu). */
   readonly onNewGame?: (state: GameState, settings: NewGameSettings) => void;
+  /** Zamknięcie aplikacji (opcja Exit w menu głównym i QUIT w grze); bez niego opcji Exit nie ma. */
+  readonly exit?: () => void;
   /** Ziarno nowej gry; domyślnie losowe 0–32767. */
   readonly seed?: () => number;
 }
@@ -143,7 +145,7 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
   const loader = saves || hooks.originalSaves ? savedGameLoader(saves, hooks.originalSaves) : undefined;
   const fame = saves ? fameStore(saves) : undefined;
   for (;;) {
-    const choice = await showLogoAndMainGameMenu(ui, assets, preselected, loader, () => readFame(fame, assets));
+    const choice = await showLogoAndMainGameMenu(ui, assets, preselected, loader, () => readFame(fame, assets), hooks.exit);
     preselected = GameType.None;
     let state: GameState;
     if (choice.kind === 'load') {
@@ -159,7 +161,7 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
       hooks.onNewGame?.(state, settings);
       await showInitText(ui, assets, settings, knownTechnologies(state), NATIONS[settings.nationalityId]?.longTune);
     }
-    await new GameScreen(ui, assets, state, {
+    const result = await new GameScreen(ui, assets, state, {
       autosave: saves ? (s) => saves.write(saveName(s, 'Autosave '), saveGame(s)) : undefined,
       save: saves ? (s) => saves.write(saveName(s), saveGame(s)) : undefined,
       originalSaves: hooks.originalSaves,
@@ -167,6 +169,11 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
       fameInitial: () => readFame(undefined, assets),
       writeReplay: saves ? (text) => saves.write('REPLAY.TXT', text) : undefined,
     }).run();
+    // GAME → QUIT to DOS: wyjście z programu, jak w oryginale (gdy aplikacja to umie)
+    if (result === 'quit' && hooks.exit) {
+      hooks.exit();
+      await new Promise<never>(() => {});
+    }
     // powrót do ekranu tytułowego
     ui.gfx.patternAvailable = false;
     ui.gfx.fillRect(0, 0, 320, 200, 0);

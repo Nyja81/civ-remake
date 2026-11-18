@@ -27,6 +27,15 @@ describe('intro i menu główne', () => {
     expect(ui.gfx.patternAvailable).toBe(true);
   });
 
+  it('Exit w menu głównym (tylko gdy aplikacja podaje wyjście) zamyka program', async () => {
+    const { ui, assets } = makeUi();
+    let exited = 0;
+    const down = Array.from({ length: 5 }, () => key('ArrowDown'));
+    await drive(ui, [...down, key('Enter')], () => showLogoAndMainGameMenu(ui, assets, undefined, undefined, undefined, () => { exited++; })).catch(() => undefined);
+    expect(exited).toBe(1);
+    expect(ui.gfx.screen.pixels.length).toBe(64000);
+  });
+
   it('Customize World: cztery menu na CUSTOM.PIC, domyślnie środkowa opcja, Esc powtarza pytanie', async () => {
     const { ui, assets } = makeUi();
     const events = [

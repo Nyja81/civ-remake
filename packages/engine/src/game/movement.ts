@@ -7,6 +7,7 @@
  * Dyplomata człowieka w obcym mieście kończy ruch wynikiem { kind: 'diplomat' } — wybór akcji idzie przez
  * `diplomatAction` (unitActions.ts); dyplomata komputera działa od razu.
  */
+import { emitVisual } from './visual';
 import { MovementType } from '../data/enums';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
@@ -219,6 +220,10 @@ export function moveUnit(state: GameState, player: number, unitId: number, direc
   // Przesunięcie jednostki (i ładunku, jeśli to statek albo lotniskowiec)
   const ox = unit.x;
   const oy = unit.y;
+  // PlayerTurn (0x1403:0x2cb3–0x2cd5): ruch widoczny dla człowieka — animacja F0_1866_1d55; komputer tylko z „Enemy Moves”
+  if (seenBefore && (human || state.settings.enemyMoves)) {
+    emitVisual(state, { kind: 'move', player, unitId, type: unit.type, x: ox, y: oy, direction });
+  }
   const cargo = def.transportCapacity !== 0 || unit.type === 23 ? unitsAt(state, player, ox, oy).filter((i) => i !== unitId) : [];
   placeUnit(state, player, unitId, nx, ny);
   unit.visibleBy = 0;

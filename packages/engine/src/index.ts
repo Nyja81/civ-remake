@@ -38,6 +38,7 @@ export * from './game/ai';
 export * from './game/score';
 export * from './game/spaceship';
 export * from './game/goto';
+export * from './game/visual';
 export * from './game/reports';
 export * from './game/cityManagement';
 export * from './game/unitActions';

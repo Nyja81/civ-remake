@@ -44,6 +44,14 @@ export class InputQueue {
     for (const w of waiters) w();
   }
 
+  /** Oddaje zdarzenie na początek kolejki (podejrzane, ale jeszcze nieobsłużone). */
+  unshift(event: UiEvent): void {
+    this.queue.unshift(event);
+    const waiters = this.waiters;
+    this.waiters = [];
+    for (const w of waiters) w();
+  }
+
   get size(): number {
     return this.queue.length;
   }

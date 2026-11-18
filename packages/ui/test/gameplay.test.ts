@@ -249,4 +249,58 @@ describe('mysz i koniec tury', () => {
       expect(state.turn).toBe(endOfTurn ? turn : turn + 1);
     }
   });
+
+  it('tura bez żadnej jednostki kończy się po krótkiej przerwie; klawisz w przerwie ją wstrzymuje', async () => {
+    const { ui, state, screen } = setup();
+    screen.activeUnit = -1;
+    (screen as unknown as { hadActiveUnit: boolean }).hadActiveUnit = false;
+    const turn = state.turn;
+    ui.input.push(key('Escape'));
+    expect(await screen.autoEndTurn()).toBe(false);
+    expect(ui.input.size).toBe(1); // klawisz wrócił do kolejki
+    while (ui.input.size > 0) await ui.waitEvent(0);
+    // czas przerwy w testach mija od razu (TestHost.sleep)
+    expect(await screen.autoEndTurn()).toBe(true);
+    expect(state.turn).toBe(turn + 1);
+  }, 20000);
+
+  it('ruch jednostki: 17 klatek przesuwania jak AnimateUnitMove', async () => {
+    const { ui, state, screen } = setup();
+    const h = state.humanPlayer;
+    const u = state.players[h]!.units[screen.activeUnit]!;
+    screen.drawVisibleMap(u.x - 7, u.y - 6);
+    const target = neighbour(state, u.x, u.y);
+    const p = at(screen, target.x, target.y);
+    let frames = 0;
+    const present = ui.present.bind(ui);
+    ui.present = () => { frames++; present(); };
+    await drive(ui, [], () => screen.handle({ type: 'mousedown', x: p.x, y: p.y, button: 'right' }));
+    expect([u.x, u.y]).toEqual([target.x, target.y]);
+    expect(frames).toBeGreaterThanOrEqual(17);
+  });
+
+  it('walka: wypad napastnika, wybuch, pokonana jednostka znika', async () => {
+    const { createUnit, UNITS } = await import('@civ-remake/engine');
+    const { ui, state, screen } = setup();
+    const h = state.humanPlayer;
+    const s0 = state.players[h]!.units[screen.activeUnit]!;
+    const target = neighbour(state, s0.x, s0.y);
+    const legion = createUnit(state, h, UNITS.findIndex((u) => u.name === 'Legion'), s0.x, s0.y);
+    state.players[h]!.units[legion]!.movesLeft = 3;
+    const enemy = createUnit(state, 0, UNITS.findIndex((u) => u.name === 'Militia'), target.x, target.y);
+    state.players[0]!.units[enemy]!.visibleBy = 0xff;
+    screen.activeUnit = legion;
+    screen.drawVisibleMap(s0.x - 7, s0.y - 6);
+    const p = at(screen, target.x, target.y);
+    let frames = 0;
+    const present = ui.present.bind(ui);
+    ui.present = () => { frames++; present(); };
+    await drive(ui, Array.from({ length: 6 }, () => key('Enter')), () => screen.handle({ type: 'mousedown', x: p.x, y: p.y, button: 'right' })).catch(() => undefined);
+    expect(state.events.some((e) => e.kind === 'combat')).toBe(true);
+    // 11 klatek wypadu + 8 klatek wybuchu
+    expect(frames).toBeGreaterThanOrEqual(19);
+    const legionAlive = state.players[h]!.units[legion]!.type !== -1;
+    const enemyAlive = state.players[0]!.units[enemy]!.type !== -1;
+    expect(legionAlive && enemyAlive).toBe(false);
+  });
 });
