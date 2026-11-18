@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { OPTIONAL_FILES, REQUIRED_FILES, type LoadResult, type SaveWriteResult, type Smoothing, type SoundCardChoice } from './api';
 
@@ -8,6 +8,8 @@ const configPath = () => join(app.getPath('userData'), 'config.json');
 interface Config {
   gameDir?: string;
   smoothing?: Smoothing;
+  /** Co ile tur cichy autozapis (GAME → Autosave...); 0 = wyłączony. */
+  autosaveTurns?: number;
   sound?: SoundCardChoice;
 }
 
@@ -141,9 +143,23 @@ ipcMain.handle('game:choose', async () => {
 // Zapisy gry (JSON z silnika) w folderze danych aplikacji; nazwy bez ścieżek.
 const savesDir = () => join(app.getPath('userData'), 'saves');
 const safeName = (name: string) => basename(name).replace(/[^A-Za-z0-9 _.-]/g, '_');
+// od najstarszego do najnowszego (czas zapisu, potem nazwa)
 ipcMain.handle('saves:list', () => {
   if (!existsSync(savesDir())) return [];
-  return readdirSync(savesDir()).filter((f) => f.endsWith('.json')).sort();
+  return readdirSync(savesDir())
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => ({ f, t: statSync(join(savesDir(), f)).mtimeMs }))
+    .sort((a, b) => a.t - b.t || a.f.localeCompare(b.f))
+    .map((e) => e.f);
+});
+ipcMain.handle('saves:remove', (_e, name: string) => {
+  const file = join(savesDir(), safeName(name));
+  if (existsSync(file)) unlinkSync(file);
+});
+// domyślnie co 5 tur
+ipcMain.handle('autosave:get', () => readConfig().autosaveTurns ?? 5);
+ipcMain.handle('autosave:set', (_e, turns: number) => {
+  if (Number.isInteger(turns) && turns >= 0 && turns <= 100) saveConfig({ ...readConfig(), autosaveTurns: turns });
 });
 ipcMain.handle('saves:read', (_e, name: string) => readFileSync(join(savesDir(), safeName(name)), 'utf8'));
 ipcMain.handle('saves:write', (_e, name: string, json: string) => {

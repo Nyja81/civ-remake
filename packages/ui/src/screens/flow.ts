@@ -20,9 +20,25 @@ import { setLastSaveSlot, type OriginalSaveStore } from './saveGame';
 
 /** Magazyn zapisów gry (w aplikacji: folder danych aplikacji). */
 export interface SaveStore {
+  /** Nazwy plików zapisów od najstarszego do najnowszego. */
   list(): Promise<string[]>;
   read(name: string): Promise<string>;
   write(name: string, json: string): Promise<void>;
+  /** Usuwa zapis (stare autozapisy); bez tej funkcji autozapisy się nie usuwają. */
+  remove?(name: string): Promise<void>;
+}
+
+/** Prefiks nazw autozapisów i liczba trzymanych najnowszych autozapisów. */
+export const AUTOSAVE_PREFIX = 'Autosave ';
+export const AUTOSAVES_KEPT = 3;
+
+/** Cichy autozapis JSON; zostają tylko AUTOSAVES_KEPT najnowsze autozapisy. */
+export async function writeAutosave(saves: SaveStore, state: GameState): Promise<void> {
+  const name = saveName(state, AUTOSAVE_PREFIX);
+  await saves.write(name, saveGame(state));
+  if (!saves.remove) return;
+  const autosaves = (await saves.list()).filter((n) => n.startsWith(AUTOSAVE_PREFIX) && n !== name);
+  for (const old of autosaves.slice(0, Math.max(0, autosaves.length - (AUTOSAVES_KEPT - 1)))) await saves.remove(old);
 }
 
 export type { OriginalSaveStore, SaveWriteResult } from './saveGame';
@@ -36,6 +52,8 @@ export interface GameFlowHooks {
   readonly onNewGame?: (state: GameState, settings: NewGameSettings) => void;
   /** Zamknięcie aplikacji (opcja Exit w menu głównym i QUIT w grze); bez niego opcji Exit nie ma. */
   readonly exit?: () => void;
+  /** Co ile tur cichy autozapis (GAME → Autosave...); bez tego tylko autozapis oryginału co 50 tur. */
+  readonly autosaveTurns?: { get(): number; set(turns: number): void };
   /** Ziarno nowej gry; domyślnie losowe 0–32767. */
   readonly seed?: () => number;
 }
@@ -95,7 +113,8 @@ export function savedGameLoader(saves: SaveStore | undefined, originals?: Origin
         }
       }
     }
-    const names = saves ? (await saves.list()).slice(-Math.max(18 - choices.length, 0)) : [];
+    // najnowsze zapisy na górze listy
+    const names = saves ? (await saves.list()).slice(-Math.max(18 - choices.length, 0)).reverse() : [];
     choices.unshift(...names.map((name) => ({ label: name.replace(/\.json$/, ''), load: async () => loadGame(await saves!.read(name)) })));
     if (choices.length === 0) {
       await showMenuBox(ui, 'No saved games.\n', 100, 80, { clearInput: true });
@@ -144,11 +163,15 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
   const saves = hooks.saves;
   const loader = saves || hooks.originalSaves ? savedGameLoader(saves, hooks.originalSaves) : undefined;
   const fame = saves ? fameStore(saves) : undefined;
+  let pending: GameState | undefined; // gra wczytana z GAME → Load Game
   for (;;) {
-    const choice = await showLogoAndMainGameMenu(ui, assets, preselected, loader, () => readFame(fame, assets), hooks.exit);
-    preselected = GameType.None;
     let state: GameState;
-    if (choice.kind === 'load') {
+    const choice = pending ? null : await showLogoAndMainGameMenu(ui, assets, preselected, loader, () => readFame(fame, assets), hooks.exit);
+    preselected = GameType.None;
+    if (!choice) {
+      state = pending!;
+      pending = undefined;
+    } else if (choice.kind === 'load') {
       state = choice.state;
     } else {
       // StartGame: historia świata w trakcie budowy mapy (MapInitAndIntro), potem ustawienia nowej gry
@@ -161,14 +184,21 @@ export async function runGameFlow(ui: Ui, assets: GameAssets, hooks: GameFlowHoo
       hooks.onNewGame?.(state, settings);
       await showInitText(ui, assets, settings, knownTechnologies(state), NATIONS[settings.nationalityId]?.longTune);
     }
-    const result = await new GameScreen(ui, assets, state, {
-      autosave: saves ? (s) => saves.write(saveName(s, 'Autosave '), saveGame(s)) : undefined,
+    const screen = new GameScreen(ui, assets, state, {
+      autosave: saves ? (s) => writeAutosave(saves, s) : undefined,
+      autosaveTurns: saves ? hooks.autosaveTurns : undefined,
+      load: loader,
       save: saves ? (s) => saves.write(saveName(s), saveGame(s)) : undefined,
       originalSaves: hooks.originalSaves,
       fame,
       fameInitial: () => readFame(undefined, assets),
       writeReplay: saves ? (text) => saves.write('REPLAY.TXT', text) : undefined,
-    }).run();
+    });
+    const result = await screen.run();
+    if (result === 'load' && screen.loadedState) {
+      pending = screen.loadedState;
+      continue;
+    }
     // GAME → QUIT to DOS: wyjście z programu, jak w oryginale (gdy aplikacja to umie)
     if (result === 'quit' && hooks.exit) {
       hooks.exit();

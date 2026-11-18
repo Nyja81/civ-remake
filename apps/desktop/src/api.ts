@@ -22,6 +22,10 @@ export interface CivApi {
   listSaves(): Promise<string[]>;
   readSave(name: string): Promise<string>;
   writeSave(name: string, json: string): Promise<void>;
+  removeSave(name: string): Promise<void>;
+  /** Co ile tur cichy autozapis (GAME → Autosave...); 0 = wyłączony, domyślnie 5. */
+  getAutosaveTurns(): Promise<number>;
+  setAutosaveTurns(turns: number): Promise<void>;
   /** Zapisy oryginału CIVIL0–9.SVE z plikiem .MAP w folderze gry (odczyt, zapis z GAME → Save Game i autozapisu). */
   listGameSaves(): Promise<number[]>;
   readGameSave(index: number): Promise<{ sve: Uint8Array; map: Uint8Array }>;

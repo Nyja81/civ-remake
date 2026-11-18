@@ -85,7 +85,21 @@ function start(result: LoadResult): void {
   void window.civ.getSmoothing().then((mode) => presenter.setSmoothing(mode));
   window.civ.onSmoothing((mode) => presenter.setSmoothing(mode));
   (window as unknown as { civUi: unknown }).civUi = { ui, presenter, assets, audio }; // diagnostyka (konsola)
-  const saves = { list: () => window.civ.listSaves(), read: (n: string) => window.civ.readSave(n), write: (n: string, j: string) => window.civ.writeSave(n, j) };
+  const saves = {
+    list: () => window.civ.listSaves(),
+    read: (n: string) => window.civ.readSave(n),
+    write: (n: string, j: string) => window.civ.writeSave(n, j),
+    remove: (n: string) => window.civ.removeSave(n),
+  };
+  let autosaveEvery = 5;
+  void window.civ.getAutosaveTurns().then((n) => (autosaveEvery = n)).catch(() => undefined);
+  const autosaveTurns = {
+    get: () => autosaveEvery,
+    set: (n: number) => {
+      autosaveEvery = n;
+      void window.civ.setAutosaveTurns(n);
+    },
+  };
   const originalSaves = {
     list: () => window.civ.listGameSaves(),
     read: (i: number) => window.civ.readGameSave(i),
@@ -94,7 +108,7 @@ function start(result: LoadResult): void {
   // karta dźwiękowa przed intro — muzyka napisów zaczyna się od pierwszej klatki
   window.civ.getSoundCard().catch(() => 'none' as const).then((card) => {
     audio.setCard(card);
-    return runGameFlow(ui, assets, { saves, originalSaves, exit: () => window.civ.quit() });
+    return runGameFlow(ui, assets, { saves, originalSaves, autosaveTurns, exit: () => window.civ.quit() });
   }).catch((error: unknown) => {
     console.error(error);
     showOverlay('Something went wrong', String(error), true);

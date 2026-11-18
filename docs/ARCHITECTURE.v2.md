@@ -107,6 +107,9 @@ a nie źródłem kodu ani zasobów.
   interfejs zapamiętuje obraz ekranu i odtwarza klatki przed kolejnym oknem zdarzenia (kolejność jak w oryginale).
 - Na prośbę Damiana (2026-11-18): opcja **Exit** w menu głównym (oryginał jej nie ma); tura bez żadnej jednostki kończy się
   sama po 1,5 s (oryginał czeka na Enter); domyślne wygładzanie None.
+- Na prośbę Damiana (2026-11-18): w menu GAME za „Save Game” — **Load Game** (to samo okno co „Load a Saved Game”) i **Autosave...**
+  (cichy autozapis JSON co 1/2/5/10/25/50 tur albo wyłączony; domyślnie 5; zostają 3 najnowsze autozapisy). AutoSave oryginału
+  (okno zapisu CIVIL4–9.SVE co 50 tur) działa jak dotąd.
 
 ### Wzorzec: dwie wersje OpenCivOne
 

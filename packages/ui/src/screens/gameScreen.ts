@@ -55,6 +55,12 @@ export const TOP_MENU_LABELS: readonly { readonly text: string; readonly x: numb
 /** Menu GAME (napisy z CIV.EXE 474.01); " View Replay" dopisywane na końcu przy SpaceshipFlags & 0x100 (F0_2c84_00ad). */
 export const GAME_MENU = ' Tax Rate\n Luxuries Rate\n FindCity\n Options\n Save Game\n REVOLUTION!\n \n Retire\n QUIT to DOS\n';
 export const GAME_MENU_REPLAY = ' View Replay\n';
+/** Odstępstwo na prośbę Damiana (2026-11-18): w menu GAME za „Save Game” — wczytanie zapisu i częstotliwość autozapisu. */
+export const GAME_MENU_LOAD = ' Load Game';
+export const GAME_MENU_AUTOSAVE = ' Autosave...';
+/** Częstotliwości autozapisu (tury); 0 = wyłączony. 50 tur — jak AutoSave oryginału. */
+export const AUTOSAVE_INTERVALS = [0, 1, 2, 5, 10, 25, 50] as const;
+export const AUTOSAVE_MENU = 'Autosave:\n Off\n Every turn\n Every 2 turns\n Every 5 turns\n Every 10 turns\n Every 25 turns\n Every 50 turns\n';
 /** Ustawienia gry (bity 0–7 GameSettingFlags), okno w (24, 16) — napis z CIV.EXE. */
 export const PREFERENCES_MENU = 'Options:\n Instant Advice\n AutoSave\n End of Turn\n Animations\n Sound\n Enemy Moves\n Civilopedia Text\n Palace\n';
 export const ADVISORS_MENU =
@@ -79,7 +85,7 @@ export const ORDER_KEYS: Readonly<Record<string, Order>> = {
   P: 'pillage', h: 'home', w: 'wait', u: 'unload', D: 'disband',
 };
 
-export type GameScreenResult = 'quit' | 'retire' | 'gameOver';
+export type GameScreenResult = 'quit' | 'retire' | 'gameOver' | 'load';
 
 /** Okres migania aktywnej jednostki (ms). */
 const BLINK_MS = 250;
@@ -106,6 +112,13 @@ export interface GameScreenOptions {
   readonly fameInitial?: () => Promise<HallOfFameEntry[]>;
   /** Zapis REPLAY.TXT („Write Replay to Disk” w powtórce gry). */
   readonly writeReplay?: (text: string) => Promise<void>;
+  /** GAME → Load Game: okno wyboru zapisu (jak „Load a Saved Game”); wynik `load` i stan w `GameScreen.loadedState`. */
+  readonly load?: (ui: Ui) => Promise<GameState | null>;
+  /**
+   * Cichy autozapis JSON co `get()` tur (0 = wyłączony), ustawiany w GAME → Autosave...; niezależny od AutoSave oryginału
+   * (okno zapisu CIVIL4–9.SVE co 50 tur). Bez tej opcji — tylko autozapis oryginału.
+   */
+  readonly autosaveTurns?: { get(): number; set(turns: number): void };
 }
 
 
@@ -128,6 +141,8 @@ export class GameScreen {
    * z tej chwili i numer kolejnego zdarzenia silnika — odtwarzane w kolejności razem z oknami zdarzeń.
    */
   private readonly animations: Animation[] = [];
+  /** Stan wczytany z GAME → Load Game (wynik `load`). */
+  loadedState: GameState | undefined;
   /** Zdarzenia walki, których dźwięk zagrała już animacja. */
   private readonly combatSoundPlayed = new Set<number>();
   /** Jednostka ukryta przy rysowaniu obrazu do animacji (pole bez niej — DrawCell). */
@@ -534,11 +549,19 @@ export class GameScreen {
     endHumanTurn(this.state);
     // Autozapis co 50 tur (ustawienie AutoSave w Preferences): w oryginale F11_0000_036a(4 + ((tura / 50 − 1) % 6)) —
     // CIVIL4–9.SVE w folderze gry; zostaje też cichy zapis JSON silnika (pełny stan, w tym stan generatora)
-    if (this.state.settings.autoSave && this.state.turn > 0 && this.state.turn % 50 === 0) {
-      if (this.options.originalSaves?.write) {
-        await showSaveGameDialog(this.ui, this.state, this.options.originalSaves, autosaveSlot(this.state.turn));
+    const turn = this.state.turn;
+    const original = this.state.settings.autoSave && turn > 0 && turn % 50 === 0;
+    if (original && this.options.originalSaves?.write) {
+      await showSaveGameDialog(this.ui, this.state, this.options.originalSaves, autosaveSlot(turn));
+    }
+    // odstępstwo: cichy autozapis JSON co ustawioną liczbę tur (GAME → Autosave...)
+    const every = this.options.autosaveTurns?.get() ?? 0;
+    if (this.options.autosave && turn > 0 && (original || (every > 0 && turn % every === 0))) {
+      try {
+        await this.options.autosave(this.state);
+      } catch (error) {
+        console.error(error);
       }
-      if (this.options.autosave) await this.options.autosave(this.state);
     }
     await this.processEvents();
     this.selectNextUnit(-1);
@@ -1235,16 +1258,25 @@ export class GameScreen {
       case 0: {
         // F0_2c84_00ad: " View Replay" na końcu przy SpaceshipFlags & 0x100; Save Game nieaktywne w turze 0 (Var_81d2)
         const replayAvailable = (this.state.spaceshipFlags & 0x100) !== 0;
-        const r = await showMenuBox(ui, GAME_MENU + (replayAvailable ? GAME_MENU_REPLAY : ''), MENU_X[0], 8, {
+        const items = (GAME_MENU + (replayAvailable ? GAME_MENU_REPLAY : '')).split('\n').filter((l) => l !== '');
+        const extra = [...(this.options.load ? [GAME_MENU_LOAD] : []), ...(this.options.autosaveTurns ? [GAME_MENU_AUTOSAVE] : [])];
+        items.splice(5, 0, ...extra);
+        const r = await showMenuBox(ui, `${items.join('\n')}\n`, MENU_X[0], 8, {
           disabled: this.state.turn === 0 ? 0x10 : 0,
         });
-        if (r.index === 3) await this.preferences();
-        else if (r.index === 9 && replayAvailable) shortcut = 'replay';
-        else if (r.index === 4 && (this.options.save || this.options.originalSaves?.write)) shortcut = 'save';
-        else if (r.index === 5) shortcut = 'revolution';
-        else if (r.index === 7) result = 'retire';
-        else if (r.index === 8) result = 'quit';
-        else if (r.index >= 0 && r.index !== 6) action = 'game';
+        switch (items[r.index]) {
+          case ' Options': await this.preferences(); break;
+          case ' View Replay': shortcut = 'replay'; break;
+          case ' Save Game': if (this.options.save || this.options.originalSaves?.write) shortcut = 'save'; break;
+          case GAME_MENU_LOAD: shortcut = 'load'; break;
+          case GAME_MENU_AUTOSAVE: await this.autosaveMenu(); break;
+          case ' REVOLUTION!': shortcut = 'revolution'; break;
+          case ' Retire': result = 'retire'; break;
+          case ' QUIT to DOS': result = 'quit'; break;
+          case ' ':
+          case undefined: break;
+          default: action = 'game';
+        }
         break;
       }
       case 1:
@@ -1287,6 +1319,14 @@ export class GameScreen {
       await this.replay();
       await this.redrawMapWithBlankingEffect();
     }
+    else if (shortcut === 'load') {
+      const loaded = await this.options.load!(ui);
+      if (loaded) {
+        this.loadedState = loaded;
+        return 'load';
+      }
+      await this.redrawMapWithBlankingEffect();
+    }
     else if (shortcut === 'save') {
       if (this.options.originalSaves?.write) {
         await showSaveGameDialog(ui, this.state, this.options.originalSaves);
@@ -1314,6 +1354,14 @@ export class GameScreen {
     const { text, keys, disabled } = ordersFor(this.state, this.human, this.activeUnit);
     const r = await showMenuBox(this.ui, text, MENU_X[1], 8, { disabled });
     return r.index >= 0 && r.index < keys.length && keys[r.index] ? keys[r.index]! : null;
+  }
+
+  /** GAME → Autosave...: co ile tur cichy autozapis (zaznaczona bieżąca wartość). */
+  async autosaveMenu(): Promise<void> {
+    const store = this.options.autosaveTurns!;
+    const current = AUTOSAVE_INTERVALS.indexOf(store.get() as (typeof AUTOSAVE_INTERVALS)[number]);
+    const r = await showMenuBox(this.ui, AUTOSAVE_MENU, 24, 16, { checked: current >= 0 ? 1 << current : 0, defaultIndex: current });
+    if (r.index >= 0 && !r.help) store.set(AUTOSAVE_INTERVALS[r.index]!);
   }
 
   /** Podmenu Preferences z „ptaszkami” przy włączonych ustawieniach; wybór przełącza ustawienie. */

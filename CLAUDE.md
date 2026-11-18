@@ -732,3 +732,17 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Testy: 340 (29 pominiętych bez `CIV1_DIR`), 364 z plikami gry; nowe: animacja ruchu i walki, przerwa końca tury, Exit.
   Małpa na ekranie (4 gry) — bez błędów; aplikacja w Xvfb: menu z Exit, wyjście zamyka program.
 
+### 2026-11-18 — Load Game i ustawiany autozapis w menu GAME; paczka 0.6.3
+- Pytanie Damiana: brak wczytywania w trakcie gry, czy jest autozapis — ma być ustawiany co kilka tur. **Odstępstwo od oryginału.**
+- `gameScreen.ts`: menu GAME budowane z listy — za „Save Game” `GAME_MENU_LOAD` (gdy jest `options.load`) i `GAME_MENU_AUTOSAVE`
+  (gdy jest `options.autosaveTurns`); obsługa po etykietach zamiast numerów (indeksy oryginału bez zmian, gdy dodatków brak).
+  Load Game → wynik `load` i `loadedState`; `runGameFlow` uruchamia nowy ekran gry z wczytanym stanem. Autosave... — podmenu
+  `AUTOSAVE_MENU` (Off, co 1/2/5/10/25/50 tur, zaznaczona bieżąca wartość).
+- Autozapis w `endTurn`: okno zapisu oryginału co 50 tur przy AutoSave (jak dotąd) + cichy JSON co ustawioną liczbę tur (i przy
+  autozapisie oryginału); błąd zapisu nie przerywa gry. `flow.ts`: `writeAutosave` — „Autosave <naród> <rok>.json”, zostają 3 najnowsze
+  (`SaveStore.remove`); lista zapisów od najnowszego.
+- Aplikacja: IPC `saves:remove`, `autosave:get`/`autosave:set` (`config.json` → `autosaveTurns`, domyślnie 5); `saves:list` sortuje
+  według czasu zapisu.
+- Testy: 344 (29 pominiętych bez `CIV1_DIR`), 368 z plikami gry; nowe `packages/ui/test/autosave.test.ts`. Aplikacja w Xvfb:
+  menu GAME z Load Game i Autosave..., wczytanie zapisu w trakcie gry, autozapis co turę.
+
