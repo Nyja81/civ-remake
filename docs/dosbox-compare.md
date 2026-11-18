@@ -55,6 +55,22 @@ Przed poprawkami: generator świata 66% pól, lista produkcji 83%, ekran gry i r
 - **Lista produkcji** (F0_1ade_0421): wiersze wg napisów CIV.EXE („, ADM:a/d/m”, „turn” przy 1, gwiazdka przed nazwą cudu),
   domyślnie pierwsza pozycja, czcionka 2 przy ponad 19 pozycjach, okna „Military Advisor” / „Domestic Advisor” z PRODUCE.TXT.
 
+## Rozwój przeciwnika komputerowego (2026-11-18)
+
+Pytanie Damiana: komputer za mało buduje osadników i zakłada miast. Oryginał 474.01: nowa gra (Warlord, 7 cywilizacji),
+człowiek zakłada jedno miasto i pomija ruchy; autozapisy CIVIL4–6 z tur 50/100/150. Silnik: start z CIVIL4 (ten sam stan),
+człowiek nic nie robi, trzy przebiegi z przesuniętym losowaniem (`tools/stress/aiFromSve.ts`).
+
+| Tura (rok) | Oryginał: miasta / ludność 6 komputerów | Silnik (3 przebiegi) |
+|---|---|---|
+| 50 (3000 BC) | 9 / 18 | — (stan wyjściowy) |
+| 100 (2000 BC) | 13 / 34 | 15 / 37, 14 / 39, 14 / 39 |
+| 150 (1000 BC) | 18 / 58 | 17 / 59, 16 / 59, 17 / 60 |
+
+Tempo jak w oryginale. Na niskich poziomach komputer ma drożej: mnożnik żywności i produkcji 16 − 2·poziom (Chieftain 16,
+Warlord 14, Prince 12, King 10, Emperor 8) wobec 10 u człowieka. Osadnicy komputera po drodze nawadniają i budują drogi
+przy miastach (jak w oryginale).
+
 ## Rozbieżności otwarte
 
 - **Wyrównanie startu, zapis z ziarnem 24104**: oryginał dał graczowi 5 drugiego osadnika (różnica ocen 4), u nas różnica 1 —

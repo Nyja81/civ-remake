@@ -746,3 +746,18 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Testy: 344 (29 pominiętych bez `CIV1_DIR`), 368 z plikami gry; nowe `packages/ui/test/autosave.test.ts`. Aplikacja w Xvfb:
   menu GAME z Load Game i Autosave..., wczytanie zapisu w trakcie gry, autozapis co turę.
 
+### 2026-11-18 — zapis bez pytania o dysk, klik/dwuklik na mapie, rozwój komputera porównany z oryginałem; paczka 0.6.4
+- Zgłoszenia Damiana: ręczny zapis pokazuje „Which drive contains your Save Game disk?”; klik w pole z własną jednostką albo miastem
+  obok aktywnej jednostki otwiera wybór zamiast ruchu; komputer za mało buduje osadników i zakłada miast.
+- `saveGame.ts`: `showSaveGameDialog(…, { askDrive: false })` — biały ekran z ramką (z jego losowaniem) od razu z listą miejsc, dysk C:.
+  Ekran gry woła tak zapis ręczny i autozapis co 50 tur. **Odstępstwo.**
+- Mysz (`gameScreen.ts`, decyzja Damiana): pole sąsiednie do aktywnej jednostki — pojedynczy klik = ruch (także do własnego miasta
+  i na własny stos), dwuklik (300 ms, tylko gdy na polu jest własne miasto lub jednostka) = okno miasta / wybór jednostki; dalsze pole
+  jak w oryginale (własne miasto — okno, własne jednostki — wybór, inne — środek mapy). Usunięte „idź do” po kliknięciu w dalsze pole
+  (zostaje g + klik).
+- Komputer: porównanie z oryginałem w DOSBoxie (Warlord, tury 50→150 z tego samego zapisu) — miasta i ludność jak w oryginale
+  (wyniki w `docs/dosbox-compare.md`, narzędzie `tools/stress/aiFromSve.ts`); bez zmian w silniku.
+- Do sprawdzenia: autozapisy oryginału z tur 50/100/150 nie miały jednostek człowieka (ręczny zapis z tury 174 — 8 milicji).
+- Testy: 345 (29 pominiętych bez `CIV1_DIR`); nowe w `gameplay.test.ts` (klik i dwuklik na polu z jednostką, dalsze pole centruje),
+  `saveGame.test.ts` dostosowany.
+

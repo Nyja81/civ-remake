@@ -110,6 +110,8 @@ a nie źródłem kodu ani zasobów.
 - Na prośbę Damiana (2026-11-18): w menu GAME za „Save Game” — **Load Game** (to samo okno co „Load a Saved Game”) i **Autosave...**
   (cichy autozapis JSON co 1/2/5/10/25/50 tur albo wyłączony; domyślnie 5; zostają 3 najnowsze autozapisy). AutoSave oryginału
   (okno zapisu CIVIL4–9.SVE co 50 tur) działa jak dotąd.
+- Na prośbę Damiana (2026-11-18): zapis do CIVIL?.SVE bez pytania o dysk; mysz — klik w pole sąsiednie = ruch, dwuklik = okno
+  miasta / wybór jednostki, dalsze pole jak w oryginale.
 
 ### Wzorzec: dwie wersje OpenCivOne
 
