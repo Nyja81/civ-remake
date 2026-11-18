@@ -659,3 +659,7 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   zdobytego i zniszczonego miasta, gdzie stoi zdobywca — oryginał nie sprawdza zajętości pola (tolerowane w niezmiennikach).
 - Ikona aplikacji: własny rysunek (pikselowy glob w złotym wieńcu) — `tools/icon/make_icon.py` → `apps/desktop/assets/icon.{png,icns}`.
   `tools/package-mac.sh`: paczka na Maca (esbuild → packager z ikoną → rcodesign ad hoc → zip).
+- Długie gry po scaleniu gałęzi (150 gier, ziarna 201–350): jedno przepełnienie stosu — Wielka Biblioteka. Silnik miał warunek
+  przepisany z nowszego wzorca (technologia dla właściciela, który cudu NIE ma); asembler (0x1ade:0x2254–0x22a9) przyznaje ją tylko
+  właścicielowi działającego cudu. Poprawione; dodatkowo pominięty gracz 0 (barbarzyńcy z cudem — w oryginale nieskończona rekurencja).
+  Test `greatLibrary.test.ts`. Małpa na ekranie (8 gier, pliki gry) — bez błędów.
