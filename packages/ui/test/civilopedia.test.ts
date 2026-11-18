@@ -250,11 +250,10 @@ describe('pomoc w oknach', () => {
     const city = state.cities.findIndex((c) => c.status !== -1 && c.owner === state.humanPlayer);
     const sprites = prepareSprites({ ter: assets.pic('TER257.PIC'), sp: assets.pic('SP257.PIC'), sp299: assets.pic('SP299.PIC') });
     const ctx = { ui, assets, state, sprites, text: () => undefined };
-    const before = state.cities[city]!.production;
-    // c → lista (zaznaczona bieżąca produkcja) → F1 → opis → strona → lista → Enter → Esc zamyka okno
+    // c → lista (zaznaczona pierwsza pozycja — Settlers) → F1 → opis → strona → lista → Enter → Esc zamyka okno
     const r = await drive(ui, [key('c'), key('F1'), enter(), enter(), enter(), key('Escape')], () => showCityWindow(ctx, city));
     expect(frames).toContain(255);
     expect(r.redraw).toBe(true);
-    expect(state.cities[city]!.production).toBe(before);
+    expect(state.cities[city]!.production).toBe(0);
   });
 });

@@ -17,7 +17,7 @@
  */
 import {
   activateUnitInCity, buyCost, buyProduction, CITY_OFFSETS, CityStatus, cellIndex, cityNeighborArea, cityTileIndex, cycleSpecialist,
-  Government, hasBuilding, improvementDef, isValid, NO_UNIT, occupantPlayer, playerHasTech, processCity, productionOptions,
+  Government, hasBuilding, improvementDef, isValid, NO_UNIT, occupantPlayer, playerHasTech, processCity, productionAdvice, productionOptions,
   sellBuilding, setProduction, specialistAt, supportedUnits, Tech, terrainAt, Terrain, tileResource, toggleAutoProduction,
   toggleCityTile, UNITS, UnitStatus, WONDERS, BUILDINGS, wrapX, BuildingId, type CityReport, type GameState,
 } from '@civ-remake/engine';
@@ -29,7 +29,7 @@ import { showMenuBox } from '../menuBox';
 import { showCivilopediaTopic, Topic } from './civilopedia';
 import type { Palette } from '../palette';
 import type { Ui } from '../ui';
-import { populationString } from '../text';
+import { adjustTextOriginal, loadTextSection, populationString, replaceKeywords } from '../text';
 import { showCityView } from './cityView';
 import { CITY_MAP_OFFSETS } from '../data/screenTables';
 
@@ -215,8 +215,8 @@ export function drawCityWindow(ctx: CityWindowContext, cityId: number, w: { tab:
     pl.units.forEach((u, i) => {
       if (cityUnits.length >= 18 || u.type === NO_UNIT || u.x !== city.x || u.y !== city.y) return;
       drawUnit(g.screen, state, sprites, owner, i, cx, cy, false, undefined, ctx.text);
-      const home = state.cities[u.homeCity];
-      let name = home && home.status !== -1 ? cityNameOf(state, u.homeCity) : '';
+      // F0_2459_08c6: miasto macierzyste, bez niego "NONE" (skrócone do "NON.")
+      let name = cityNameOf(state, u.homeCity);
       if (name.length > 3) name = `${name.slice(0, 3)}.`;
       g.drawString(name, cx, cy + 15, 0);
       cityUnits.push(i);
@@ -548,7 +548,9 @@ function trimToWidth(ctx: CityWindowContext, text: string, maxWidth: number): st
 /** GameEngine.PopulationValueToString: wartość × 1000 z przecinkami tysięcy. */
 const populationText = populationString;
 
-const cityNameOf = (state: GameState, cityId: number) => state.cityNames[state.cities[cityId]!.nameId] ?? '';
+/** F0_2459_08c6_GetCityName: numer spoza 0–127 → "NONE". */
+const cityNameOf = (state: GameState, cityId: number) =>
+  cityId >= 0 && cityId < 128 ? (state.cityNames[state.cities[cityId]!.nameId] ?? '') : 'NONE';
 
 /** CommonTools.CheckValueRange: najpierw dolna granica, potem górna. */
 function checkRange(v: number, lo: number, hi: number): number {
@@ -706,29 +708,47 @@ async function buyDialog(ctx: CityWindowContext, cityId: number): Promise<void> 
 }
 
 /**
- * GameEngine.F0_1ade_0421_SelectCityProduction (człowiek): „What shall we build in …?” w (80, 8) z pomocą.
+ * GameEngine.F0_1ade_0421_SelectCityProduction (człowiek): „What shall we build in …?” w (80, 8) z pomocą (Var_2fa0).
+ * Wiersze jak w asemblerze (ec23ac3, napisy DS:0x222a–0x22b9): jednostka „nazwa (N turns, ADM:a/d/m)”, budynek
+ * „nazwa (N turns)”, cud „[*]nazwa (N turns)” (gwiazdka przed nazwą, gdy ktoś odkrył technologię wygaszającą), „turn” przy 1.
+ * Opcja domyślna — pierwsza (Var_2f9a = −1 po każdym oknie; funkcja jej nie ustawia).
+ * Przy Instant Advice, za pierwszym razem (bp-0x4 = 0): okna doradców bez czekania (Var_db38 = 1) czcionką 2 —
+ * „Military Advisor:” w (8, 160) i „Domestic Advisor:” w (164, 160) z sekcją PRODUCE.TXT „*nazwa” ($RPLC1 = nazwa,
+ * łamanie do 50 znaków); potem lista czcionką 1. Bez porad: czcionka 2 przy ponad 19 pozycjach (bp-0xa > 20).
  * Pomoc: ekran 0 zapamiętany na ekranie 1, strona Civilopedii bez rysunku (Var_3c62 = 1), ekran odtworzony, pytanie
- * od nowa; zwraca true (Var_6b64 = 1 — mapa do przerysowania po zamknięciu okna, bo ekran 1 jest nadpisany).
+ * od nowa (bez porad); zwraca true (Var_6b64 = 1 — mapa do przerysowania po zamknięciu okna, bo ekran 1 jest nadpisany).
  * Za długa lista nie jest dzielona na strony („more...”) — do zrobienia.
  */
 async function productionDialog(ctx: CityWindowContext, cityId: number): Promise<boolean> {
   const { state, ui } = ctx;
-  const options = productionOptions(state, cityId);
-  if (options.length === 0) return false;
-  let text = `What shall we build in ${cityNameOf(state, cityId)}?\n `;
-  for (const o of options) {
-    if (o.id >= 0) {
-      const u = UNITS[o.id]!;
-      text += `${o.name} (${o.turns} turns, ADM: ${u.attack}/${u.defense}/${u.moves})\n `;
-    } else {
-      text += `${o.name}${o.obsolete ? '*' : ''} (${o.turns} turns)\n `;
-    }
-  }
-  const current = options.findIndex((o) => o.id === state.cities[cityId]!.production);
+  let advised = false;
   let redraw = false;
   for (;;) {
+    // L0447: lista i ocena liczone od nowa w każdym przebiegu (ocena może losować — jak w oryginale)
+    const options = productionOptions(state, cityId);
+    if (options.length === 0) return redraw;
+    let text = `What shall we build in ${cityNameOf(state, cityId)}?\n `;
+    for (const o of options) {
+      const turns = `(${o.turns} ${o.turns === 1 ? 'turn' : 'turns'}`;
+      if (o.id >= 0) {
+        const u = UNITS[o.id]!;
+        text += `${o.name} ${turns}, ADM:${u.attack}/${u.defense}/${u.moves})\n `;
+      } else {
+        text += `${o.obsolete ? '*' : ''}${o.name} ${turns})\n `;
+      }
+    }
+    const advice = productionAdvice(state, cityId);
+    if (!advised && state.settings.instantAdvice) {
+      ui.gfx.fontId = 2;
+      if (advice.military !== null) await showAdvisor(ctx, 'Military Advisor:\n', advice.military, 8);
+      if (advice.domestic !== null) await showAdvisor(ctx, 'Domestic Advisor:\n', advice.domestic, 164);
+      advised = true;
+      ui.gfx.fontId = 1;
+      continue;
+    }
+    ui.gfx.fontId = options.length >= 20 ? 2 : 1; // L1438
+    const r = await showMenuBox(ui, text, 80, 8, { help: true, clearInput: true });
     ui.gfx.fontId = 1;
-    const r = await showMenuBox(ui, text, 80, 8, { help: true, clearInput: true, defaultIndex: current });
     if (r.index < 0) return redraw;
     const id = options[r.index]!.id;
     if (!r.help) {
@@ -741,6 +761,16 @@ async function productionDialog(ctx: CityWindowContext, cityId: number): Promise
     ui.present();
     redraw = true;
   }
+}
+
+/** Okno doradcy przy liście produkcji (L12f2/L1391): nagłówek + PRODUCE.TXT „*nazwa”, bez czekania, w (x, 160). */
+async function showAdvisor(ctx: CityWindowContext, header: string, id: number, x: number): Promise<void> {
+  const name = id >= 0 ? UNITS[id]!.name : improvementDef(-id).name;
+  const file = ctx.assets.optional('PRODUCE.TXT');
+  // Bez PRODUCE.TXT (tekst oryginału czytany tylko z kopii gry) — sama nazwa.
+  const body = file ? loadTextSection(file, `*${name}`) ?? '' : `${name} `;
+  const text = adjustTextOriginal(replaceKeywords(header + body, { RPLC1: name }), 50);
+  await showMenuBox(ctx.ui, text, x, 160, { noWait: true });
 }
 
 /** Sprzedaż (L5740): „Do you want to sell your … for … coins?” w (128,80) czcionką 1; opcja 1 = tak. */

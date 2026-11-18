@@ -1198,8 +1198,49 @@ function productionList(state: GameState, p: number, cityId: number): number[] {
 /** Zwraca numer jednostki (≥0) albo -id budynku/cudu; 99 = brak decyzji (człowiek z automatyczną produkcją). */
 export function aiSelectProduction(state: GameState, p: number, cityId: number): number {
   const city = state.cities[cityId]!;
-  const pl = state.players[p]!;
   if (p === 0) return (state.techFirstDiscoveredBy[Tech.Explosives]! & 7) === 0 ? 3 : 7;
+  const e = evaluateProduction(state, p, cityId);
+  if (typeof e === 'number') return e;
+  if (p === state.humanPlayer) {
+    if (e.domestic === -1 || e.domesticScore > 500) return 99;
+    return e.list[e.domestic]!;
+  }
+  if (city.production !== -1) return e.list[e.selected] ?? 1;
+  return -1;
+}
+
+/**
+ * Porady doradców przy liście produkcji człowieka (SelectCityProduction L12e0/L1388 przy Instant Advice):
+ * najlepiej oceniona jednostka (Var bp-0xc — „Military Advisor”) i najlepiej oceniona pozostała pozycja
+ * (bp-0x48 — budynek, cud, karawana, dyplomata — „Domestic Advisor”); null, gdy ocena nic nie wybrała (999).
+ * Ocena jest ta sama co komputera (także jej losowania).
+ */
+export function productionAdvice(state: GameState, cityId: number): { military: number | null; domestic: number | null } {
+  const p = state.cities[cityId]!.owner;
+  if (p === 0) return { military: null, domestic: null };
+  const e = evaluateProduction(state, p, cityId);
+  if (typeof e === 'number') return { military: null, domestic: null };
+  return {
+    military: e.military === -1 ? null : e.list[e.military]!,
+    domestic: e.domestic === -1 ? null : e.list[e.domestic]!,
+  };
+}
+
+interface ProductionEvaluation {
+  list: number[];
+  /** Najlepsza pozycja ogółem (bp-0x144). */
+  selected: number;
+  /** Najlepsza pozycja spoza jednostek 0–25 (bp-0x48) i jej ocena (bp-0x130). */
+  domestic: number;
+  domesticScore: number;
+  /** Najlepsza jednostka 0–25 (bp-0xc). */
+  military: number;
+}
+
+/** Część oceniająca SelectCityProduction; liczba = wynik natychmiastowy (komputer bez jednostek). */
+function evaluateProduction(state: GameState, p: number, cityId: number): ProductionEvaluation | number {
+  const city = state.cities[cityId]!;
+  const pl = state.players[p]!;
   const fig = cityFigures(state, cityId);
   const list = productionList(state, p, cityId);
   const g = groupAt(state, city.x, city.y);
@@ -1237,14 +1278,21 @@ export function aiSelectProduction(state: GameState, p: number, cityId: number):
   let selectedScore = 999;
   let selectedBuilding = -1;
   let selectedBuildingScore = 999;
+  let selectedUnit = -1;
+  let selectedUnitScore = 999;
   const pick = (i: number, id: number, s: number) => {
     if (s < selectedScore) {
       selected = i;
       selectedScore = s;
     }
-    if ((id < 0 || id >= 26) && s < selectedBuildingScore) {
-      selectedBuildingScore = s;
-      selectedBuilding = i;
+    if (id < 0 || id >= 26) {
+      if (s < selectedBuildingScore) {
+        selectedBuildingScore = s;
+        selectedBuilding = i;
+      }
+    } else if (s < selectedUnitScore) {
+      selectedUnitScore = s;
+      selectedUnit = i;
     }
   };
   const ideology = NATIONS[pl.nation]?.ideology ?? 0;
@@ -1326,12 +1374,7 @@ export function aiSelectProduction(state: GameState, p: number, cityId: number):
     pick(i, id, s);
   });
   pl.unitCount = savedCount;
-  if (p === state.humanPlayer) {
-    if (selectedBuilding === -1 || selectedBuildingScore > 500) return 99;
-    return list[selectedBuilding]!;
-  }
-  if (city.production !== -1) return list[selected] ?? 1;
-  return -1;
+  return { list, selected, domestic: selectedBuilding, domesticScore: selectedBuildingScore, military: selectedUnit };
 }
 
 export function aiPlayerTurnStart(_state: GameState, _player: number): void {}

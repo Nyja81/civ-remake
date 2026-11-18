@@ -21,6 +21,7 @@ export const UI_OPTIONAL_FILES = [
   'KING.TXT', // tekst powitalny nowej gry (*INIT)
   'TORCH.PIC', // kursor myszy
   'HELP.TXT', // porady (Instant Advice)
+  'PRODUCE.TXT', // porady doradców przy liście produkcji (SelectCityProduction, Instant Advice)
   'DOCKER.PIC', // rysunki części statku kosmicznego
   // obrazy ustroju z portretami doradców (LoadGovernmentImage) — raporty wojskowy, handlu i nauki
   'GOVT0A.PIC', 'GOVT0M.PIC', 'GOVT1A.PIC', 'GOVT1M.PIC', 'GOVT2A.PIC', 'GOVT2M.PIC', 'GOVT3A.PIC',

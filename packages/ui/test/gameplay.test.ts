@@ -106,12 +106,12 @@ describe('miasto', () => {
     const cityId = cityAt(state, x, y);
     expect(cityId).not.toBe(-1);
     expect(state.cityNames[state.cities[cityId]!.nameId]).toBe('Waw');
-    // klik w pole miasta: okno miasta → klik w CHANGE → lista produkcji: druga pozycja → Esc zamyka okno
+    // klik w pole miasta: okno miasta → klik w CHANGE → lista produkcji (domyślnie pierwsza pozycja): trzecia → Esc zamyka okno
     screen.drawVisibleMap(x - 7, y - 6);
     const sx = 80 + 7 * 16 + 4;
     const sy = 8 + (y - screen.viewY) * 16 + 4;
     const before = state.cities[cityId]!.production;
-    await drive(ui, [click(240, 110), key('ArrowDown'), key('Enter'), key('Escape')], () => screen.handle(click(sx, sy)));
+    await drive(ui, [click(240, 110), key('ArrowDown'), key('ArrowDown'), key('Enter'), key('Escape')], () => screen.handle(click(sx, sy)));
     expect(state.cities[cityId]!.production).not.toBe(before);
   });
 });

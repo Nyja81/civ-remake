@@ -136,7 +136,13 @@ export function unitOrder(state: GameState, player: number, unitId: number, orde
         } else advice('*ADDCITY');
       } else {
         unit.movesLeft = 0;
-        if (foundCity(state, player, unit.x, unit.y, 1) !== -1) deleteUnit(state, player, unitId);
+        if (foundCity(state, player, unit.x, unit.y, 1) !== -1) {
+          // Oryginał usuwa osadników dopiero po F20_0000_0000 (nazwa, notatka, animacja, okno miasta — PlayerTurn 0x1403:0x1acb);
+          // interfejs dostaje kopię jednostki, żeby do końca okna miasta była na polu (lista jednostek, panel stanu).
+          const ev = state.events[state.events.length - 1];
+          if (ev?.kind === 'cityFounded') ev.foundingUnit = { id: unitId, ...unit };
+          deleteUnit(state, player, unitId);
+        }
       }
       break;
     }

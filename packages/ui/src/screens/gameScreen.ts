@@ -113,6 +113,8 @@ export class GameScreen {
   private blinkHidden = false;
   /** Tura, w której PlayerTurn pokazał już poradę dla jednostki (zmienna lokalna bp-8 w oryginale). */
   private adviceTurn = -1;
+  /** *FIRSTPRODUCT czeka na okno nazwy miasta (kolejność F20_0000_0000). */
+  private pendingFirstProduct = false;
   /** Var_6b92: animacja niepokojów najwyżej raz na turę. */
   private disorderShownTurn = -1;
   /** Array_30b8 — słowa kluczowe tekstów KING.TXT, trwałe między rozmowami (początkowo jak po *INIT). */
@@ -311,6 +313,9 @@ export class GameScreen {
         result = unitOrder(this.state, h, id, order, { confirm: true });
       }
     }
+    // Założenie miasta (F20_0000_0000) dzieje się w oryginale przed przerysowaniem mapy: okno nazwy i notatka *FIRSTPRODUCT
+    // leżą na mapie jeszcze z osadnikami
+    if (e.key === 'b') await this.processEvents();
     this.redrawAll();
     if (result?.kind === 'blocked' && result.reason) await showDialog(this.ui, result.reason.endsWith('\n') ? result.reason : `${result.reason}\n`, 100, 80);
     await this.processEvents();
@@ -433,6 +438,8 @@ export class GameScreen {
         await showDialog(this.ui, ev.text.endsWith('\n') ? ev.text : `${ev.text}\n`,
           typeof ev.dialogX === 'number' ? ev.dialogX : 100, typeof ev.dialogY === 'number' ? ev.dialogY : 80);
         if (ev.showCity === true && typeof ev.city === 'number') await this.cityAfterEvent(ev.city);
+      } else if (ev.kind === 'advice' && ev.key === '*FIRSTPRODUCT' && this.state.events[this.eventsSeen]?.kind === 'cityFounded') {
+        this.pendingFirstProduct = true; // pokazywana po nazwie miasta (zdarzenie cityFounded)
       } else if (ev.kind === 'advice' && this.state.settings.instantAdvice && typeof ev.key === 'string') {
         // HELP.TXT: okno „Civilization Note” (F4_0000_02d3); klucze spoza HELP.TXT — zwykłe okno z KING.TXT
         const help = this.assets.optional('HELP.TXT');
@@ -442,14 +449,39 @@ export class GameScreen {
           if (text) await showDialog(this.ui, text, 60, 60);
         }
       } else if (ev.kind === 'cityFounded' && typeof ev.city === 'number') {
+        // F20_0000_0000 (FoundNewCity): nazwa miasta, mapa z miastem, notatka *FIRSTPRODUCT (silnik zgłasza ją przed
+        // zdarzeniem założenia — tu pokazywana we właściwym miejscu), animacja F22_0000_0eaf, mapa z wygaszeniem
+        // (F0_1238_1b44), okno miasta
+        // osadnicy wracają na pole do końca okna miasta (PlayerTurn usuwa ich po F20_0000_0000)
+        const founder = ev.foundingUnit as ({ id: number } & Record<string, unknown>) | undefined;
+        const slot = founder && typeof ev.player === 'number' ? this.state.players[ev.player]?.units[founder.id] : undefined;
+        const emptied = slot ? { ...slot } : undefined;
+        const cell = cellIndex(wrapX(Number(ev.x)), Number(ev.y));
+        const occupant = this.state.map.occupant[cell];
+        if (slot && founder && slot.type === NO_UNIT) {
+          const { id: _id, ...fields } = founder;
+          Object.assign(slot, fields);
+          this.state.map.occupant[cell] = 8 | Number(ev.player); // warstwa zajętości pól (jednostka na polu miasta)
+        }
         await this.cityNameDialog(ev.city);
-        // GameEngine (FoundNewCity): przy włączonych animacjach F22_0000_0eaf, potem okno nowego miasta i mapa z wygaszeniem
         if (this.state.cities[ev.city]?.owner === this.human) {
+          if (this.pendingFirstProduct) {
+            this.pendingFirstProduct = false;
+            await showCivilizationNote(this.ui, this.assets, this.state, '*FIRSTPRODUCT');
+          }
           if (this.state.settings.animations) {
             await foundNewCityAnimation(this.ui, this.assets, this.state, ev.city, { palette: this.gamePalette });
           }
-          await this.cityDialog(ev.city);
           await this.redrawMapWithBlankingEffect();
+          await this.cityDialog(ev.city);
+        }
+        if (slot && emptied) {
+          Object.assign(slot, emptied);
+          if (occupant !== undefined) this.state.map.occupant[cell] = occupant;
+        }
+        if (this.state.cities[ev.city]?.owner === this.human) {
+          this.redrawAll();
+          this.ui.present();
         }
       } else if (ev.kind === 'chooseResearch' && Array.isArray(ev.options)) {
         await this.researchDialog(ev.options as number[]);
@@ -723,8 +755,7 @@ export class GameScreen {
     }
     this.state.cityNames[city.nameId] = name;
     gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
-    this.redrawAll();
-    this.ui.present();
+    this.ui.present(); // F23_0000_0000 przywraca tylko ekran — miasto pojawi się na mapie po notatce i animacji
   }
 
   /** Pole mapy pod punktem ekranu albo null. */

@@ -8,7 +8,7 @@ import { prepareSprites } from '@civ-remake/gfx';
 import type { UiEvent } from '../src/input';
 import { drawCityWindow, showCityWindow, type CityWindowContext } from '../src/screens/cityWindow';
 import { GameScreen } from '../src/screens/gameScreen';
-import { drive, makeUi } from './synthetic';
+import { drive, makeUi, sectionFile, syntheticFiles } from './synthetic';
 
 const key = (k: string): UiEvent => ({ type: 'key', key: k });
 const click = (x: number, y: number, button: 'left' | 'right' = 'left'): UiEvent => ({ type: 'mousedown', x, y, button });
@@ -165,6 +165,30 @@ describe('okno miasta: działania', () => {
     // pierwszy znak czyści pole (EditBoxDialog)
     await drive(ctx.ui, [click(240, 194), key('X'), key('Enter'), key('Escape')], () => showCityWindow(ctx, city));
     expect(state.cityNames[c.nameId]).toBe('X');
+  });
+});
+
+describe('lista produkcji (SelectCityProduction)', () => {
+  it('wiersze jak w CIV.EXE, domyślnie pierwsza pozycja; Instant Advice — okna doradców z PRODUCE.TXT przed listą', async () => {
+    const files = { ...syntheticFiles(), 'PRODUCE.TXT': sectionFile(['*Phalanx', 'We should build $RPLC1^to defend.', '*Barracks', 'We should build a $RPLC1.']) };
+    const { ui, assets } = makeUi(files);
+    ui.gfx.patternAvailable = true;
+    ui.gfx.loadPic(2, 0, 0, assets.pic('SP299.PIC'));
+    const { ctx: base, state, city } = setup();
+    const ctx = { ...base, ui, assets };
+    state.settings.instantAdvice = true;
+    const strings: string[] = [];
+    const draw = ui.gfx.drawString.bind(ui.gfx);
+    ui.gfx.drawString = (t, x, y, c) => {
+      strings.push(t);
+      draw(t, x, y, c);
+    };
+    // c → porady (bez czekania) → lista: Enter wybiera pierwszą pozycję (Settlers) → Esc zamyka okno
+    await drive(ui, [key('c'), key('Enter'), key('Escape')], () => showCityWindow(ctx, city));
+    expect(state.cities[city]!.production).toBe(0);
+    expect(strings.some((t) => t.trim().startsWith('Settlers (') && t.includes(', ADM:0/1/1)'))).toBe(true);
+    expect(strings).toContain('Military Advisor:');
+    expect(strings).toContain('Domestic Advisor:');
   });
 });
 
