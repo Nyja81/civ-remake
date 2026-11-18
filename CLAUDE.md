@@ -663,3 +663,27 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
   przepisany z nowszego wzorca (technologia dla właściciela, który cudu NIE ma); asembler (0x1ade:0x2254–0x22a9) przyznaje ją tylko
   właścicielowi działającego cudu. Poprawione; dodatkowo pominięty gracz 0 (barbarzyńcy z cudem — w oryginale nieskończona rekurencja).
   Test `greatLibrary.test.ts`. Małpa na ekranie (8 gier, pliki gry) — bez błędów.
+
+### 2026-11-17 — porównanie z oryginałem w DOSBoxie (gałąź dosbox-compare)
+- Narzędzia `tools/dosbox` (opis i wyniki: `docs/dosbox-compare.md`): `dosbox.py` (oryginał 474.01 w DOSBoxie 0.74 pod Xvfb,
+  klawisze, mysz, zrzuty 320×200 z paletą, zachowanie zapisów CIVIL?.SVE), `render.ts` (te same scenariusze w naszym UI z wirtualnym
+  zegarem), `compare.py` (zgodność kolorów i indeksów palety, obrazy różnic), `worldcheck.ts`, scenariusze `menus`, `game`, `reports`,
+  `city`. Zrzuty i zapisy zostają w `/tmp/civ-dosbox` — nie trafiają do repozytorium.
+- Wyniki: menu główne, Customize World, DIFFS, raporty F1–F10, listy Civilopedii, nazwa miasta, panorama — 100% (poza miganiem i cyklem
+  palety); ekran gry i menu paska 99,95% (100% indeksów); okno miasta i lista produkcji 99% (różnice wersji 474.01: „(Pop:”, brak RENAME).
+- Generator świata (`world/generate.ts`) przepisany z dosłownego tłumaczenia F7_0000_0012 na stronie mapy 320×200 — teren, kontynenty/oceany
+  i ocena pól identyczne z zapisami oryginału (ziarna 20851 i 24104; było 66% pól). Test `packages/engine/test/originalWorld.test.ts`
+  (z `CIV1_SAVES_DIR`, bez niego pominięty; `CIV1_WORLD` — ustawienia Customize World): mapa, nacje, xStart, technologie startowe;
+  liczba osadników tylko z `CIV1_STRICT_START=1` (znana rozbieżność F5_0000_0fe6 przy ziarnie 24104).
+- Okna menu jak F0_2d05_0475/0031 (geometria, ramka przy parzystym Y, podświetlenie, pomoc, mysz); tekst *INIT jak F0_2f4d_01ad/0000/0088.
+- Ekran gry: menu GAME/Options/CIVILOPEDIA z CIV.EXE, panel, widok startowy i pierwsza jednostka jak w PlayerTurn, rozkazy osadników
+  zależne od terenu; „--- Civilization Note ---” z HELP.TXT (`screens/note.ts`, F4_0000_02d3) i porady dla osadników (F4_0000_00af).
+- Założenie miasta człowieka: nazwa → notatka *FIRSTPRODUCT → animacja → okno miasta; osadnik usuwany po sekwencji (`foundingUnit`
+  w zdarzeniu `cityFounded`).
+- Raporty: liczba mieszkańców F0_2dc4_0337, nagłówek Attitude, „Total Income”, odstęp za zadowolonymi (DrawResources).
+- Lista produkcji (F0_1ade_0421): wiersze wg napisów CIV.EXE („, ADM:”, „turn”, gwiazdka przed cudem), domyślnie pierwsza pozycja,
+  czcionka 2 przy ponad 19 pozycjach, okna Military/Domestic Advisor z PRODUCE.TXT przy Instant Advice; silnik — `productionAdvice`
+  (ocena SelectCityProduction rozdzielona: `evaluateProduction`). PRODUCE.TXT na liście plików opcjonalnych.
+- Otwarte (szczegóły w `docs/dosbox-compare.md`): DrawVisibleMap w oryginale losuje (F0_2dc4_005d(0x100)) — przebieg tur nieporównywalny
+  los w los; cykl palety wody i miganie minimapy; opisy części ekranu na Chieftainie w turze 0; strony „more...” listy produkcji;
+  rozmowa z władcą, pałac, panorama z budynkami — nieporównane.

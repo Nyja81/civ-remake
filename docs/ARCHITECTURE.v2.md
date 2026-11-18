@@ -58,8 +58,10 @@ a nie źródłem kodu ani zasobów.
 2. **Wykonywalny wzorzec**: wczesna wersja projektu OpenCivOne (MIT) to dosłowne tłumaczenie
    kodu oryginału instrukcja po instrukcji. Uruchamiana obok silnika z tym samym ciągiem
    liczb losowych służy do porównywania wyników funkcji na tysiącach stanów gry.
-3. **Oryginał w DOSBoxie**: ten sam zapis wczytany w oryginale i w nowej grze, koniec tury,
-   porównanie zapisów pole po polu.
+3. **Oryginał w DOSBoxie** (`tools/dosbox`, wyniki i opis w `docs/dosbox-compare.md`): te same scenariusze klawiszy i myszy
+   w oryginale 474.01 i w naszym UI, porównanie zrzutów 320×200 (kolory i indeksy palety); zapisy z początku gry porównywane
+   z generatorem świata i rozstawieniem (`packages/engine/test/originalWorld.test.ts`, `CIV1_SAVES_DIR`). Porównanie przebiegu
+   tur los w los wymaga jeszcze losowań DrawVisibleMap (oryginał losuje przy rysowaniu mapy).
 4. **Masowe partie samych przeciwników komputerowych** i porównanie przebiegu
    (miasta, osadnicy, technologie, wojny w czasie).
 5. **Niezmienniki** sprawdzane po każdej turze.
@@ -140,8 +142,9 @@ Karawany i dyplomaci (`unitActions.ts`, asembler `Overlay_22.cs`, `Segment_2459.
 ### Okna menu (MenuBoxDialog)
 
 - F0_2d05_0475 rysuje ramkę i tło okna tylko przy **parzystym Y** (`TEST y, 1`); przy nieparzystym menu leży na obrazie
-  (np. (36, 139) w rozmowie z władcą, (48, 33) lista zapisu, (64, 127) wynik zapisu, (160, 35) na DIFFS.PIC). `showMenuBox` przyjmuje
-  `frame` jawnie — przy nowych oknach ustawiać wg tej reguły.
+  (np. (36, 139) w rozmowie z władcą, (48, 33) lista zapisu, (64, 127) wynik zapisu, (160, 35) na DIFFS.PIC). `showMenuBox` stosuje
+  tę regułę sama (`menuHasFrame`; wyjątek y = 139 — menu paska gry), `frame` podany jawnie ma pierwszeństwo.
+- Opcja domyślna Var_2f9a jest po każdym oknie ustawiana na −1 (pierwsza opcja); okno z Var_db38 = 1 (`noWait`) tylko się rysuje.
 - Pętla okna woła F6_0000_1b33 (klatka twarzy władcy), gdy Var_3936 ≠ −1 — opcja `idle` w `showMenuBox`.
 
 ### Wersje 474.01 (kopia Damiana) i 475.05 (wzorzec)
@@ -149,8 +152,8 @@ Karawany i dyplomaci (`unitActions.ts`, asembler `Overlay_22.cs`, `Segment_2459.
 - Wszystkie tablice reguł i nazw (także generowane w `npm run extract`) mają w obu wersjach te same wartości. Segment danych
   jest identyczny do DS:0x2660; dalej napisy się rozjeżdżają (474.01: adresy −0x50, od ok. DS:0x5100 −0x5e). Dalekie segmenty
   (nazwy miast 0x3604, postaci 0x36d4, historia świata 0x3710, rysunki/statek/cuda 0x371e) mają tę samą treść.
-- Różnice w napisach — ślad różnic w kodzie, do sprawdzenia w DOSBoxie, silnik idzie za 475.05: w 474.01 brak przycisku
-  **RENAME** w oknie miasta, brak komunikatu „A City must have five population units to support taxmen or scientists.”
+- Różnice w napisach — ślad różnic w kodzie, silnik idzie za 475.05: w 474.01 brak przycisku
+  **RENAME** w oknie miasta i tytuł „(Pop:x)” zamiast „(Population:x)” (oba potwierdzone w DOSBoxie), brak komunikatu „A City must have five population units to support taxmen or scientists.”
   (u nas `canAssignSpecialists` — reguła 475.05) i napisu „Bonus Score: ”.
 
 Tablice nowszego wzorca poprawione wg CIV.EXE (szczegóły — historia zmian w CLAUDE.md, 2026-11-17): plan statku (pole (11, 8)),
@@ -173,16 +176,17 @@ raport historyka, poziomy Chief/Lord…, tytuł Civilopedii), czasy wierszy hist
 
 ## Otwarte kwestie
 
-- Technologie startowe: wzorzec nie przyznaje żadnych (komunikat *INIT wymienia tylko drogi). W oryginale 474.01 (DOSBox,
-  Chieftain, Rzymianie) *INIT brzmi „…have knowledge of Irrigation, Mining, Ceremonial Burial, Pottery, and Roads” — oryginał
-  przyznaje technologie startowe (tu Ceremonial Burial i Pottery); do odtworzenia w `players.ts`. W tej samej grze przed animacją
-  założenia pierwszego miasta pokazuje się porada „CIVILIZATION NOTE” (Instant Advice) — u nas jej nie ma.
+- Generator świata: zgodny z oryginałem (2 zapisy z DOSBoxa, 4000/4000 pól, kontynenty i ocena pól). Wyrównanie startu
+  F5_0000_0fe6: nacje, xStart i technologie zgodne; w zapisie z ziarnem 24104 oryginał dał graczowi 5 drugiego osadnika, u nas nie
+  (część „odległość do sąsiada”: u nas gracz sam na kontynencie, +4) — przyczyna nieznana.
+- DrawVisibleMap w oryginale zużywa generator (F0_2dc4_005d(0x100)) — u nas rysowanie nie losuje.
+- Brak: cyklu palety wody na mapie, migania minimapy, opisów części ekranu na Chieftainie w turze 0 (napisy „Menu Bar”, „Map Window”…
+  w CIV.EXE), stron „more...” listy produkcji.
 - Zapis `.SVE` silnika wczytany i od razu zapisany w oryginale: różnice tylko w MapCellCount[człowiek] (0 → 1) i Score[człowiek]
   (3 → 0); w `.MAP` oryginał zapisuje zawartość pamięci w nieużywanych obszarach (x 160–319, y 50–199), u nas 0.
 - Niepokoje w mieście: nowsza wersja wzorca pokazuje „Civil Disorder in …” (z utworem 36) w każdej turze niepokojów, silnik —
   tylko przy ich wybuchu; sprawdzić z asemblerem (Segment_1d12 ok. 0x26ef).
 
-- Technologie startowe: wzorzec nie przyznaje żadnych (komunikat *INIT wymienia tylko drogi) — sprawdzić w oryginale (DOSBox).
 - Generator losowy wzorca to MT19937 (nie rand() z MS C) — zgodność ziarna z oryginałem niesprawdzona.
 - Znaczenie pola `unknown1` w tabeli terenu (`terrainChangeId` to wartość piksela terenu na mapie oryginału).
 - Sposób, w jaki gra wyprowadza zakresy z `rand()`.
