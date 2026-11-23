@@ -775,3 +775,14 @@ CIV1_DIR=/sciezka/do/gry npm run extract   # ponowne wygenerowanie tabel
 - Testy: nowe `packages/engine/test/combat.test.ts` (kolejność losowań, częstość przegranych), pałac w `sve.test.ts`; test „gra wczytana
   z .SVE toczy się dalej” dopuszcza porażkę biernego człowieka. Razem 372 z plikami gry (5 pominiętych); długie gry 24 × 250 tur — bez błędów.
 
+### 2026-11-24 — GAME → Tax Rate, Luxuries Rate, FindCity; paczka 0.6.6
+- Pytanie Damiana „kiedy to działa?” o menu GAME: Tax Rate, Luxuries Rate i FindCity pokazywały „Not available yet.”.
+- `gameScreen.ts` (asembler ec23ac3: Segment_1403 0x35ce–0x37a3, Overlay_23 F23_0000_025b/0319; napisy z CIV.EXE 474.01):
+  `taxRateDialog` („Select new Tax rate:”, opcje 0 … podatek + nauka jako „N% Tax, (M% Science)”, domyślnie obecny podatek,
+  nauka przejmuje różnicę), `luxuryRateDialog` („Select new Luxuries rate:”, opcje 0 … 10 − podatek, nauka = reszta),
+  `findCityDialog` (białe okno 64,78 224×24 z ramką, „Where in the heck is ... (city name)”, pole 16 znaków; szukanie po liście
+  nazw — wpis jako początek nazwy bez rozróżniania wielkości liter, Esc działa jak Enter; miasto na polu odkrytym przez człowieka →
+  mapa wyśrodkowana, inaczej „Unknown city.” i klawisz). Oryginał nie ma limitów stawek wg ustroju. Klawisze jak w PlayerTurn:
+  `+`/`=`, `-`/`_`, `/`/`?` — także bez aktywnej jednostki; menu ustawia te skróty (Menus).
+- Testy: 374 z plikami gry (5 pominiętych); nowe w `gameplay.test.ts` (stawki z klawisza i z menu, FindCity znalezione/nieznane).
+

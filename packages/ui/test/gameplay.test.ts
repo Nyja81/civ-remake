@@ -318,4 +318,34 @@ describe('mysz i koniec tury', () => {
     const enemyAlive = state.players[0]!.units[enemy]!.type !== -1;
     expect(legionAlive && enemyAlive).toBe(false);
   });
+
+  it('GAME → Tax Rate / Luxuries Rate i klawisze = i -: stawki jak w PlayerTurn', async () => {
+    const { ui, state, screen } = setup();
+    const p = state.players[state.humanPlayer]!;
+    p.taxRate = 4; p.scienceRate = 6;
+    // =: opcje 0–10% … 100%; domyślnie obecne 40% → dwa w dół = 60% podatku, 40% nauki
+    await drive(ui, [key('ArrowDown'), key('ArrowDown'), key('Enter')], () => screen.handle(key('=')));
+    expect([p.taxRate, p.scienceRate]).toEqual([6, 4]);
+    // menu GAME → Luxuries Rate: opcje 0–4 (10 − podatek), domyślnie 0 → 20% luksusu, nauka 20%
+    await drive(ui, [key('ArrowDown'), key('Enter'), key('ArrowDown'), key('ArrowDown'), key('Enter')], () => screen.handle(key('g', { alt: true })));
+    expect([p.taxRate, p.scienceRate]).toEqual([6, 2]);
+  });
+
+  it('FindCity: miasto widziane przez człowieka — mapa na nim; nieznane — „Unknown city.”', async () => {
+    const { foundCity } = await import('@civ-remake/engine');
+    const { ui, state, screen } = setup();
+    const h = state.humanPlayer;
+    const u = state.players[h]!.units[screen.activeUnit]!;
+    const cx = (u.x + 20) % 80;
+    const id = foundCity(state, h, cx, u.y, 1, 'Zagreb');
+    const city = state.cities[id]!;
+    state.map.explored[city.y * 80 + city.x]! |= 1 << h;
+    const typeName = (t: string) => [...t].map((c) => key(c));
+    await drive(ui, [...typeName('zag'), key('Enter')], () => screen.handle(key('?')));
+    expect(screen.viewX).toBe((city.x - 7 + 80) % 80);
+    const before = screen.viewX;
+    await drive(ui, [...typeName('Nowhere'), key('Enter'), key('x')], () => screen.handle(key('?')));
+    expect(screen.viewX).toBe(before);
+  });
 });
+

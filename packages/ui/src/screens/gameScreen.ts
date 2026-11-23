@@ -482,6 +482,10 @@ export class GameScreen {
   private async command(e: KeyEvent): Promise<GameScreenResult | null> {
     const h = this.human;
     const id = this.activeUnit;
+    // PlayerTurn (0x1403:0x35ce, 0x36b9): '+'/'=' podatki, '-'/'_' luksusy, '/'/'?' FindCity — także bez aktywnej jednostki
+    if (e.key === '+' || e.key === '=') { await this.taxRateDialog(); return null; }
+    if (e.key === '-' || e.key === '_') { await this.luxuryRateDialog(); return null; }
+    if (e.key === '/' || e.key === '?') { await this.findCityDialog(); return null; }
     if (id === -1) {
       if (e.key === 'Enter' || e.key === ' ') await this.endTurn();
       else if (DIRECTION_KEYS[e.key] !== undefined) this.scrollView(DIRECTION_KEYS[e.key]!);
@@ -1286,6 +1290,10 @@ export class GameScreen {
           disabled: this.state.turn === 0 ? 0x10 : 0,
         });
         switch (items[r.index]) {
+          // Menus: Tax Rate / Luxuries Rate / FindCity ustawiają skrót '=', '-', '?' obsługiwany potem w PlayerTurn
+          case ' Tax Rate': shortcut = 'tax'; break;
+          case ' Luxuries Rate': shortcut = 'luxury'; break;
+          case ' FindCity': shortcut = 'findCity'; break;
           case ' Options': await this.preferences(); break;
           case ' View Replay': shortcut = 'replay'; break;
           case ' Save Game': if (this.options.save || this.options.originalSaves?.write) shortcut = 'save'; break;
@@ -1332,6 +1340,9 @@ export class GameScreen {
       await this.redrawMapWithBlankingEffect();
     }
     if (report) await this.showReport(report);
+    if (shortcut === 'tax') await this.taxRateDialog();
+    else if (shortcut === 'luxury') await this.luxuryRateDialog();
+    else if (shortcut === 'findCity') await this.findCityDialog();
     if (shortcut === 'spaceships') {
       await spaceshipNationDialog(ui, this.assets, this.state);
       await this.redrawMapWithBlankingEffect();
@@ -1375,6 +1386,71 @@ export class GameScreen {
     const { text, keys, disabled } = ordersFor(this.state, this.human, this.activeUnit);
     const r = await showMenuBox(this.ui, text, MENU_X[1], 8, { disabled });
     return r.index >= 0 && r.index < keys.length && keys[r.index] ? keys[r.index]! : null;
+  }
+
+  /**
+   * PlayerTurn 0x1403:0x35ce–0x36b6: „Select new Tax rate:” — opcje 0 … podatek + nauka (luksus bez zmian), domyślnie obecny
+   * podatek (Var_2f9a), okno w (100, 80); nauka przejmuje różnicę. Potem F0_1238_107e (panel).
+   */
+  async taxRateDialog(): Promise<void> {
+    const p = this.state.players[this.human]!;
+    const total = p.taxRate + p.scienceRate;
+    let text = 'Select new Tax rate:\n';
+    for (let i = 0; i <= total; i++) text += ` ${i * 10}% Tax, (${(total - i) * 10}% Science)\n`;
+    const r = await showMenuBox(this.ui, text, 100, 80, { defaultIndex: p.taxRate });
+    if (r.index !== -1) {
+      p.scienceRate += p.taxRate - r.index;
+      p.taxRate = r.index;
+    }
+    this.redrawAll();
+    this.ui.present();
+  }
+
+  /** PlayerTurn 0x1403:0x36b9–0x37a3: „Select new Luxuries rate:” — opcje 0 … 10 − podatek; nauka = 10 − podatek − luksus. */
+  async luxuryRateDialog(): Promise<void> {
+    const p = this.state.players[this.human]!;
+    const free = 10 - p.taxRate;
+    let text = 'Select new Luxuries rate:\n';
+    for (let i = 0; i <= free; i++) text += ` ${i * 10}% Luxuries, (${(free - i) * 10}% Science)\n`;
+    const r = await showMenuBox(this.ui, text, 100, 80, { defaultIndex: 10 - p.taxRate - p.scienceRate });
+    if (r.index !== -1) p.scienceRate = free - r.index;
+    this.redrawAll();
+    this.ui.present();
+  }
+
+  /**
+   * F23_0000_025b / F23_0000_0319 (FindCity): białe okno (64, 78, 224×24) z ramką, „Where in the heck is ... (city name)”,
+   * pole na 16 znaków w (66, 89) — Esc kończy edycję jak Enter (tekst zostaje). Szukanie po kolejnych nazwach z listy nazw
+   * miast (strnicmp na długość wpisu — wpis jest początkiem nazwy), pierwsze istniejące miasto o tej nazwie. Gdy człowiek
+   * widział pole miasta — mapa wyśrodkowana na nim (DrawVisibleMap(x − 7, y − 6)); inaczej „Unknown city.” i klawisz.
+   */
+  async findCityDialog(): Promise<void> {
+    const ui = this.ui;
+    const gfx = ui.gfx;
+    gfx.copy(0, 0, 0, 320, 200, 1, 0, 0);
+    gfx.fillRect(64, 78, 224, 24, 15);
+    gfx.drawRectangle(64, 78, 224, 24, 0);
+    gfx.drawString('Where in the heck is ... (city name)', 66, 80, 0);
+    const typed = (await editBox(ui, 66, 89, 16, '')).text.toLowerCase();
+    let found = -1;
+    for (let n = 0; n < 256 && found === -1; n++) {
+      const name = (this.state.cityNames[n] ?? '').substring(0, 13).toLowerCase();
+      if (!name.startsWith(typed)) continue;
+      found = this.state.cities.findIndex((c) => c.status !== -1 && c.nameId === n);
+    }
+    const city = found !== -1 ? this.state.cities[found]! : undefined;
+    if (city && this.state.map.explored[cellIndex(city.x, city.y)]! & (1 << this.human)) {
+      this.drawVisibleMap(city.x - 7, city.y - 6);
+      this.drawStatusPanel();
+      ui.present();
+      return;
+    }
+    gfx.fillRect(64, 78, 224, 10, 15);
+    gfx.drawString('Unknown city.', 82, 80, 0);
+    ui.present();
+    await ui.waitKeyOrClick(); // F0_2459_0918
+    gfx.copy(1, 0, 0, 320, 200, 0, 0, 0);
+    ui.present();
   }
 
   /** GAME → Autosave...: co ile tur cichy autozapis (zaznaczona bieżąca wartość). */
